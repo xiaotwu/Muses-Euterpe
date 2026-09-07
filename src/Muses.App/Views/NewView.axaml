@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.NewView"
+             x:DataType="vm:ShellViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.editorialCard">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.editorialCard /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.editorialCard ctrl|HoverPlayButton">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.editorialCard:pointerover ctrl|HoverPlayButton">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.bestSongRow">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay0ABrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.bestSongRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay1EBrush}" />
+    </Style>
+    <Style Selector="Button.shelfCard">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.shelfCard /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.shelfCard ctrl|HoverPlayButton">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.shelfCard:pointerover ctrl|HoverPlayButton">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="40,32,40,96" Spacing="34" MaxWidth="1560">
+
+      <!-- Header -->
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding DiscoverLabel}"
+                   FontSize="34" FontWeight="Heavy"
+                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="Featured music and personalized discoveries"
+                   FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+      </StackPanel>
+
+      <!-- Editorial Landscape Cards -->
+      <StackPanel x:Name="EditorialSection" Spacing="13">
+        <TextBlock Text="Featured"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="EditorialContainer" Orientation="Horizontal" Spacing="20" />
+        </ScrollViewer>
+      </StackPanel>
+
+      <!-- Best New Songs Matrix -->
+      <StackPanel x:Name="BestNewSongsSection" Spacing="13">
+        <TextBlock Text="Best New Songs"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <WrapPanel x:Name="BestNewSongsContainer" Orientation="Horizontal" Margin="-8,0" />
+      </StackPanel>
+
+      <!-- Situational Shelves -->
+      <StackPanel x:Name="SituationalShelvesContainer" Spacing="34" />
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

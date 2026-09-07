@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Controls.CompactTrackRowControl"
+             Height="58"
+             Cursor="Hand">
+  <UserControl.Styles>
+    <Style Selector="Border.trackRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.trackRow:pointerover">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay1EBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border x:Name="RowBorder"
+          Classes="trackRow"
+          Padding="8,0"
+          HorizontalAlignment="Stretch">
+    <Panel>
+      <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+        <!-- 42x42 Artwork -->
+        <ctrl:ArtworkControl x:Name="TrackArt"
+                             Width="42" Height="42"
+                             CornerRadius="5"
+                             GlyphSize="18"
+                             Margin="0,0,12,0" />
+
+        <!-- Title & Artist -->
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+          <TextBlock x:Name="TitleText"
+                     FontSize="14" FontWeight="Medium"
+                     Foreground="{StaticResource MusesTextPrimaryBrush}"
+                     TextTrimming="CharacterEllipsis"
+                     MaxLines="1" />
+          <TextBlock x:Name="ArtistText"
+                     FontSize="12"
+                     Foreground="{StaticResource MusesTextSecondaryBrush}"
+                     TextTrimming="CharacterEllipsis"
+                     MaxLines="1" />
+        </StackPanel>
+
+        <!-- Right Indicators: NowPlaying Speaker & YouTubeMark -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="8,0,4,0">
+          <PathIcon x:Name="NowPlayingIcon"
+                    Data="M12,4L9.91,6.09L12,8.18M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18.03,19.86 21,16.28 21,12C21,7.72 18.03,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"
+                    Width="14" Height="14" Foreground="{StaticResource MusesAccentBrush}"
+                    IsVisible="False" />
+          <ctrl:YouTubeMark MarkSize="13" />
+        </StackPanel>
+      </Grid>
+
+      <!-- Bottom Hairline Separator -->
+      <Border Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" VerticalAlignment="Bottom" />
+    </Panel>
+  </Border>
+</UserControl>

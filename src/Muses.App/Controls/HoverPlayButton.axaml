@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Muses.App.Controls.HoverPlayButton"
+             Width="30" Height="30">
+  <Button x:Name="PlayBtn"
+          Width="30" Height="30"
+          CornerRadius="15"
+          Background="{StaticResource MusesAccentBrush}"
+          BorderThickness="0"
+          Padding="0"
+          Cursor="Hand"
+          HorizontalContentAlignment="Center"
+          VerticalContentAlignment="Center">
+    <Button.Styles>
+      <Style Selector="Button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#FF6D7E" />
+      </Style>
+    </Button.Styles>
+    <Path Width="11" Height="11"
+          Data="M 0,0 L 9,5.5 L 0,11 Z"
+          Fill="White"
+          Stretch="Uniform"
+          Margin="2,0,0,0"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center" />
+  </Button>
+</UserControl>

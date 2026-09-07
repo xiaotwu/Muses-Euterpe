@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.PlaylistsOverviewView">
+  <UserControl.Styles>
+    <Style Selector="Button.chromeBtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.chromeBtn PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextMutedBrush}" />
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+    </Style>
+    <Style Selector="Button.chromeBtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+    </Style>
+    <Style Selector="Button.chromeBtn:pointerover PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="40,32,40,96" Spacing="28">
+      <!-- Header Row -->
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock x:Name="PageTitleText" Text="All Playlists"
+                   FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <Button Grid.Column="1" x:Name="AddButton" Classes="chromeBtn" ToolTip.Tip="New Playlist">
+          <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+        </Button>
+      </Grid>
+
+      <!-- Undo Banner -->
+      <Border x:Name="UndoBanner" IsVisible="False"
+              Background="{StaticResource MusesSurfaceBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1"
+              CornerRadius="8" Padding="14,10">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <PathIcon Data="M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z"
+                      Width="14" Height="14" Foreground="{StaticResource MusesAccentBrush}" />
+            <TextBlock x:Name="UndoMessageText" Foreground="{StaticResource MusesTextPrimaryBrush}" FontSize="13" VerticalAlignment="Center" />
+          </StackPanel>
+          <Button Grid.Column="1" x:Name="UndoButton"
+                  Content="Undo"
+                  Background="{StaticResource MusesWhiteOverlay38Brush}" Foreground="White"
+                  BorderThickness="0" CornerRadius="6"
+                  Padding="12,4" Cursor="Hand" />
+        </Grid>
+      </Border>
+
+      <!-- Empty State -->
+      <StackPanel x:Name="EmptyPanel" IsVisible="False"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Margin="0,60,0,60" Spacing="14">
+        <PathIcon Data="M15,6H3V8H15V6M15,10H3V12H15V10M3,16H11V14H3V16M17,6V14.18C16.69,14.07 16.35,14 16,14A3,3 0 0,0 13,17A3,3 0 0,0 16,20A3,3 0 0,0 19,17V8H22V6H17Z"
+                  Width="44" Height="44" Foreground="{StaticResource MusesWhiteOverlay66Brush}" />
+        <TextBlock x:Name="EmptyTitleText" Text="No playlists"
+                   FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}"
+                   HorizontalAlignment="Center" />
+        <TextBlock x:Name="EmptySubtitleText" Text="Create a Muses playlist or import one from YouTube."
+                   FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                   HorizontalAlignment="Center" />
+        <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center" Margin="0,10,0,0">
+          <Button x:Name="EmptyCreateButton" Content="New Playlist"
+                  Background="{StaticResource MusesAccentBrush}" Foreground="White"
+                  BorderThickness="0" CornerRadius="8" Padding="14,8" Cursor="Hand" />
+          <Button x:Name="EmptyImportButton" Content="Import YouTube Playlist"
+                  Background="{StaticResource MusesSurfaceBrush}" Foreground="{StaticResource MusesTextPrimaryBrush}"
+                  BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1"
+                  CornerRadius="8" Padding="14,8" Cursor="Hand" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Card Grid Container -->
+      <WrapPanel x:Name="CardsWrapPanel" Margin="0,8,0,0" />
+
+      <!-- Recently Deleted Section -->
+      <StackPanel x:Name="RecentlyDeletedSection" IsVisible="False" Spacing="12" Margin="0,24,0,0">
+        <Border Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" Margin="0,0,0,16" />
+        <TextBlock x:Name="RecentDeletedTitle" Text="Recently Deleted"
+                   FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock x:Name="RecentDeletedSubtitle"
+                   Text="Local recovery is available for 30 days. Restoring never pushes to YouTube."
+                   FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        <StackPanel x:Name="RecentDeletedItemsPanel" Spacing="8" Margin="0,8,0,0" />
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.YouTubeVideoOverlay"
+             x:DataType="vm:ShellViewModel">
+  <Panel>
+    <!-- Scrim Backdrop -->
+    <Border Background="{StaticResource MusesBlackOverlay99Brush}" PointerPressed="OnScrimPointerPressed" />
+
+    <!-- Video Modal Card -->
+    <Border Background="{StaticResource MusesSurfaceChromeBrush}"
+            BorderBrush="{StaticResource MusesHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="18"
+            Width="800"
+            Padding="24"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            BoxShadow="0 20 40 0 #80000000">
+      <StackPanel Spacing="16">
+        <!-- Header -->
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <ctrl:YouTubeMark MarkSize="18" />
+            <TextBlock Text="YouTube Video" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </StackPanel>
+          <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Width="32" Height="32"
+                  Cursor="Hand" Command="{Binding CloseVideoOverlayCommand}">
+            <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                      Width="12" Height="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </Button>
+        </Grid>
+
+        <!-- 16:9 Video Canvas -->
+        <Border CornerRadius="12" ClipToBounds="True" Height="420" Background="#000000">
+          <Panel>
+            <ctrl:ArtworkControl SourceUrl="{Binding NowPlayingArtworkUrl}" GlyphSize="64" />
+
+            <!-- Dark gradient scrim over artwork -->
+            <Border Background="{StaticResource MusesBlackOverlay4DBrush}" />
+
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
+              <Button Width="64" Height="64" CornerRadius="32" Background="{StaticResource MusesAccentOverlayE6Brush}" BorderThickness="0"
+                      Cursor="Hand" Click="OnOpenInBrowserClicked" HorizontalAlignment="Center">
+                <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" Width="24" Height="24" Foreground="White" Margin="2,0,0,0" />
+              </Button>
+              <TextBlock Text="{Binding NowPlayingTitle}" FontSize="16" FontWeight="SemiBold"
+                         Foreground="White" HorizontalAlignment="Center" MaxWidth="600"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding NowPlayingArtist}" FontSize="13"
+                         Foreground="{StaticResource MusesWhiteOverlayB3Brush}" HorizontalAlignment="Center" MaxWidth="600"
+                         TextTrimming="CharacterEllipsis" />
+              <Button Classes="chromeBtn" Background="{StaticResource MusesWhiteOverlay33Brush}" BorderThickness="0"
+                      CornerRadius="8" Padding="14,6" Cursor="Hand" Click="OnOpenInBrowserClicked"
+                      HorizontalAlignment="Center" Margin="0,8,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <ctrl:YouTubeMark MarkSize="14" />
+                  <TextBlock Text="Watch on YouTube" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+          </Panel>
+        </Border>
+
+        <!-- Footer note -->
+        <TextBlock Text="Native audio playback is suspended while the video stage is active."
+                   FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

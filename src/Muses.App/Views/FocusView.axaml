@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             x:Class="Muses.App.Views.FocusView"
+             x:DataType="vm:ShellViewModel">
+  <Border Background="{StaticResource MusesSurfaceChromeBrush}"
+          BorderBrush="{StaticResource MusesHairlineBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          Padding="24"
+          Width="380"
+          BoxShadow="0 16 40 0 #80000000">
+    <StackPanel Spacing="16">
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="Focus Mode" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="✕" Background="Transparent" BorderThickness="0"
+                Foreground="{StaticResource MusesTextSecondaryBrush}" Cursor="Hand"
+                Command="{Binding CloseFocusCommand}" />
+      </Grid>
+
+      <!-- Active Session Section -->
+      <StackPanel Spacing="16" IsVisible="{Binding IsFocusActive}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{Binding FocusPhaseLabel}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          <TextBlock Grid.Column="1" Text="{Binding FocusRemainingFormatted}"
+                     FontFamily="Consolas, monospace" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesAccentBrush}" />
+        </Grid>
+
+        <Border Background="{StaticResource MusesAccentOverlay14Brush}" BorderBrush="{StaticResource MusesAccentOverlay33Brush}" BorderThickness="1" CornerRadius="8" Padding="10"
+                IsVisible="{Binding IsFocusQueueLocked}">
+          <TextBlock Text="🔒 Queue is locked during focus session" FontSize="12" Foreground="{StaticResource MusesAccentBrush}" />
+        </Border>
+
+        <Button Content="End Focus"
+                Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                CornerRadius="8" Padding="14,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                FontWeight="SemiBold"
+                Command="{Binding EndFocusCommand}" Cursor="Hand" />
+      </StackPanel>
+
+      <!-- Inactive Setup Section -->
+      <StackPanel Spacing="14" IsVisible="{Binding !IsFocusActive}">
+        <!-- Pomodoro Toggle -->
+        <CheckBox Content="Pomodoro (25 focus + 5 break)"
+                  IsChecked="{Binding FocusPomodoroEnabled, Mode=TwoWay}" />
+
+        <!-- Duration Picker (when not Pomodoro) -->
+        <StackPanel Spacing="8" IsVisible="{Binding !FocusPomodoroEnabled}">
+          <CheckBox Content="No timer (untimed focus)"
+                    IsChecked="{Binding FocusUntimed, Mode=TwoWay}" />
+
+          <StackPanel Spacing="6" IsVisible="{Binding !FocusUntimed}">
+            <TextBlock Text="Duration" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <RadioButton Content="25m" GroupName="FocusDuration" IsChecked="{Binding FocusMinutes25}" />
+              <RadioButton Content="45m" GroupName="FocusDuration" IsChecked="{Binding FocusMinutes45}" />
+              <RadioButton Content="60m" GroupName="FocusDuration" IsChecked="{Binding FocusMinutes60}" />
+              <RadioButton Content="90m" GroupName="FocusDuration" IsChecked="{Binding FocusMinutes90}" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Expiry Action Picker -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="On expiry" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <RadioButton Content="Pause" GroupName="FocusExpiry" IsChecked="{Binding FocusExpiryPause}" />
+            <RadioButton Content="Keep Playing" GroupName="FocusExpiry" IsChecked="{Binding FocusExpiryKeepPlaying}" />
+            <RadioButton Content="Notify Only" GroupName="FocusExpiry" IsChecked="{Binding FocusExpiryNotifyOnly}" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Queue Lock Toggle -->
+        <CheckBox Content="Lock queue"
+                  IsChecked="{Binding FocusLockQueue, Mode=TwoWay}" />
+
+        <!-- Start Button -->
+        <Button Content="Start Focus"
+                Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                CornerRadius="8" Padding="14,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                FontWeight="SemiBold"
+                Command="{Binding StartFocusCommand}" Cursor="Hand" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

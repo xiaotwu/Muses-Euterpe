@@ -1,0 +1,104 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             x:Class="Muses.App.Views.NotesSheet"
+             x:DataType="vm:ShellViewModel">
+  <Border Background="{StaticResource MusesSurfaceChromeBrush}"
+          BorderBrush="{StaticResource MusesHairlineBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          Padding="24"
+          Width="460"
+          MaxHeight="560"
+          BoxShadow="0 16 40 0 #80000000">
+    <DockPanel>
+      <!-- Header -->
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+        <StackPanel Spacing="2">
+          <TextBlock Text="{Binding NowPlayingTitle, FallbackValue='Track Notes'}"
+                     FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding NowPlayingArtist, FallbackValue=''}"
+                     FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="Done"
+                Background="{StaticResource MusesSurfaceBrush}" Foreground="{StaticResource MusesAccentBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1"
+                CornerRadius="8" Padding="14,6"
+                Command="{Binding CloseNotesCommand}" Cursor="Hand" />
+      </Grid>
+
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="18">
+          <!-- Note Section -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="Note" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBox Text="{Binding CurrentTrackNote, Mode=TwoWay}"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     MinHeight="100"
+                     MaxHeight="140"
+                     Watermark="Add private thoughts, lyrics commentary, or chords..." />
+          </StackPanel>
+
+          <!-- Bookmarks Section -->
+          <StackPanel Spacing="10">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Bookmarks" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding CurrentPositionFormatted, StringFormat='Now: {0}'}"
+                         FontSize="12" Foreground="{StaticResource MusesAccentBrush}" VerticalAlignment="Center" />
+            </Grid>
+
+            <!-- Bookmarks List -->
+            <ItemsControl ItemsSource="{Binding CurrentTrackBookmarks}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{StaticResource MusesPageBrush}" CornerRadius="8" Padding="10" Margin="0,3">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <!-- Jump to timestamp button -->
+                      <Button Content="{Binding FormattedTimestamp}"
+                              Background="{StaticResource MusesSurfaceBrush}" Foreground="{StaticResource MusesAccentBrush}" BorderThickness="0"
+                              CornerRadius="6" Padding="8,4"
+                              FontFamily="Consolas, monospace" FontSize="12" FontWeight="SemiBold"
+                              Command="{Binding $parent[UserControl].((vm:ShellViewModel)DataContext).SeekToBookmarkCommand}"
+                              CommandParameter="{Binding TimestampMs}"
+                              Cursor="Hand" ToolTip.Tip="Jump to timestamp" />
+
+                      <!-- Title and Note -->
+                      <StackPanel Grid.Column="1" Margin="10,0" Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Title, FallbackValue='Bookmark'}" FontSize="13" Foreground="{StaticResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Note}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      </StackPanel>
+
+                      <!-- Delete button -->
+                      <Button Grid.Column="2" Content="✕"
+                              Background="Transparent" BorderThickness="0" Foreground="{StaticResource MusesWhiteOverlay73Brush}"
+                              Command="{Binding $parent[UserControl].((vm:ShellViewModel)DataContext).DeleteBookmarkCommand}"
+                              CommandParameter="{Binding Id}"
+                              Cursor="Hand" ToolTip.Tip="Delete bookmark" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="No bookmarks added yet." FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}"
+                       IsVisible="{Binding !HasBookmarks}" />
+
+            <!-- Add Bookmark Row -->
+            <Border Background="{StaticResource MusesPageBrush}" CornerRadius="8" Padding="10" Margin="0,6,0,0">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding NewBookmarkTitle, Mode=TwoWay}"
+                         Watermark="Bookmark label (optional)..."
+                         Margin="0,0,8,0" />
+                <Button Grid.Column="1" Content="+ Add at Current Position"
+                        Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                        CornerRadius="6" Padding="12,6" FontSize="12" FontWeight="SemiBold"
+                        Command="{Binding AddBookmarkAtCurrentPositionCommand}" Cursor="Hand" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

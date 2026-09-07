@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             x:Class="Muses.App.Controls.VolumeSliderControl"
+             x:DataType="vm:ShellViewModel">
+  <Border Width="210" Height="34"
+          CornerRadius="17"
+          Background="{StaticResource MusesSurfaceChromeBrush}"
+          BorderBrush="{StaticResource MusesHairlineBrush}"
+          BorderThickness="1"
+          BoxShadow="0 8 16 0 #40000000"
+          Padding="10,0">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+      <!-- Mute / Unmute Button -->
+      <Button x:Name="MuteButton"
+              Background="Transparent"
+              BorderThickness="0"
+              Padding="0"
+              Width="20" Height="20"
+              Cursor="Hand"
+              Click="OnMuteClicked">
+        <Panel>
+          <!-- Speaker Muted -->
+          <PathIcon Width="12" Height="12" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                    Data="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L4.27,3M19,12C19,12.82 18.85,13.61 18.59,14.34L20.2,15.95C20.71,14.77 21,13.43 21,12A9,9 0 0,0 12,3V5.08C15.92,5.55 19,8.42 19,12M12,4L9.91,6.09L12,8.18M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"
+                    IsVisible="{Binding CurrentVolume, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=0}" />
+          <!-- Speaker Normal -->
+          <PathIcon Width="12" Height="12" Foreground="{StaticResource MusesTextPrimaryBrush}"
+                    Data="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18.03,19.86 21,16.28 21,12C21,7.72 18.03,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"
+                    IsVisible="{Binding CurrentVolume, Converter={x:Static ObjectConverters.NotEqual}, ConverterParameter=0}" />
+        </Panel>
+      </Button>
+
+      <!-- Volume Slider -->
+      <Slider Grid.Column="1"
+              Margin="8,0"
+              Minimum="0" Maximum="1"
+              Value="{Binding CurrentVolume, Mode=TwoWay}"
+              ValueChanged="OnSliderValueChanged"
+              VerticalAlignment="Center" />
+
+      <!-- Percentage Text -->
+      <TextBlock Grid.Column="2"
+                 Text="{Binding VolumePercent, StringFormat='{}{0}%'}"
+                 FontSize="11"
+                 Foreground="{StaticResource MusesTextSecondaryBrush}"
+                 Width="28"
+                 TextAlignment="Right"
+                 VerticalAlignment="Center" />
+    </Grid>
+  </Border>
+</UserControl>

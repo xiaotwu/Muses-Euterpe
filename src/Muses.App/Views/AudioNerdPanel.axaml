@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             x:Class="Muses.App.Views.AudioNerdPanel"
+             x:DataType="vm:ShellViewModel">
+  <Border Background="{StaticResource MusesSurfaceChromeBrush}"
+          BorderBrush="{StaticResource MusesHairlineBrush}"
+          BorderThickness="1"
+          CornerRadius="16"
+          Padding="24"
+          Width="420"
+          BoxShadow="0 16 40 0 #80000000">
+    <StackPanel Spacing="16">
+      <!-- Header -->
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="Audio Info" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="✕" Background="Transparent" BorderThickness="0"
+                Foreground="{StaticResource MusesTextSecondaryBrush}" Cursor="Hand"
+                Command="{Binding CloseAudioNerdCommand}" />
+      </Grid>
+
+      <!-- Track Audio Info Table -->
+      <Border Background="{StaticResource MusesPageBrush}" CornerRadius="10" Padding="14">
+        <ItemsControl ItemsSource="{Binding AudioInfoRows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="*,Auto" Margin="0,3">
+                <TextBlock Text="{Binding Label}" Foreground="{StaticResource MusesTextSecondaryBrush}" FontSize="13" />
+                <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="{StaticResource MusesTextPrimaryBrush}"
+                           FontFamily="Consolas, monospace" FontSize="13" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+
+      <!-- Spectrum Display -->
+      <Border Background="{StaticResource MusesPageBrush}" CornerRadius="10" Padding="14" Height="90">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Spectrum" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MusesTextSecondaryBrush}" Margin="0,0,0,8" />
+          <Grid ColumnDefinitions="*,*,*,*,*,*,*,*,*,*,*,*,*,*,*,*" Margin="0,4">
+            <Border Grid.Column="0" Background="{StaticResource MusesAccentBrush}" Height="30" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="1" Background="{StaticResource MusesAccentBrush}" Height="45" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="2" Background="{StaticResource MusesAccentBrush}" Height="60" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="3" Background="{StaticResource MusesAccentBrush}" Height="40" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="4" Background="{StaticResource MusesAccentBrush}" Height="55" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="5" Background="{StaticResource MusesAccentBrush}" Height="35" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="6" Background="{StaticResource MusesAccentBrush}" Height="50" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="7" Background="{StaticResource MusesAccentBrush}" Height="65" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="8" Background="{StaticResource MusesAccentBrush}" Height="48" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="9" Background="{StaticResource MusesAccentBrush}" Height="38" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="10" Background="{StaticResource MusesAccentBrush}" Height="52" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="11" Background="{StaticResource MusesAccentBrush}" Height="30" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="12" Background="{StaticResource MusesAccentBrush}" Height="42" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="13" Background="{StaticResource MusesAccentBrush}" Height="25" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="14" Background="{StaticResource MusesAccentBrush}" Height="35" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+            <Border Grid.Column="15" Background="{StaticResource MusesAccentBrush}" Height="20" VerticalAlignment="Bottom" CornerRadius="2" Margin="1" />
+          </Grid>
+        </DockPanel>
+      </Border>
+
+      <!-- Open EQ Editor Button -->
+      <Button Content="Open EQ Editor"
+              Background="{StaticResource MusesSurfaceBrush}" Foreground="{StaticResource MusesAccentBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1"
+              CornerRadius="8" Padding="14,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+              Command="{Binding OpenEQFromAudioNerdCommand}" Cursor="Hand" />
+    </StackPanel>
+  </Border>
+</UserControl>

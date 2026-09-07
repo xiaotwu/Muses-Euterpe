@@ -1,0 +1,37 @@
+# Build
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+TestResults/
+
+# OS / tools
+.DS_Store
+.worktrees/
+.agents/
+.codex/
+.claude/
+.zcode/
+.remember/
+.superpowers/
+.artifacts/
+shot/
+node_modules/
+
+# Secrets and vendored binaries
+client_secret*.json
+resources/yt-dlp
+resources/yt-dlp.exe
+resources/yt-dlp-LICENSE
+
+# Local stores
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

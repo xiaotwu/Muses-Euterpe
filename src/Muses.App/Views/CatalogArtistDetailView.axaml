@@ -1,0 +1,96 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.CatalogArtistDetailView"
+             x:DataType="vm:ShellViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.chromeBtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.chromeBtn PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextMutedBrush}" />
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+    </Style>
+    <Style Selector="Button.chromeBtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+    </Style>
+    <Style Selector="Button.chromeBtn:pointerover PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.discRow">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay0ABrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.discRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay1EBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="40,32,40,96" Spacing="34" MaxWidth="1560">
+
+      <!-- Back Button & Header -->
+      <StackPanel Spacing="16">
+        <Button Classes="chromeBtn" Click="OnBackClicked" ToolTip.Tip="Back to Artists">
+          <PathIcon Data="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" />
+        </Button>
+
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <ctrl:ArtworkControl x:Name="ArtistAvatar" Width="120" Height="120"
+                               CornerRadius="60" GlyphSize="48" Margin="0,0,24,0" />
+
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
+            <TextBlock x:Name="ArtistNameText" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="ArtistStatsText" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </StackPanel>
+
+          <!-- Action Buttons -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button Classes="chromeBtn" Click="OnPlayAllClicked" ToolTip.Tip="Play All">
+              <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" />
+            </Button>
+            <Button Classes="chromeBtn" Click="OnShuffleClicked" ToolTip.Tip="Shuffle">
+              <PathIcon Data="M14.83,13.41L13.42,14.82L16.55,17.95L14.5,20H20V14.5L17.96,16.54L14.83,13.41M14.5,4L16.54,6.04L4,18.59L5.41,20L17.96,7.46L20,9.5V4M10.59,9.17L5.41,4L4,5.41L9.17,10.58L10.59,9.17Z" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+
+      <!-- Top Songs Section -->
+      <StackPanel x:Name="TopSongsSection" Spacing="13">
+        <TextBlock Text="Top Songs" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <StackPanel x:Name="TopSongsContainer" Spacing="4" />
+      </StackPanel>
+
+      <!-- Albums Section -->
+      <StackPanel x:Name="AlbumsSection" Spacing="13">
+        <TextBlock Text="Albums" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="AlbumsContainer" Orientation="Horizontal" Spacing="18" />
+        </ScrollViewer>
+      </StackPanel>
+
+      <!-- Singles & EPs Section -->
+      <StackPanel x:Name="SinglesSection" Spacing="13">
+        <TextBlock Text="Singles &amp; EPs" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="SinglesContainer" Orientation="Horizontal" Spacing="18" />
+        </ScrollViewer>
+      </StackPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

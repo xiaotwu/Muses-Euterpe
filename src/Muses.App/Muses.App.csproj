@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>Muses.App</RootNamespace>
+    <AssemblyName>Muses</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <Version>0.1.0</Version>
+    <Product>Muses</Product>
+    <Authors>xiaotwu</Authors>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.2" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="FluentAvaloniaUI" Version="2.3.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
+    <ProjectReference Include="..\Muses.Persistence\Muses.Persistence.csproj" />
+    <ProjectReference Include="..\Muses.Infrastructure\Muses.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+    <None Include="..\..\resources\yt-dlp" Link="yt-dlp" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\yt-dlp')" />
+    <None Include="..\..\resources\yt-dlp.exe" Link="yt-dlp.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\yt-dlp.exe')" />
+  </ItemGroup>
+</Project>

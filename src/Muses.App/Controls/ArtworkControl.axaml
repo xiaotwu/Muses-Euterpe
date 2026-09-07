@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Muses.App.Controls.ArtworkControl">
+  <Border x:Name="Container"
+          Background="{StaticResource MusesSurfaceBrush}"
+          ClipToBounds="True">
+    <Panel>
+      <!-- Placeholder -->
+      <Panel x:Name="PlaceholderPanel" IsVisible="True">
+        <PathIcon Width="16" Height="16"
+                  Foreground="{StaticResource MusesWhiteOverlay80Brush}"
+                  Data="M12,3V13.55C11.41,13.21 10.73,13 10,13C7.79,13 6,14.79 6,17C6,19.21 7.79,21 10,21C12.21,21 14,19.21 14,17V7H18V3H12Z"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center" />
+      </Panel>
+
+      <!-- Loaded image -->
+      <Image x:Name="ArtworkImage"
+             Stretch="UniformToFill"
+             IsVisible="False" />
+    </Panel>
+  </Border>
+</UserControl>

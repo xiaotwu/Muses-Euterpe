@@ -1,0 +1,6 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:col="using:Muses.App.Controls.Collection"
+             x:Class="Muses.App.Views.SongsView">
+  <col:CollectionPage x:Name="Page" />
+</UserControl>

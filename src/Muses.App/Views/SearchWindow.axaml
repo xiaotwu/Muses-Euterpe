@@ -1,0 +1,195 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctrl="using:Muses.App.Controls"
+        x:Class="Muses.App.Views.SearchWindow"
+        Title="Search Muses"
+        Width="680" Height="620"
+        MinWidth="600" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource MusesPageBrush}"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="36">
+  <Window.Styles>
+    <Style Selector="Button.scopeChip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.scopeChip.selected">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay33Brush}" />
+    </Style>
+    <Style Selector="Button.scopeChip TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.scopeChip.selected TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.landingBtn">
+      <Setter Property="Background" Value="{StaticResource MusesSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource MusesHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.landingBtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesSurfaceOverlay33Brush}" />
+    </Style>
+    <Style Selector="Button.searchResultRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.searchResultRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+    </Style>
+  </Window.Styles>
+
+  <Border BorderBrush="{StaticResource MusesWhiteOverlay2EBrush}" BorderThickness="1" Background="{StaticResource MusesPageBrush}">
+    <DockPanel>
+
+      <!-- Draggable Header -->
+      <Border DockPanel.Dock="Top" Height="36" Background="#18181B"
+              PointerPressed="OnHeaderPointerPressed">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Search Muses" FontSize="12" FontWeight="SemiBold"
+                     Foreground="{StaticResource MusesWhiteOverlay99Brush}" VerticalAlignment="Center" Margin="16,0,0,0" />
+          <Button Grid.Column="1" Content="✕" Background="Transparent" BorderThickness="0"
+                  Foreground="{StaticResource MusesTextSecondaryBrush}" Width="36" Height="36" Cursor="Hand" Click="OnCloseClicked" />
+        </Grid>
+      </Border>
+
+      <!-- Search Chrome & Controls -->
+      <Border DockPanel.Dock="Top" Padding="20,16,20,12" Background="{StaticResource MusesPageBrush}">
+        <StackPanel Spacing="12">
+
+          <!-- Search Input Box -->
+          <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="10,0" Height="40">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+              <PathIcon Data="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"
+                        Width="14" Height="14" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBox Grid.Column="1" x:Name="SearchBox"
+                       Watermark="Artists, songs, albums, and videos"
+                       Background="Transparent" BorderThickness="0"
+                       Foreground="{StaticResource MusesTextPrimaryBrush}" FontSize="14"
+                       VerticalAlignment="Center"
+                       TextChanged="OnSearchTextChanged"
+                       KeyDown="OnSearchBoxKeyDown" />
+              <!-- YouTube Searching indicator -->
+              <ProgressBar Grid.Column="2" x:Name="SearchSpinner" IsIndeterminate="True"
+                           Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0"
+                           IsVisible="False" />
+              <!-- Clear button -->
+              <Button Grid.Column="3" x:Name="ClearBtn" Content="✕"
+                      Background="Transparent" BorderThickness="0"
+                      Foreground="{StaticResource MusesTextSecondaryBrush}" Cursor="Hand"
+                      VerticalAlignment="Center" IsVisible="False"
+                      Click="OnClearClicked" />
+            </Grid>
+          </Border>
+
+          <!-- Scope Selector Chips -->
+          <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="2" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <Button x:Name="ScopeAllBtn" Classes="scopeChip selected" Click="OnScopeAll">
+                <TextBlock Text="All" />
+              </Button>
+              <Button x:Name="ScopeLibraryBtn" Classes="scopeChip" Click="OnScopeLibrary">
+                <TextBlock Text="Library" />
+              </Button>
+              <Button x:Name="ScopeYouTubeBtn" Classes="scopeChip" Click="OnScopeYouTube">
+                <TextBlock Text="YouTube Music" />
+              </Button>
+            </StackPanel>
+          </Border>
+
+        </StackPanel>
+      </Border>
+
+      <!-- Content Viewports -->
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Padding="20,0,20,20">
+        <Panel>
+          <!-- Landing View (Query Empty) -->
+          <StackPanel x:Name="LandingPanel" Spacing="16" Margin="0,10,0,0">
+            <TextBlock Text="Browse Your Music" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,0">
+              <Button Classes="landingBtn" Margin="0,0,8,0" Click="OnBrowseSongs">
+                <StackPanel Spacing="10">
+                  <PathIcon Data="M12,3V13.55C11.41,13.21 10.73,13 10,13C7.79,13 6,14.79 6,17C6,19.21 7.79,21 10,21C12.21,21 14,19.21 14,17V7H18V3H12Z"
+                            Width="24" Height="24" Foreground="{StaticResource MusesAccentBrush}" />
+                  <TextBlock Text="Songs" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="1" Classes="landingBtn" Margin="4,0,4,0" Click="OnBrowseAlbums">
+                <StackPanel Spacing="10">
+                  <PathIcon Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"
+                            Width="24" Height="24" Foreground="{StaticResource MusesAccentBrush}" />
+                  <TextBlock Text="Albums" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="2" Classes="landingBtn" Margin="8,0,0,0" Click="OnBrowseArtists">
+                <StackPanel Spacing="10">
+                  <PathIcon Data="M16,4C18.21,4 20,5.79 20,8C20,10.21 18.21,12 16,12C13.79,12 12,10.21 12,8C12,5.79 13.79,4 16,4M16,14C20.42,14 24,15.79 24,18V20H8V18C8,15.79 11.58,14 16,14M8,4C10.21,4 12,5.79 12,8C12,9.1 11.5,10.1 10.75,10.75C9.5,10.28 8,10 6.5,10C5,10 3.5,10.28 2.25,10.75C1.5,10.1 1,9.1 1,8C1,5.79 2.79,4 5,4H8Z"
+                            Width="24" Height="24" Foreground="{StaticResource MusesAccentBrush}" />
+                  <TextBlock Text="Artists" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                </StackPanel>
+              </Button>
+            </Grid>
+          </StackPanel>
+
+          <!-- Results View (Query Active) -->
+          <StackPanel x:Name="ResultsPanel" Spacing="24" IsVisible="False">
+            <!-- Songs Group -->
+            <StackPanel x:Name="SongsGroup" Spacing="8">
+              <TextBlock Text="Songs" FontSize="17" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <StackPanel x:Name="SongsResultsContainer" Spacing="2" />
+            </StackPanel>
+
+            <!-- Albums Group -->
+            <StackPanel x:Name="AlbumsGroup" Spacing="8">
+              <TextBlock Text="Albums" FontSize="17" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="AlbumsResultsContainer" Orientation="Horizontal" Spacing="14" />
+              </ScrollViewer>
+            </StackPanel>
+
+            <!-- Artists Group -->
+            <StackPanel x:Name="ArtistsGroup" Spacing="8">
+              <TextBlock Text="Artists" FontSize="17" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="ArtistsResultsContainer" Orientation="Horizontal" Spacing="14" />
+              </ScrollViewer>
+            </StackPanel>
+
+            <!-- YouTube Music Group -->
+            <StackPanel x:Name="YouTubeGroup" Spacing="8">
+              <TextBlock Text="YouTube Music" FontSize="17" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <StackPanel x:Name="YouTubeResultsContainer" Spacing="2" />
+            </StackPanel>
+
+            <!-- No Results View -->
+            <StackPanel x:Name="NoResultsPanel" Spacing="6" HorizontalAlignment="Center" Margin="0,40,0,0" IsVisible="False">
+              <TextBlock Text="No results found" FontSize="16" FontWeight="SemiBold"
+                         Foreground="{StaticResource MusesTextPrimaryBrush}" HorizontalAlignment="Center" />
+              <TextBlock Text="Try another title, artist, album, or video." FontSize="13"
+                         Foreground="{StaticResource MusesTextSecondaryBrush}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </StackPanel>
+        </Panel>
+      </ScrollViewer>
+
+    </DockPanel>
+  </Border>
+</Window>

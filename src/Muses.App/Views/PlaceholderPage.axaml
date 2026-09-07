@@ -1,0 +1,11 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Muses.App.Views.PlaceholderPage">
+  <StackPanel Margin="40,32,40,96" Spacing="8">
+    <TextBlock x:Name="TitleBlock"
+               FontSize="34" FontWeight="Heavy"
+               Foreground="{StaticResource MusesTextPrimaryBrush}" />
+    <TextBlock Text="Coming in a later wave of the Windows port."
+               FontSize="14" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+  </StackPanel>
+</UserControl>

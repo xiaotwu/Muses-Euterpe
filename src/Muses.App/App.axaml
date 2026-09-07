@@ -1,0 +1,160 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="using:System"
+             xmlns:sty="using:FluentAvalonia.Styling"
+             x:Class="Muses.App.App"
+             RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <FontFamily x:Key="MonteCarlo">avares://Muses/Assets/Fonts/MonteCarlo.ttf#MonteCarlo</FontFamily>
+    <FontFamily x:Key="Inter">fonts:Inter#Inter, Segoe UI Variable, Segoe UI, sans-serif</FontFamily>
+
+    <!-- Semantic Color tokens (BrandColors / AppleMusicTokens + chrome alphas) -->
+    <Color x:Key="MusesAccent">#FA586A</Color>
+    <Color x:Key="MusesPageDark">#1F1F1F</Color>
+    <Color x:Key="MusesSurfaceDark">#26262B</Color>
+    <Color x:Key="MusesTextPrimary">#F0F0F0</Color>
+    <Color x:Key="MusesTextSecondary">#A6A6AD</Color>
+    <Color x:Key="MusesTextMuted">#B3B3B8</Color>
+    <Color x:Key="MusesYouTubeRed">#FF0000</Color>
+    <Color x:Key="MusesHairline">#1AFFFFFF</Color>
+    <Color x:Key="MusesScrim">#59000000</Color>
+    <Color x:Key="MusesSurfaceChrome">#E626262B</Color>
+    <Color x:Key="MusesCapsule">#CC26262B</Color>
+    <Color x:Key="MusesDrawer">#F226262B</Color>
+    <Color x:Key="MusesSurfaceOverlay1F">#1F26262B</Color>
+    <Color x:Key="MusesSurfaceOverlay33">#3326262B</Color>
+    <Color x:Key="MusesSurfaceOverlay40">#4026262B</Color>
+    <Color x:Key="MusesPageOpaqueDark">#D91F1F1F</Color>
+    <Color x:Key="MusesWhiteOverlay0A">#0AFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay0D">#0DFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay14">#14FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay1A">#1AFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay1E">#1EFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay24">#24FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay26">#26FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay2A">#2AFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay2E">#2EFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay33">#33FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay38">#38FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay40">#40FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay47">#47FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay59">#59FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay61">#61FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay66">#66FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay73">#73FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay80">#80FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlay99">#99FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlayB3">#B3FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlayCC">#CCFFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlayD1">#D1FFFFFF</Color>
+    <Color x:Key="MusesWhiteOverlayE6">#E6FFFFFF</Color>
+    <Color x:Key="MusesAccentOverlay14">#14FA586A</Color>
+    <Color x:Key="MusesAccentOverlay1A">#1AFA586A</Color>
+    <Color x:Key="MusesAccentOverlay26">#26FA586A</Color>
+    <Color x:Key="MusesAccentOverlay33">#33FA586A</Color>
+    <Color x:Key="MusesAccentOverlay59">#59FA586A</Color>
+    <Color x:Key="MusesAccentOverlay85">#85FA586A</Color>
+    <Color x:Key="MusesAccentOverlay99">#99FA586A</Color>
+    <Color x:Key="MusesAccentOverlayD9">#D9FA586A</Color>
+    <Color x:Key="MusesAccentOverlayE6">#E6FA586A</Color>
+    <Color x:Key="MusesBlackOverlay33">#33000000</Color>
+    <Color x:Key="MusesBlackOverlay40">#40000000</Color>
+    <Color x:Key="MusesBlackOverlay4D">#4D000000</Color>
+    <Color x:Key="MusesBlackOverlay55">#55000000</Color>
+    <Color x:Key="MusesBlackOverlay59">#59000000</Color>
+    <Color x:Key="MusesBlackOverlay60">#60000000</Color>
+    <Color x:Key="MusesBlackOverlay66">#66000000</Color>
+    <Color x:Key="MusesBlackOverlay73">#73000000</Color>
+    <Color x:Key="MusesBlackOverlay80">#80000000</Color>
+    <Color x:Key="MusesBlackOverlay99">#99000000</Color>
+    <Color x:Key="MusesBlackOverlayB3">#B3000000</Color>
+    <Color x:Key="MusesTextSecondaryMuted">#80A6A6AD</Color>
+    <Color x:Key="MusesTextPrimaryMuted">#CCF0F0F0</Color>
+
+    <!-- Brush tokens (prefer these in AXAML; Color keys remain for Color-typed APIs) -->
+    <SolidColorBrush x:Key="MusesAccentBrush" Color="{StaticResource MusesAccent}" />
+    <SolidColorBrush x:Key="MusesPageBrush" Color="{StaticResource MusesPageDark}" />
+    <SolidColorBrush x:Key="MusesSurfaceBrush" Color="{StaticResource MusesSurfaceDark}" />
+    <SolidColorBrush x:Key="MusesTextPrimaryBrush" Color="{StaticResource MusesTextPrimary}" />
+    <SolidColorBrush x:Key="MusesTextSecondaryBrush" Color="{StaticResource MusesTextSecondary}" />
+    <SolidColorBrush x:Key="MusesTextMutedBrush" Color="{StaticResource MusesTextMuted}" />
+    <SolidColorBrush x:Key="MusesYouTubeRedBrush" Color="{StaticResource MusesYouTubeRed}" />
+    <SolidColorBrush x:Key="MusesHairlineBrush" Color="{StaticResource MusesHairline}" />
+    <SolidColorBrush x:Key="MusesScrimBrush" Color="{StaticResource MusesScrim}" />
+    <SolidColorBrush x:Key="MusesSurfaceChromeBrush" Color="{StaticResource MusesSurfaceChrome}" />
+    <SolidColorBrush x:Key="MusesCapsuleBrush" Color="{StaticResource MusesCapsule}" />
+    <SolidColorBrush x:Key="MusesDrawerBrush" Color="{StaticResource MusesDrawer}" />
+    <SolidColorBrush x:Key="MusesSurfaceOverlay1FBrush" Color="{StaticResource MusesSurfaceOverlay1F}" />
+    <SolidColorBrush x:Key="MusesSurfaceOverlay33Brush" Color="{StaticResource MusesSurfaceOverlay33}" />
+    <SolidColorBrush x:Key="MusesSurfaceOverlay40Brush" Color="{StaticResource MusesSurfaceOverlay40}" />
+    <SolidColorBrush x:Key="MusesPageOpaqueDarkBrush" Color="{StaticResource MusesPageOpaqueDark}" />
+    <SolidColorBrush x:Key="MusesTextSecondaryMutedBrush" Color="{StaticResource MusesTextSecondaryMuted}" />
+    <SolidColorBrush x:Key="MusesTextPrimaryMutedBrush" Color="{StaticResource MusesTextPrimaryMuted}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay0ABrush" Color="{StaticResource MusesWhiteOverlay0A}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay0DBrush" Color="{StaticResource MusesWhiteOverlay0D}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay14Brush" Color="{StaticResource MusesWhiteOverlay14}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay1ABrush" Color="{StaticResource MusesWhiteOverlay1A}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay1EBrush" Color="{StaticResource MusesWhiteOverlay1E}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay24Brush" Color="{StaticResource MusesWhiteOverlay24}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay26Brush" Color="{StaticResource MusesWhiteOverlay26}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay2ABrush" Color="{StaticResource MusesWhiteOverlay2A}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay2EBrush" Color="{StaticResource MusesWhiteOverlay2E}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay33Brush" Color="{StaticResource MusesWhiteOverlay33}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay38Brush" Color="{StaticResource MusesWhiteOverlay38}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay40Brush" Color="{StaticResource MusesWhiteOverlay40}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay47Brush" Color="{StaticResource MusesWhiteOverlay47}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay59Brush" Color="{StaticResource MusesWhiteOverlay59}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay61Brush" Color="{StaticResource MusesWhiteOverlay61}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay66Brush" Color="{StaticResource MusesWhiteOverlay66}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay73Brush" Color="{StaticResource MusesWhiteOverlay73}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay80Brush" Color="{StaticResource MusesWhiteOverlay80}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlay99Brush" Color="{StaticResource MusesWhiteOverlay99}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlayB3Brush" Color="{StaticResource MusesWhiteOverlayB3}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlayCCBrush" Color="{StaticResource MusesWhiteOverlayCC}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlayD1Brush" Color="{StaticResource MusesWhiteOverlayD1}" />
+    <SolidColorBrush x:Key="MusesWhiteOverlayE6Brush" Color="{StaticResource MusesWhiteOverlayE6}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay14Brush" Color="{StaticResource MusesAccentOverlay14}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay1ABrush" Color="{StaticResource MusesAccentOverlay1A}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay26Brush" Color="{StaticResource MusesAccentOverlay26}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay33Brush" Color="{StaticResource MusesAccentOverlay33}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay59Brush" Color="{StaticResource MusesAccentOverlay59}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay85Brush" Color="{StaticResource MusesAccentOverlay85}" />
+    <SolidColorBrush x:Key="MusesAccentOverlay99Brush" Color="{StaticResource MusesAccentOverlay99}" />
+    <SolidColorBrush x:Key="MusesAccentOverlayD9Brush" Color="{StaticResource MusesAccentOverlayD9}" />
+    <SolidColorBrush x:Key="MusesAccentOverlayE6Brush" Color="{StaticResource MusesAccentOverlayE6}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay33Brush" Color="{StaticResource MusesBlackOverlay33}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay40Brush" Color="{StaticResource MusesBlackOverlay40}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay4DBrush" Color="{StaticResource MusesBlackOverlay4D}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay55Brush" Color="{StaticResource MusesBlackOverlay55}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay59Brush" Color="{StaticResource MusesBlackOverlay59}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay60Brush" Color="{StaticResource MusesBlackOverlay60}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay66Brush" Color="{StaticResource MusesBlackOverlay66}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay73Brush" Color="{StaticResource MusesBlackOverlay73}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay80Brush" Color="{StaticResource MusesBlackOverlay80}" />
+    <SolidColorBrush x:Key="MusesBlackOverlay99Brush" Color="{StaticResource MusesBlackOverlay99}" />
+    <SolidColorBrush x:Key="MusesBlackOverlayB3Brush" Color="{StaticResource MusesBlackOverlayB3}" />
+
+    <!-- Motion durations (seconds from Muses.Core.Chrome.MusesMotion → Avalonia TimeSpan).
+         MotionChrome.Apply syncs these from constants at startup and zeros them when OS reduce-motion is on. -->
+    <sys:TimeSpan x:Key="MusesMotionHover">0:0:0.15</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MusesMotionOverlay">0:0:0.20</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MusesMotionDrawer">0:0:0.25</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MusesMotionNowPlayingMorph">0:0:0.32</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MusesMotionCollectionDeckSnap">0:0:0.22</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MusesMotionCollectionListTransition">0:0:0.29</sys:TimeSpan>
+    <sys:TimeSpan x:Key="MusesMotionCollectionCardActivation">0:0:0.30</sys:TimeSpan>
+
+    <!-- Glass chrome fills (swapped at runtime by GlassChrome according to GlassDecision) -->
+    <SolidColorBrush x:Key="MusesGlassSidebarBrush" Color="{StaticResource MusesSurfaceChrome}" />
+    <SolidColorBrush x:Key="MusesGlassPanelBrush" Color="{StaticResource MusesSurfaceChrome}" />
+    <SolidColorBrush x:Key="MusesGlassCapsuleBrush" Color="{StaticResource MusesCapsule}" />
+    <SolidColorBrush x:Key="MusesGlassDrawerBrush" Color="{StaticResource MusesDrawer}" />
+  </Application.Resources>
+  <Application.Styles>
+    <sty:FluentAvaloniaTheme PreferSystemTheme="False" PreferUserAccentColor="False" />
+    <!-- Default UI typeface: Inter (MonteCarlo reserved for Muses wordmark) -->
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="{StaticResource Inter}" />
+    </Style>
+  </Application.Styles>
+</Application>

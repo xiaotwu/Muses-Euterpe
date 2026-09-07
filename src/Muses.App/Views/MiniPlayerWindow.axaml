@@ -1,0 +1,86 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctrl="using:Muses.App.Controls"
+        xmlns:vm="using:Muses.App.ViewModels"
+        x:Class="Muses.App.Views.MiniPlayerWindow"
+        x:DataType="vm:ShellViewModel"
+        Title="Muses Mini Player"
+        Width="340" Height="110"
+        MinWidth="300" MinHeight="90"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        Background="Transparent"
+        TransparencyLevelHint="AcrylicBlur"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        PointerPressed="OnWindowPointerPressed">
+  <Border Background="{StaticResource MusesSurfaceChromeBrush}"
+          BorderBrush="{StaticResource MusesWhiteOverlay26Brush}"
+          BorderThickness="1"
+          CornerRadius="14"
+          BoxShadow="0 10 30 0 #80000000"
+          Padding="12">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+      <!-- Artwork Thumbnail -->
+      <ctrl:ArtworkControl Width="48" Height="48" CornerRadius="6" GlyphSize="20"
+                           SourceUrl="{Binding NowPlayingArtworkUrl}" VerticalAlignment="Center" />
+
+      <!-- Center: Title, Artist, Progress Slider -->
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0" Spacing="4">
+        <TextBlock Text="{Binding NowPlayingTitle, FallbackValue='Not Playing'}"
+                   FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}"
+                   MaxWidth="170" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding NowPlayingArtist, FallbackValue=''}"
+                   FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                   MaxWidth="170" TextTrimming="CharacterEllipsis" />
+
+        <!-- Mini Progress Line -->
+        <ProgressBar Minimum="0" Maximum="{Binding CurrentDurationSeconds, FallbackValue=100}"
+                     Value="{Binding CurrentPositionSeconds}"
+                     Height="3" CornerRadius="1.5" Foreground="{StaticResource MusesAccentBrush}" Background="{StaticResource MusesWhiteOverlay14Brush}"
+                     Margin="0,2,0,0" />
+      </StackPanel>
+
+      <!-- Right Controls: Prev, Play/Pause, Next & Actions -->
+      <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6">
+        <!-- Close & Expand Controls -->
+        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+          <Button Background="Transparent" BorderThickness="0" Width="20" Height="20" Padding="0"
+                  Cursor="Hand" ToolTip.Tip="Expand to Full App" Click="OnExpandClicked">
+            <PathIcon Data="M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z"
+                      Width="10" Height="10" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </Button>
+          <Button Background="Transparent" BorderThickness="0" Width="20" Height="20" Padding="0"
+                  Cursor="Hand" ToolTip.Tip="Close Mini Player" Click="OnCloseClicked">
+            <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                      Width="10" Height="10" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </Button>
+        </StackPanel>
+
+        <!-- Transport Buttons -->
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <Button Background="Transparent" BorderThickness="0" Width="26" Height="26" Padding="0"
+                  Cursor="Hand" Command="{Binding PreviousCommand}">
+            <PathIcon Data="M6,18V6H8V18H6M9.5,12L18,6V18L9.5,12Z" Width="12" Height="12" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </Button>
+
+          <!-- Play/Pause -->
+          <Button Width="28" Height="28" CornerRadius="14" Background="{StaticResource MusesTextPrimaryBrush}" BorderThickness="0"
+                  Cursor="Hand" Command="{Binding TogglePlaybackCommand}">
+            <Panel>
+              <PathIcon Width="11" Height="11" Foreground="{StaticResource MusesPageBrush}" IsVisible="{Binding !IsPlaying}"
+                        Data="M8,5.14V19.14L19,12.14L8,5.14Z" Margin="1,0,0,0" />
+              <PathIcon Width="11" Height="11" Foreground="{StaticResource MusesPageBrush}" IsVisible="{Binding IsPlaying}"
+                        Data="M14,19H18V5H14M6,19H10V5H6V19Z" />
+            </Panel>
+          </Button>
+
+          <Button Background="Transparent" BorderThickness="0" Width="26" Height="26" Padding="0"
+                  Cursor="Hand" Command="{Binding NextCommand}">
+            <PathIcon Data="M16,18H18V6H16M6,18L14.5,12L6,6V18Z" Width="12" Height="12" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </Button>
+        </StackPanel>
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

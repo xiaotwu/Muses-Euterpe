@@ -1,0 +1,19 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Muses.App.Controls.YouTubeMark"
+             ToolTip.Tip="YouTube">
+  <Panel x:Name="Root" Width="16.64" Height="11.96">
+    <Border x:Name="Plate"
+            Background="{StaticResource MusesYouTubeRedBrush}"
+            CornerRadius="2.86" />
+    <Path x:Name="Play"
+          Data="M 0,0 L 8,5 L 0,10 Z"
+          Fill="White"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Stretch="Uniform"
+          Width="5.5"
+          Height="5.5"
+          Margin="1,0,0,0" />
+  </Panel>
+</UserControl>

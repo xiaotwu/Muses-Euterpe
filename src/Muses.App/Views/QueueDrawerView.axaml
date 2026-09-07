@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.QueueDrawerView"
+             x:DataType="vm:ShellViewModel"
+             Width="360" Background="{DynamicResource MusesGlassDrawerBrush}">
+  <UserControl.Styles>
+    <Style Selector="Button.closeBtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.queueRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.queueRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+    </Style>
+    <Style Selector="Button.clearBtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="6,2" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.clearBtn TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesAccentBrush}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1,0,0,0">
+    <DockPanel Margin="20,24,20,96">
+      <!-- Header -->
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+        <TextBlock Text="Queue" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <Button Grid.Column="1" Classes="closeBtn" Command="{Binding CloseQueueDrawerCommand}" ToolTip.Tip="Close">
+          <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                    Width="16" Height="16" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        </Button>
+      </Grid>
+
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="20">
+          <!-- Now Playing Card -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="Now Playing" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="10">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <ctrl:ArtworkControl Width="40" Height="40" CornerRadius="4" GlyphSize="16"
+                                     SourceUrl="{Binding NowPlayingArtworkUrl}" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,8,0" Spacing="2">
+                  <TextBlock Text="{Binding NowPlayingTitle, FallbackValue='Not Playing'}" FontSize="13"
+                             FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding NowPlayingArtist, FallbackValue=''}" FontSize="11"
+                             Foreground="{StaticResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <PathIcon Grid.Column="2" Data="M8,5.14V19.14L19,12.14L8,5.14Z" Width="12" Height="12"
+                          Foreground="{StaticResource MusesAccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"
+                          IsVisible="{Binding IsPlaying}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+
+          <!-- Up Next Section -->
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock x:Name="UpNextHeader" Text="Up Next" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <Button Grid.Column="1" Classes="clearBtn" Command="{Binding ClearUpNextCommand}">
+                <TextBlock Text="Clear" />
+              </Button>
+            </Grid>
+            <StackPanel x:Name="UpNextContainer" Spacing="2" />
+          </StackPanel>
+
+          <!-- Queue History Section -->
+          <StackPanel Spacing="8">
+            <TextBlock Text="History" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <StackPanel x:Name="HistoryContainer" Spacing="2" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

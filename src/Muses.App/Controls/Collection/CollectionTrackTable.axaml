@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Controls.Collection.CollectionTrackTable">
+  <UserControl.Styles>
+    <Style Selector="Button.header">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,6" />
+      <Setter Property="Foreground" Value="{StaticResource MusesTextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.header:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.header:pointerover TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource MusesPageBrush}">
+    <!-- Collapse Handle (Chevron Down) -->
+    <Button x:Name="CollapseButton" DockPanel.Dock="Top"
+            HorizontalAlignment="Center"
+            Margin="0,8,0,8"
+            Width="48" Height="32"
+            Background="{StaticResource MusesSurfaceOverlay40Brush}"
+            CornerRadius="10"
+            BorderThickness="0"
+            Padding="0"
+            Cursor="Hand"
+            ToolTip.Tip="Return to song card deck">
+      <PathIcon Data="M7.41,8.59L12,13.17L16.59,8.59L18,10L12,16L6,10L7.41,8.59Z"
+                Width="12" Height="12"
+                Foreground="{StaticResource MusesTextSecondaryBrush}" />
+    </Button>
+
+    <!-- Hairline Separator -->
+    <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" Margin="24,0" />
+
+    <!-- Table Header Row -->
+    <Border DockPanel.Dock="Top" Margin="24,4,24,4">
+      <Grid ColumnDefinitions="48,*,160,170,64,100,70,110,64">
+        <!-- Order # -->
+        <Button Grid.Column="0" x:Name="HeaderOrder" Classes="header" Content="#" />
+        <!-- Title -->
+        <Button Grid.Column="1" x:Name="HeaderTitle" Classes="header" Content="Title" />
+        <!-- Artist -->
+        <Button Grid.Column="2" x:Name="HeaderArtist" Classes="header" Content="Artist" />
+        <!-- Album -->
+        <Button Grid.Column="3" x:Name="HeaderAlbum" Classes="header" Content="Album" />
+        <!-- Year -->
+        <Button Grid.Column="4" x:Name="HeaderYear" Classes="header" Content="Year" />
+        <!-- Genre -->
+        <Button Grid.Column="5" x:Name="HeaderGenre" Classes="header" Content="Genre" />
+        <!-- Time -->
+        <Button Grid.Column="6" x:Name="HeaderTime" Classes="header" Content="Time" />
+        <!-- Date Added -->
+        <Button Grid.Column="7" x:Name="HeaderAdded" Classes="header" Content="Date Added" />
+        <!-- Plays -->
+        <Button Grid.Column="8" x:Name="HeaderPlays" Classes="header" Content="Plays" />
+      </Grid>
+    </Border>
+
+    <!-- Hairline Separator -->
+    <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" Margin="24,0,24,4" />
+
+    <!-- Table Row List -->
+    <ScrollViewer x:Name="TableScroll"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="24,0,24,100">
+        <ItemsControl x:Name="RowItemsControl" />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

@@ -1,0 +1,240 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Controls.AlbumCardControl"
+             Cursor="Hand">
+  <UserControl.Styles>
+    <!-- Card Lift Animation -->
+    <Style Selector="Border.interactiveCard">
+      <Setter Property="RenderTransform" Value="none" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MusesMotionHover}" />
+          <BoxShadowsTransition Property="BoxShadow" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.interactiveCard:pointerover">
+      <Setter Property="RenderTransform" Value="translateY(-4px)" />
+      <Setter Property="BoxShadow" Value="0 16 28 0 #66000000" />
+    </Style>
+
+    <!-- Play Pill Button -->
+    <Style Selector="Border.playPill">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay38Brush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.playPill:pointerover, Border.playPill.playing">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+    </Style>
+
+    <!-- Hover Play Overlay -->
+    <Style Selector="ctrl|HoverPlayButton.cardPlay">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="UserControl:pointerover ctrl|HoverPlayButton.cardPlay">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+    <!-- STYLE 1: STANDARD (Square Artwork + Title + Subtitle below) -->
+    <StackPanel x:Name="StandardContainer" IsVisible="False" Spacing="8">
+      <Panel x:Name="StandardArtPanel">
+        <ctrl:ArtworkControl x:Name="StandardArt"
+                             CornerRadius="8"
+                             GlyphSize="36"
+                             HorizontalAlignment="Stretch"
+                             VerticalAlignment="Stretch" />
+        <!-- Top Right YouTube Badge -->
+        <Border x:Name="StandardYouTubeBadge"
+                Width="24" Height="24"
+                CornerRadius="12"
+                Background="{StaticResource MusesBlackOverlayB3Brush}"
+                BorderBrush="{StaticResource MusesWhiteOverlay26Brush}"
+                BorderThickness="0.75"
+                HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="8" IsVisible="False">
+          <ctrl:YouTubeMark MarkSize="12" />
+        </Border>
+        <!-- Hover Play Button -->
+        <ctrl:HoverPlayButton x:Name="StandardHoverPlay"
+                              Classes="cardPlay"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Bottom"
+                              Margin="8" />
+      </Panel>
+      <TextBlock x:Name="StandardTitle"
+                 FontSize="13" FontWeight="SemiBold"
+                 Foreground="{StaticResource MusesTextPrimaryBrush}"
+                 TextTrimming="CharacterEllipsis"
+                 MaxLines="1" />
+      <TextBlock x:Name="StandardSubtitle"
+                 FontSize="11"
+                 Foreground="{StaticResource MusesTextSecondaryBrush}"
+                 TextTrimming="CharacterEllipsis"
+                 MaxLines="1" />
+    </StackPanel>
+
+    <!-- STYLE 2: HOME (Media Top + 72pt Surface Footer) -->
+    <Border x:Name="HomeContainer"
+            Classes="interactiveCard"
+            CornerRadius="12"
+            Background="{StaticResource MusesSurfaceBrush}"
+            BorderBrush="{StaticResource MusesHairlineBrush}"
+            BorderThickness="1"
+            ClipToBounds="True"
+            IsVisible="False"
+            BoxShadow="0 4 12 0 #33000000">
+      <StackPanel Spacing="0">
+        <Panel x:Name="HomeArtPanel">
+          <ctrl:ArtworkControl x:Name="HomeArt"
+                               CornerRadius="0"
+                               GlyphSize="32"
+                               HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch" />
+          <!-- Top Right YouTube Badge -->
+          <Border x:Name="HomeYouTubeBadge"
+                  Width="24" Height="24"
+                  CornerRadius="12"
+                  Background="{StaticResource MusesBlackOverlay99Brush}"
+                  BorderBrush="{StaticResource MusesWhiteOverlay40Brush}"
+                  BorderThickness="0.75"
+                  HorizontalAlignment="Right" VerticalAlignment="Top"
+                  Margin="8" IsVisible="False">
+            <ctrl:YouTubeMark MarkSize="12" />
+          </Border>
+          <!-- Hover Play Button -->
+          <ctrl:HoverPlayButton x:Name="HomeHoverPlay"
+                                Classes="cardPlay"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="8" />
+        </Panel>
+        <!-- 72pt Footer -->
+        <Border Height="72" Background="{StaticResource MusesSurfaceBrush}" Padding="12,10">
+          <StackPanel Spacing="3">
+            <TextBlock x:Name="HomeTitle"
+                       FontSize="13" FontWeight="SemiBold"
+                       Foreground="{StaticResource MusesTextPrimaryBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxLines="2" />
+            <TextBlock x:Name="HomeSubtitle"
+                       FontSize="11"
+                       Foreground="{StaticResource MusesTextSecondaryBrush}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxLines="2" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <!-- STYLE 3: HERO CARD (20pt Rounded, Full-bleed, Gradient Scrim, Badges, Tag & Play Pill) -->
+    <Border x:Name="HeroContainer"
+            Classes="interactiveCard"
+            CornerRadius="20"
+            Background="{StaticResource MusesSurfaceBrush}"
+            BorderBrush="{StaticResource MusesHairlineBrush}"
+            BorderThickness="1"
+            ClipToBounds="True"
+            IsVisible="False"
+            BoxShadow="0 8 18 0 #40000000">
+      <Panel>
+        <!-- Full-bleed Artwork -->
+        <ctrl:ArtworkControl x:Name="HeroArt"
+                             CornerRadius="20"
+                             GlyphSize="40"
+                             HorizontalAlignment="Stretch"
+                             VerticalAlignment="Stretch" />
+
+        <!-- Top Right Frosted Badges -->
+        <StackPanel Orientation="Horizontal" Spacing="6"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                    Margin="0,10,10,0">
+          <Border x:Name="HeroYouTubeBadge"
+                  Width="24" Height="24"
+                  CornerRadius="12"
+                  Background="{StaticResource MusesBlackOverlay99Brush}"
+                  BorderBrush="{StaticResource MusesWhiteOverlay40Brush}"
+                  BorderThickness="0.75"
+                  IsVisible="False">
+            <ctrl:YouTubeMark MarkSize="12" />
+          </Border>
+          <Border Width="24" Height="24"
+                  CornerRadius="12"
+                  Background="{StaticResource MusesBlackOverlay99Brush}"
+                  BorderBrush="{StaticResource MusesWhiteOverlay40Brush}"
+                  BorderThickness="0.75">
+            <PathIcon Data="M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z"
+                      Width="11" Height="11" Foreground="White" />
+          </Border>
+        </StackPanel>
+
+        <!-- Bottom 4-Stop Gradient Scrim -->
+        <Border Height="180" VerticalAlignment="Bottom">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+              <GradientStop Color="#00000000" Offset="0.0" />
+              <GradientStop Color="#73000000" Offset="0.40" />
+              <GradientStop Color="#D9000000" Offset="0.75" />
+              <GradientStop Color="#F5000000" Offset="1.0" />
+            </LinearGradientBrush>
+          </Border.Background>
+        </Border>
+
+        <!-- Bottom Content: Title, Subtitle, Tag & Play Action Pill -->
+        <StackPanel VerticalAlignment="Bottom" Margin="12,0,12,10" Spacing="4">
+          <TextBlock x:Name="HeroTitle"
+                     FontSize="14" FontWeight="Bold"
+                     Foreground="White"
+                     TextTrimming="CharacterEllipsis"
+                     MaxLines="1" />
+          <TextBlock x:Name="HeroSubtitle"
+                     FontSize="11" FontWeight="Medium"
+                     Foreground="{StaticResource MusesWhiteOverlayD1Brush}"
+                     TextTrimming="CharacterEllipsis"
+                     MaxLines="1" />
+
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+            <!-- Tag Badge Pill -->
+            <Border x:Name="HeroTagBorder"
+                    CornerRadius="10" Background="{StaticResource MusesWhiteOverlay24Brush}" Padding="6,3">
+              <StackPanel Orientation="Horizontal" Spacing="3">
+                <PathIcon x:Name="HeroTagIcon"
+                          Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"
+                          Width="8" Height="8" Foreground="{StaticResource MusesWhiteOverlayE6Brush}" />
+                <TextBlock x:Name="HeroTagText" Text="ALBUM"
+                           FontSize="8.5" FontWeight="Bold"
+                           Foreground="{StaticResource MusesWhiteOverlayE6Brush}" />
+              </StackPanel>
+            </Border>
+
+            <!-- Play Action Pill -->
+            <Border Grid.Column="2" x:Name="HeroPlayPill"
+                    Classes="playPill"
+                    CornerRadius="12"
+                    BorderBrush="{StaticResource MusesWhiteOverlay59Brush}" BorderThickness="0.75"
+                    Padding="8,3.5">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <PathIcon x:Name="HeroPlayIcon"
+                          Data="M8,5.14V19.14L19,12.14L8,5.14Z"
+                          Width="8" Height="8" Foreground="White" />
+                <TextBlock x:Name="HeroPlayText" Text="Play"
+                           FontSize="9" FontWeight="SemiBold" Foreground="White" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </StackPanel>
+      </Panel>
+    </Border>
+  </Panel>
+</UserControl>

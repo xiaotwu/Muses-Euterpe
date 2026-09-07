@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:hist="using:Muses.Core.History"
+             x:Class="Muses.App.Views.ListeningHeatmapView">
+  <Border Background="{StaticResource MusesSurfaceBrush}"
+          BorderBrush="{StaticResource MusesWhiteOverlay14Brush}"
+          BorderThickness="1"
+          CornerRadius="14"
+          Padding="24">
+    <StackPanel Spacing="18">
+      <!-- Title & Subtitle -->
+      <StackPanel Spacing="3">
+        <TextBlock Text="Listening Heatmap" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="Calendar days by local hour. Darker cells represent more active listening."
+                   FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+      </StackPanel>
+
+      <!-- Metric Summary Row -->
+      <StackPanel Orientation="Horizontal" Spacing="36">
+        <StackPanel Spacing="2">
+          <TextBlock x:Name="TotalListenedLabel" Text="0h 0m" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          <TextBlock Text="Total Listened" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        </StackPanel>
+        <StackPanel Spacing="2">
+          <TextBlock x:Name="PeakIntervalLabel" Text="—" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          <TextBlock Text="Peak Interval" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        </StackPanel>
+        <StackPanel Spacing="2">
+          <TextBlock x:Name="ActiveDayLabel" Text="—" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          <TextBlock Text="Most Active Day" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Heatmap Hours Header & Grid Container -->
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="6" Margin="0,6,0,0">
+          <!-- Hours Header -->
+          <Grid x:Name="HoursHeaderGrid" Margin="44,0,0,4" />
+
+          <!-- 7 Weekday Rows Container -->
+          <StackPanel x:Name="RowsContainer" Spacing="5" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- Heatmap Color Scale Legend -->
+      <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,6,0,0">
+        <TextBlock Text="Less" FontSize="11" Foreground="{StaticResource MusesWhiteOverlay73Brush}" VerticalAlignment="Center" Margin="0,0,4,0" />
+        <Border Width="14" Height="14" CornerRadius="3" Background="{StaticResource MusesWhiteOverlay0ABrush}" />
+        <Border Width="14" Height="14" CornerRadius="3" Background="{StaticResource MusesAccentOverlay26Brush}" />
+        <Border Width="14" Height="14" CornerRadius="3" Background="{StaticResource MusesAccentOverlay59Brush}" />
+        <Border Width="14" Height="14" CornerRadius="3" Background="{StaticResource MusesAccentOverlay99Brush}" />
+        <Border Width="14" Height="14" CornerRadius="3" Background="{StaticResource MusesAccentBrush}" />
+        <TextBlock Text="More" FontSize="11" Foreground="{StaticResource MusesWhiteOverlay73Brush}" VerticalAlignment="Center" Margin="4,0,0,0" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

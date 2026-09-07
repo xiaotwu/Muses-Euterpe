@@ -1,0 +1,278 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.SettingsView"
+             x:DataType="vm:ShellViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.categoryBtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.categoryBtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+    </Style>
+    <Style Selector="Button.categoryBtn.selected">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+    </Style>
+    <Style Selector="Button.categoryBtn.selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+    </Style>
+    <Style Selector="Button.categoryBtn TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.categoryBtn.selected TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.actionBtn">
+      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.actionBtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay2EBrush}" />
+    </Style>
+    <Style Selector="Button.actionBtn TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primaryActionBtn">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.primaryActionBtn TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid ColumnDefinitions="180,*">
+    <!-- Left Category Navigation -->
+    <Border Background="{StaticResource MusesHairlineBrush}" CornerRadius="12,0,0,12" Padding="12,20">
+      <StackPanel Spacing="4">
+        <Button x:Name="CatGeneralBtn" Classes="categoryBtn selected" Click="OnSelectGeneral">
+          <TextBlock Text="General" />
+        </Button>
+        <Button x:Name="CatPlaybackBtn" Classes="categoryBtn" Click="OnSelectPlayback">
+          <TextBlock Text="Playback" />
+        </Button>
+        <Button x:Name="CatQualityBtn" Classes="categoryBtn" Click="OnSelectQuality">
+          <TextBlock Text="Audio Quality" />
+        </Button>
+        <Button x:Name="CatAppearanceBtn" Classes="categoryBtn" Click="OnSelectAppearance">
+          <TextBlock Text="Appearance" />
+        </Button>
+        <Button x:Name="CatYouTubeBtn" Classes="categoryBtn" Click="OnSelectYouTube">
+          <TextBlock Text="YouTube" />
+        </Button>
+        <Button x:Name="CatLyricsBtn" Classes="categoryBtn" Click="OnSelectLyrics">
+          <TextBlock Text="Lyrics" />
+        </Button>
+        <Button x:Name="CatDesktopBtn" Classes="categoryBtn" Click="OnSelectDesktop">
+          <TextBlock Text="Desktop" />
+        </Button>
+        <Button x:Name="CatAboutBtn" Classes="categoryBtn" Click="OnSelectAbout">
+          <TextBlock Text="About" />
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <!-- Right Detail Page -->
+    <Border Grid.Column="1" Padding="28,20" Background="{StaticResource MusesSurfaceBrush}" CornerRadius="0,12,12,0">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <Panel>
+
+          <!-- 1. GENERAL -->
+          <StackPanel x:Name="PageGeneral" Spacing="20">
+            <TextBlock Text="General Settings" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <StackPanel Spacing="8">
+              <TextBlock Text="Language" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ComboBox SelectedIndex="0" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+                <ComboBoxItem Content="English" />
+                <ComboBoxItem Content="简体中文" />
+              </ComboBox>
+            </StackPanel>
+            <CheckBox Content="Launch Muses on Windows startup" IsChecked="False" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="Close button minimizes to System Tray" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </StackPanel>
+
+          <!-- 2. PLAYBACK -->
+          <StackPanel x:Name="PagePlayback" Spacing="20" IsVisible="False">
+            <TextBlock Text="Playback Settings" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="Resume music playback when video overlay closes" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="Volume normalization (ReplayGain)" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="Gapless audio streaming" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </StackPanel>
+
+          <!-- 3. QUALITY -->
+          <StackPanel x:Name="PageQuality" Spacing="20" IsVisible="False">
+            <TextBlock Text="Audio Quality" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <StackPanel Spacing="8">
+              <TextBlock Text="Preferred Stream Quality" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ComboBox SelectedIndex="0" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+                <ComboBoxItem Content="Best (Opus 160kbps / AAC)" />
+                <ComboBoxItem Content="High (128kbps)" />
+                <ComboBoxItem Content="Medium (96kbps)" />
+              </ComboBox>
+            </StackPanel>
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="12">
+              <StackPanel Spacing="4">
+                <TextBlock Text="yt-dlp Engine Status" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <TextBlock Text="Bundled native process engine active and operational." FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <!-- 4. APPEARANCE -->
+          <StackPanel x:Name="PageAppearance" Spacing="20" IsVisible="False">
+            <TextBlock Text="Appearance" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <StackPanel Spacing="8">
+              <TextBlock Text="Accent Color" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource MusesAccentBrush}" BorderBrush="White" BorderThickness="2" />
+                <TextBlock Text="Muses Crimson (#FA586A)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Spacing="8">
+              <TextBlock Text="Theme" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ComboBox SelectedIndex="0" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+                <ComboBoxItem Content="Dark (Muses Default)" />
+                <ComboBoxItem Content="Follow System" />
+              </ComboBox>
+            </StackPanel>
+            <CheckBox Content="Reduce animation motion" IsChecked="False" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </StackPanel>
+
+          <!-- 5. YOUTUBE -->
+          <StackPanel x:Name="PageYouTube" Spacing="20" IsVisible="False">
+            <TextBlock Text="YouTube Account" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Google Account Sign-In" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                    <TextBlock Text="Sign in to personalize Home and sync your liked tracks and playlists."
+                               FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Classes="primaryActionBtn" Click="OnSignInClicked">
+                    <TextBlock Text="Sign In with Google" />
+                  </Button>
+                </Grid>
+              </StackPanel>
+            </Border>
+            <TextBlock Text="Tokens and cookies stay on this device. No telemetry." FontSize="11" Foreground="{StaticResource MusesWhiteOverlay73Brush}" />
+          </StackPanel>
+
+          <!-- 6. LYRICS -->
+          <StackPanel x:Name="PageLyrics" Spacing="20" IsVisible="False">
+            <TextBlock Text="Lyrics Settings" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <StackPanel Spacing="8">
+              <TextBlock Text="Lyrics Provider" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ComboBox SelectedIndex="0" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+                <ComboBoxItem Content="LRCLIB (Free, Synced &amp; Plain)" />
+                <ComboBoxItem Content="Musixmatch Fallback" />
+              </ComboBox>
+            </StackPanel>
+            <CheckBox Content="Auto-scroll to current lyric line during playback" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          </StackPanel>
+
+          <!-- 7. DESKTOP -->
+          <StackPanel x:Name="PageDesktop" Spacing="20" IsVisible="False">
+            <TextBlock Text="Desktop Tools &amp; Widgets" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="Mini Player" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                  <TextBlock Text="Compact floating player window with always-on-top mode." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenMiniPlayer">
+                  <TextBlock Text="Open Mini Player" />
+                </Button>
+              </Grid>
+            </Border>
+
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="Desktop Lyrics" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                  <TextBlock Text="Transparent, draggable desktop lyrics banner on top of other windows." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenDesktopLyrics">
+                  <TextBlock Text="Toggle Desktop Lyrics" />
+                </Button>
+              </Grid>
+            </Border>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="Global Keyboard Shortcuts" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="• Ctrl + F : Open Search Window" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="• Ctrl + P / Space : Play / Pause" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="• Ctrl + Right : Next Track" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="• Ctrl + Left : Previous Track" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            </StackPanel>
+          </StackPanel>
+
+          <!-- 8. ABOUT -->
+          <StackPanel x:Name="PageAbout" Spacing="16" IsVisible="False">
+            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+              <ctrl:MusesMark MarkSize="36" />
+              <StackPanel>
+                <TextBlock Text="Muses" FontSize="24" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <TextBlock Text="Version 0.1.0 (Windows 11)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              </StackPanel>
+            </StackPanel>
+            <TextBlock Text="A native desktop YouTube-native music application. Display name Muses, repo/solution Euterpe. Built with C# / .NET 10 and Avalonia."
+                       FontSize="13" Foreground="{StaticResource MusesTextMutedBrush}" TextWrapping="Wrap" />
+            <TextBlock Text="Author: xiaotwu" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+
+            <!-- Software Update Card -->
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Software Update" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                    <TextBlock Text="Check for newer versions of Muses on GitHub." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Classes="actionBtn" Command="{Binding CheckForUpdatesCommand}"
+                          IsEnabled="{Binding !IsCheckingForUpdates}">
+                    <TextBlock Text="Check for Updates" />
+                  </Button>
+                </Grid>
+
+                <TextBlock Text="{Binding UpdateStatusMessage}" FontSize="12" Foreground="{StaticResource MusesAccentBrush}"
+                           IsVisible="{Binding UpdateStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                <StackPanel Spacing="6" IsVisible="{Binding HasAvailableUpdate}">
+                  <TextBlock Text="{Binding AvailableUpdateInfo.ReleaseTitle}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                  <Button Classes="primaryActionBtn" Command="{Binding DownloadUpdateCommand}" HorizontalAlignment="Left">
+                    <TextBlock Text="Download Update" />
+                  </Button>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <Button Classes="actionBtn" Click="OnOpenGitHub" HorizontalAlignment="Left">
+              <TextBlock Text="View on GitHub" />
+            </Button>
+          </StackPanel>
+
+        </Panel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</UserControl>

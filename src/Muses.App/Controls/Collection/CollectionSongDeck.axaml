@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Controls.Collection.CollectionSongDeck"
+             Focusable="True">
+  <UserControl.Styles>
+    <Style Selector="Button.chevron">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="44" />
+      <Setter Property="Height" Value="44" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.chevron PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextSecondaryBrush}" />
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+    </Style>
+    <Style Selector="Button.chevron:pointerover PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.chevron:disabled PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesWhiteOverlay33Brush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid x:Name="RootGrid" RowDefinitions="*,Auto,Auto,Auto" ClipToBounds="False">
+    <!-- Fan Deck Stage Area -->
+    <Panel x:Name="StagePanel" Grid.Row="0"
+           HorizontalAlignment="Stretch"
+           VerticalAlignment="Top"
+           ClipToBounds="False">
+      <Canvas x:Name="DeckCanvas"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Top"
+              ClipToBounds="False" />
+
+      <!-- Left / Right Chevrons overlaid on stage -->
+      <Button x:Name="PrevButton"
+              Classes="chevron"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Center"
+              Margin="16,0,0,0">
+        <PathIcon Data="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z" />
+      </Button>
+
+      <Button x:Name="NextButton"
+              Classes="chevron"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Center"
+              Margin="0,0,16,0">
+        <PathIcon Data="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" />
+      </Button>
+    </Panel>
+
+    <!-- Scrubber Area -->
+    <Panel x:Name="ScrubberContainer" Grid.Row="1"
+           HorizontalAlignment="Center"
+           Margin="0,24,0,0"
+           Height="52">
+      <StackPanel Spacing="4" HorizontalAlignment="Center">
+        <!-- Scrubber Track & Thumb -->
+        <Canvas x:Name="ScrubberCanvas"
+                Height="28"
+                Background="Transparent"
+                Cursor="Hand" />
+        <!-- Value text under scrubber -->
+        <TextBlock x:Name="ScrubberValueText"
+                   FontSize="11" FontWeight="SemiBold"
+                   Foreground="{StaticResource MusesTextSecondaryBrush}"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Opacity="0" />
+      </StackPanel>
+    </Panel>
+
+    <!-- Expansion Handle (Chevron Up) -->
+    <Button x:Name="ExpandButton" Grid.Row="2"
+            Classes="chevron"
+            HorizontalAlignment="Center"
+            Margin="0,8,0,0"
+            ToolTip.Tip="Show complete song list">
+      <PathIcon Data="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z" />
+    </Button>
+
+    <!-- Bottom clearance for player capsule -->
+    <Border Grid.Row="3" Height="120" />
+  </Grid>
+</UserControl>

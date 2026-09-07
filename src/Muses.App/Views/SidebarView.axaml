@@ -1,0 +1,217 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             xmlns:pref="using:Muses.Core.Preferences"
+             x:Class="Muses.App.Views.SidebarView"
+             x:DataType="vm:ShellViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+    </Style>
+    <Style Selector="Button.nav.selected">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+    </Style>
+    <Style Selector="Button.nav.selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+    </Style>
+    <Style Selector="Button.nav TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Button.nav.selected TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.nav PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+    </Style>
+    <Style Selector="Button.nav.selected PathIcon">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="10,12,10,4" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border Padding="8,0,8,10">
+    <DockPanel>
+      <Button DockPanel.Dock="Bottom"
+              Classes="nav"
+              Command="{Binding OpenSettingsCommand}"
+              Height="40"
+              ToolTip.Tip="{Binding SettingsLabel}"
+              AutomationProperties.Name="{Binding SettingsLabel}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <PathIcon Data="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z" />
+          <TextBlock Text="{Binding SettingsLabel}" VerticalAlignment="Center"
+                     IsVisible="{Binding !SidebarCollapsed}" />
+        </StackPanel>
+      </Button>
+
+      <StackPanel>
+        <Border Height="{Binding TrafficLightPadHeight}" />
+        <Grid Margin="10,8,2,8" ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <ctrl:MusesMark MarkSize="20" />
+            <TextBlock Text="{Binding Wordmark}"
+                       FontFamily="{StaticResource MonteCarlo}"
+                       FontSize="22"
+                       Foreground="{StaticResource MusesTextPrimaryBrush}"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+          <Button Grid.Column="2"
+                  Command="{Binding ToggleSidebarCommand}"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Width="32" Height="32"
+                  Padding="0"
+                  ToolTip.Tip="{Binding CollapseLabel}">
+            <PathIcon Width="16" Height="16" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                      Data="M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z" />
+          </Button>
+        </Grid>
+
+        <Button Classes="nav"
+                Command="{Binding OpenSearchWindowCommand}"
+                ToolTip.Tip="{Binding SearchLabel}"
+                AutomationProperties.Name="{Binding SearchLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" />
+            <TextBlock Text="{Binding SearchLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+
+        <Button Classes="nav" Classes.selected="{Binding IsHome}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.Home}"
+                ToolTip.Tip="{Binding HomeLabel}"
+                AutomationProperties.Name="{Binding HomeLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z" />
+            <TextBlock Text="{Binding HomeLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+
+        <Button Classes="nav" Classes.selected="{Binding IsDiscover}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.Discover}"
+                ToolTip.Tip="{Binding DiscoverLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M3,11H11V3H3M5,5H9V9H5M13,21H21V13H13M15,15H19V19H15M3,21H11V13H3M5,15H9V19H5M13,3V11H21V3M19,9H15V5H19Z" />
+            <TextBlock Text="{Binding DiscoverLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+
+        <TextBlock Classes="section" Text="{Binding LibraryLabel}"
+                   IsVisible="{Binding !SidebarCollapsed}" />
+
+        <Button Classes="nav" Classes.selected="{Binding IsRecently}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.Recently}"
+                ToolTip.Tip="{Binding RecentlyLabel}"
+                AutomationProperties.Name="{Binding RecentlyLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M16.2,16.2L11,13V7H12.5V12.2L17,14.9L16.2,16.2Z" />
+            <TextBlock Text="{Binding RecentlyLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.selected="{Binding IsSongs}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.Songs}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M12,3V13.55C11.41,13.21 10.73,13 10,13C7.79,13 6,14.79 6,17C6,19.21 7.79,21 10,21C12.21,21 14,19.21 14,17V7H18V3H12Z" />
+            <TextBlock Text="{Binding SongsLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.selected="{Binding IsAlbums}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.Albums}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" />
+            <TextBlock Text="{Binding AlbumsLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.selected="{Binding IsArtists}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.Artists}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M16,4C18.21,4 20,5.79 20,8C20,10.21 18.21,12 16,12C13.79,12 12,10.21 12,8C12,5.79 13.79,4 16,4M16,14C20.42,14 24,15.79 24,18V20H8V18C8,15.79 11.58,14 16,14M8,4C10.21,4 12,5.79 12,8C12,9.1 11.5,10.1 10.75,10.75C9.5,10.28 8,10 6.5,10C5,10 3.5,10.28 2.25,10.75C1.5,10.1 1,9.1 1,8C1,5.79 2.79,4 5,4H8Z" />
+            <TextBlock Text="{Binding ArtistsLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+        <Button Classes="nav" Classes.selected="{Binding IsHistory}"
+                Command="{Binding SelectCommand}"
+                CommandParameter="{x:Static pref:SidebarSection.History}">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <PathIcon Data="M13,3A9,9 0 0,0 4,12H1L4.89,15.89L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3M12,8V13L16.28,15.54L17,14.33L13.5,12.25V8H12Z" />
+            <TextBlock Text="{Binding HistoryLabel}" VerticalAlignment="Center"
+                       IsVisible="{Binding !SidebarCollapsed}" />
+          </StackPanel>
+        </Button>
+
+        <TextBlock Classes="section" Text="{Binding PlaylistsLabel}"
+                   IsVisible="{Binding !SidebarCollapsed}" />
+        <Grid ColumnDefinitions="*,Auto">
+          <Button Classes="nav" Classes.selected="{Binding IsPlaylists}"
+                  Command="{Binding SelectCommand}"
+                  CommandParameter="{x:Static pref:SidebarSection.Playlists}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <PathIcon Data="M15,6H3V8H15V6M15,10H3V12H15V10M3,16H11V14H3V16M17,6V14.18C16.69,14.07 16.35,14 16,14A3,3 0 0,0 13,17A3,3 0 0,0 16,20A3,3 0 0,0 19,17V8H22V6H17Z" />
+              <TextBlock Text="{Binding AllPlaylistsLabel}" VerticalAlignment="Center"
+                         IsVisible="{Binding !SidebarCollapsed}" />
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="1"
+                  Command="{Binding OpenAddChoiceCommand}"
+                  Background="Transparent" BorderThickness="0"
+                  Width="32" Height="32" Padding="0" Cursor="Hand"
+                  ToolTip.Tip="{Binding AddPlaylistLabel}"
+                  IsVisible="{Binding !SidebarCollapsed}">
+            <PathIcon Width="16" Height="16" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                      Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
+          </Button>
+        </Grid>
+
+        <ItemsControl ItemsSource="{Binding PinnedPlaylists}" IsVisible="{Binding !SidebarCollapsed}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Classes="nav"
+                      Click="OnPinnedPlaylistClicked"
+                      Margin="12,1,0,1">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <PathIcon Data="M15,6H3V8H15V6M15,10H3V12H15V10M3,16H11V14H3V16M17,6V14.18C16.69,14.07 16.35,14 16,14A3,3 0 0,0 13,17A3,3 0 0,0 16,20A3,3 0 0,0 19,17V8H22V6H17Z"
+                            Width="12" Height="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

@@ -1,0 +1,119 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:views="using:Muses.App.Views"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.HistoryView"
+             x:DataType="vm:ShellViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.rangeChip">
+      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.rangeChip.selected">
+      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+    </Style>
+    <Style Selector="Button.rangeChip TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.rangeChip.selected TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.historyTrackRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.historyTrackRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="40,32,40,96" Spacing="28" MaxWidth="1560">
+
+      <!-- Header & Range Filter -->
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="4">
+          <TextBlock Text="History" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+          <TextBlock Text="Local listening activity and historical statistics" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <!-- Range Chips -->
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Button x:Name="RangeWeekBtn" Classes="rangeChip selected" Click="OnRangeWeek">
+              <TextBlock Text="Week" />
+            </Button>
+            <Button x:Name="RangeMonthBtn" Classes="rangeChip" Click="OnRangeMonth">
+              <TextBlock Text="Month" />
+            </Button>
+            <Button x:Name="RangeYearBtn" Classes="rangeChip" Click="OnRangeYear">
+              <TextBlock Text="Year" />
+            </Button>
+            <Button x:Name="RangeAllTimeBtn" Classes="rangeChip" Click="OnRangeAllTime">
+              <TextBlock Text="All Time" />
+            </Button>
+          </StackPanel>
+
+          <!-- Clear History Button -->
+          <Button Background="Transparent" BorderThickness="0" Width="32" Height="32" Padding="0"
+                  Cursor="Hand" ToolTip.Tip="Clear History" Click="OnClearHistoryClicked">
+            <PathIcon Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"
+                      Width="14" Height="14" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <!-- KPI Summary Cards -->
+      <Grid ColumnDefinitions="*,*,*">
+        <!-- Total Listened -->
+        <Border Background="{StaticResource MusesSurfaceBrush}" BorderBrush="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,10,0">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Total Listened" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="TotalTimeKpi" Text="0.0 hours" FontSize="26" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="EventsCountKpi" Text="0 plays recorded" FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}" />
+          </StackPanel>
+        </Border>
+
+        <!-- Completion Rate -->
+        <Border Grid.Column="1" Background="{StaticResource MusesSurfaceBrush}" BorderBrush="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="5,0,5,0">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Completion Rate" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="CompletionKpi" Text="0%" FontSize="26" FontWeight="Heavy" Foreground="{StaticResource MusesAccentBrush}" />
+            <TextBlock x:Name="CompletionDetailKpi" Text="0 completed • 0 skipped" FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}" />
+          </StackPanel>
+        </Border>
+
+        <!-- Unique Variety -->
+        <Border Grid.Column="2" Background="{StaticResource MusesSurfaceBrush}" BorderBrush="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="1" CornerRadius="12" Padding="18" Margin="10,0,0,0">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Music Variety" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="VarietyKpi" Text="0 tracks" FontSize="26" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="VarietyArtistsKpi" Text="across 0 artists" FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- Heatmap Component -->
+      <views:ListeningHeatmapView x:Name="HeatmapControl" />
+
+      <!-- Top Tracks Section -->
+      <StackPanel Spacing="14">
+        <TextBlock Text="Top Tracks" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <StackPanel x:Name="TopTracksContainer" Spacing="4" />
+      </StackPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

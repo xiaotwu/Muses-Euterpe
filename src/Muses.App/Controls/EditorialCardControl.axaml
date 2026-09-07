@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Controls.EditorialCardControl"
+             Width="540"
+             Cursor="Hand">
+  <UserControl.Styles>
+    <Style Selector="ctrl|HoverPlayButton.cardPlay">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="UserControl:pointerover ctrl|HoverPlayButton.cardPlay">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <Style Selector="Border.editorialCard">
+      <Setter Property="RenderTransform" Value="none" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MusesMotionHover}" />
+          <BoxShadowsTransition Property="BoxShadow" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.editorialCard:pointerover">
+      <Setter Property="RenderTransform" Value="translateY(-3px)" />
+      <Setter Property="BoxShadow" Value="0 12 24 0 #55000000" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Spacing="6" Width="540" HorizontalAlignment="Left">
+    <!-- Eyebrow -->
+    <TextBlock x:Name="EyebrowText"
+               FontSize="10" FontWeight="SemiBold"
+               Foreground="{StaticResource MusesTextSecondaryBrush}"
+               LetterSpacing="0.6"
+               TextTrimming="CharacterEllipsis"
+               MaxLines="1" />
+
+    <!-- Title -->
+    <TextBlock x:Name="TitleText"
+               FontSize="15" FontWeight="SemiBold"
+               Foreground="{StaticResource MusesTextPrimaryBrush}"
+               TextTrimming="CharacterEllipsis"
+               MaxLines="2" />
+
+    <!-- Subtitle (Fixed Height 34) -->
+    <TextBlock x:Name="SubtitleText"
+               FontSize="13"
+               Foreground="{StaticResource MusesTextSecondaryBrush}"
+               Height="34"
+               TextTrimming="CharacterEllipsis"
+               MaxLines="2" />
+
+    <!-- Landscape Artwork (16:9, 540x309) -->
+    <Border x:Name="ArtBorder"
+            Classes="editorialCard"
+            Width="540" Height="309"
+            CornerRadius="12"
+            Background="{StaticResource MusesSurfaceBrush}"
+            BorderBrush="{StaticResource MusesHairlineBrush}"
+            BorderThickness="1"
+            ClipToBounds="True"
+            BoxShadow="0 6 16 0 #33000000">
+      <Panel>
+        <ctrl:ArtworkControl x:Name="Artwork"
+                             CornerRadius="12"
+                             GlyphSize="48"
+                             HorizontalAlignment="Stretch"
+                             VerticalAlignment="Stretch" />
+
+        <!-- Hover Play Button -->
+        <ctrl:HoverPlayButton x:Name="HoverPlay"
+                              Classes="cardPlay"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Bottom"
+                              Margin="12" />
+      </Panel>
+    </Border>
+  </StackPanel>
+</UserControl>

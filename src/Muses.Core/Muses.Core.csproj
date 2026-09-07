@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Muses.Core</RootNamespace>
+    <AssemblyName>Muses.Core</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Muses.Tests" />
+  </ItemGroup>
+</Project>

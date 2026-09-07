@@ -1,0 +1,87 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Controls.PlaylistCardControl"
+             Width="260" Height="330"
+             Cursor="Hand">
+  <Border x:Name="CardBorder"
+          Width="260" Height="330"
+          CornerRadius="20"
+          ClipToBounds="True"
+          Background="{StaticResource MusesSurfaceBrush}"
+          BorderBrush="{StaticResource MusesHairlineBrush}"
+          BorderThickness="1"
+          BoxShadow="0 8 16 0 #40000000">
+    <Panel>
+      <!-- Full-bleed Artwork -->
+      <ctrl:ArtworkControl x:Name="ArtControl"
+                           CornerRadius="20"
+                           GlyphSize="40"
+                           HorizontalAlignment="Stretch"
+                           VerticalAlignment="Stretch" />
+
+      <!-- Top Right Badges -->
+      <StackPanel Orientation="Horizontal" Spacing="6"
+                  HorizontalAlignment="Right" VerticalAlignment="Top"
+                  Margin="0,10,10,0">
+        <Border x:Name="YouTubeBadge"
+                Width="24" Height="24"
+                CornerRadius="12"
+                Background="{StaticResource MusesBlackOverlay99Brush}"
+                BorderBrush="{StaticResource MusesWhiteOverlay40Brush}"
+                BorderThickness="0.75"
+                IsVisible="False">
+          <ctrl:YouTubeMark MarkSize="12" />
+        </Border>
+      </StackPanel>
+
+      <!-- Bottom Gradient Scrim -->
+      <Border Height="180" VerticalAlignment="Bottom">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+            <GradientStop Color="#00000000" Offset="0.0" />
+            <GradientStop Color="#73000000" Offset="0.40" />
+            <GradientStop Color="#D9000000" Offset="0.75" />
+            <GradientStop Color="#F5000000" Offset="1.0" />
+          </LinearGradientBrush>
+        </Border.Background>
+      </Border>
+
+      <!-- Bottom Content: Title, Subtitle, Tag & Play Pill -->
+      <StackPanel VerticalAlignment="Bottom" Margin="14,0,14,12" Spacing="4">
+        <TextBlock x:Name="TitleBlock"
+                   FontSize="14" FontWeight="Bold"
+                   Foreground="White"
+                   TextTrimming="CharacterEllipsis"
+                   MaxLines="1" />
+        <TextBlock x:Name="SubtitleBlock"
+                   FontSize="11" FontWeight="Medium"
+                   Foreground="{StaticResource MusesWhiteOverlayD1Brush}"
+                   TextTrimming="CharacterEllipsis"
+                   MaxLines="1" />
+
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,4,0,0">
+          <!-- Tag Pill -->
+          <Border CornerRadius="10" Background="{StaticResource MusesWhiteOverlay24Brush}" Padding="6,3">
+            <TextBlock x:Name="TagBlock" Text="PLAYLIST"
+                       FontSize="8.5" FontWeight="Bold"
+                       Foreground="{StaticResource MusesWhiteOverlayE6Brush}" />
+          </Border>
+
+          <!-- Play Pill -->
+          <Border Grid.Column="2" x:Name="PlayPill"
+                  CornerRadius="12" Background="{StaticResource MusesWhiteOverlay38Brush}"
+                  BorderBrush="{StaticResource MusesWhiteOverlay59Brush}" BorderThickness="0.75"
+                  Padding="8,3.5">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z"
+                        Width="8" Height="8" Foreground="White" />
+              <TextBlock x:Name="PlayPillText" Text="Play"
+                         FontSize="9" FontWeight="SemiBold" Foreground="White" />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </Panel>
+  </Border>
+</UserControl>

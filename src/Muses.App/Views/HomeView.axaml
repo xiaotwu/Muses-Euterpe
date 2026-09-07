@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:ctrl="using:Muses.App.Controls"
+             xmlns:disc="using:Muses.Core.Discovery"
+             x:Class="Muses.App.Views.HomeView"
+             x:DataType="vm:ShellViewModel">
+  <UserControl.Styles>
+    <Style Selector="Button.mood">
+      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="14,7" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.mood:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay2EBrush}" />
+    </Style>
+    <Style Selector="Button.mood TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.shelfCard">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.shelfCard /template/ ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.shelfCard ctrl|HoverPlayButton">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="{StaticResource MusesMotionHover}" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.shelfCard:pointerover ctrl|HoverPlayButton">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.quickRow">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay0ABrush}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.quickRow:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay1EBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="40,32,40,96" Spacing="34" MaxWidth="1560">
+
+      <!-- Header & Source Status -->
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding HomeLabel}"
+                   FontSize="34" FontWeight="Heavy"
+                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding PublicDiscoveryLabel}"
+                     FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
+          <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="8,2"
+                  IsVisible="{Binding HomeDiscovery.IsShowingStale, FallbackValue=False}"
+                  VerticalAlignment="Center">
+            <TextBlock Text="Saved" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </Border>
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Mood Chips -->
+      <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="MoodChipsContainer" Orientation="Horizontal" Spacing="8" />
+      </ScrollViewer>
+
+      <!-- Guest Banner -->
+      <Border Background="{StaticResource MusesSurfaceBrush}"
+              CornerRadius="14"
+              Padding="18,16"
+              BorderBrush="{StaticResource MusesWhiteOverlay14Brush}"
+              BorderThickness="1">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding GuestBannerTitle}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding GuestBannerBody}" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="1"
+                  Content="{Binding SignInLabel}"
+                  Background="{StaticResource MusesAccentBrush}"
+                  Foreground="White"
+                  BorderThickness="0"
+                  CornerRadius="16"
+                  Padding="18,8"
+                  VerticalAlignment="Center"
+                  Command="{Binding OpenSettingsCommand}" />
+        </Grid>
+      </Border>
+
+      <!-- Failure / Retry Strip (Isolated) -->
+      <Border Background="{StaticResource MusesAccentOverlay1ABrush}"
+              BorderBrush="{StaticResource MusesAccentOverlay33Brush}"
+              BorderThickness="1"
+              CornerRadius="10"
+              Padding="14,10"
+              IsVisible="{Binding HomeDiscovery.LastRefreshError, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="Some recommendations could not be loaded right now."
+                     FontSize="13" Foreground="{StaticResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="Retry"
+                  Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                  CornerRadius="6" Padding="12,6" Cursor="Hand"
+                  Click="OnRetryClicked" />
+        </Grid>
+      </Border>
+
+      <!-- Top Picks (Portrait Cards) -->
+      <StackPanel x:Name="TopPicksSection" Spacing="13">
+        <TextBlock Text="Top Picks"
+                   FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="TopPicksContainer" Orientation="Horizontal" Spacing="18" />
+        </ScrollViewer>
+      </StackPanel>
+
+      <!-- Discovery Shelves Container -->
+      <StackPanel x:Name="ShelvesContainer" Spacing="34" />
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

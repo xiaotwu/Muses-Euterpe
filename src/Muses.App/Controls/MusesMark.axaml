@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Muses.App.Controls.MusesMark">
+  <Border x:Name="Host"
+          Width="20" Height="20"
+          CornerRadius="4"
+          ClipToBounds="True">
+    <Panel>
+      <Image x:Name="Logo"
+             Stretch="UniformToFill"
+             Source="avares://Muses/Assets/Images/logo.png" />
+    </Panel>
+  </Border>
+</UserControl>

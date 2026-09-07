@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Muses.App.ViewModels"
+        x:Class="Muses.App.Views.DesktopLyricsWindow"
+        x:DataType="vm:ShellViewModel"
+        Title="Muses Desktop Lyrics"
+        Width="760" Height="96"
+        MinWidth="500" MinHeight="60"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        PointerPressed="OnWindowPointerPressed">
+  <Border CornerRadius="12" Background="#80101014" Padding="16,10"
+          BorderBrush="{StaticResource MusesWhiteOverlay26Brush}" BorderThickness="1">
+    <Grid ColumnDefinitions="*,Auto">
+      <!-- Lyrics Content -->
+      <StackPanel VerticalAlignment="Center" Spacing="4" HorizontalAlignment="Center">
+        <TextBlock x:Name="LyricLineText"
+                   Text="♪ Muses Desktop Lyrics"
+                   FontSize="22" FontWeight="Heavy"
+                   Foreground="#FFFFFF"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextTrimming="CharacterEllipsis">
+          <TextBlock.Effect>
+            <DropShadowEffect BlurRadius="10" Color="#B3000000" OffsetX="0" OffsetY="2" />
+          </TextBlock.Effect>
+        </TextBlock>
+
+        <TextBlock x:Name="TranslationText"
+                   Text=""
+                   FontSize="13" FontWeight="Medium"
+                   Foreground="{StaticResource MusesTextPrimaryMutedBrush}"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   IsVisible="False">
+          <TextBlock.Effect>
+            <DropShadowEffect BlurRadius="6" Color="#B3000000" OffsetX="0" OffsetY="1" />
+          </TextBlock.Effect>
+        </TextBlock>
+      </StackPanel>
+
+      <!-- Dismiss Button (Top Right) -->
+      <Button Grid.Column="1" Background="Transparent" BorderThickness="0"
+              Width="24" Height="24" Padding="0" Cursor="Hand"
+              VerticalAlignment="Top" ToolTip.Tip="Close Desktop Lyrics"
+              Click="OnCloseClicked">
+        <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                  Width="10" Height="10" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+      </Button>
+    </Grid>
+  </Border>
+</Window>

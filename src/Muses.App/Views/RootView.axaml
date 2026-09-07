@@ -1,0 +1,241 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Muses.App.ViewModels"
+             xmlns:views="using:Muses.App.Views"
+             xmlns:ctrl="using:Muses.App.Controls"
+             x:Class="Muses.App.Views.RootView"
+             x:DataType="vm:ShellViewModel">
+  <Panel>
+    <Grid ColumnDefinitions="Auto,*,Auto">
+      <Panel Width="{Binding SidebarWidth}">
+        <ExperimentalAcrylicBorder x:Name="SidebarAcrylic"
+                                   CornerRadius="0,20,20,0"
+                                   IsHitTestVisible="False"
+                                   IsVisible="False" />
+        <Border Background="{DynamicResource MusesGlassSidebarBrush}"
+                CornerRadius="0,20,20,0"
+                ClipToBounds="True">
+          <views:SidebarView />
+        </Border>
+      </Panel>
+
+      <Panel Grid.Column="1" Background="{StaticResource MusesPageBrush}">
+        <views:HomeView IsVisible="{Binding IsHome}" />
+        <views:NewView IsVisible="{Binding IsDiscover}" />
+        <views:RecentlyView IsVisible="{Binding IsRecently}" />
+        <views:SongsView IsVisible="{Binding IsSongs}" />
+        <views:CatalogReleasesView IsVisible="{Binding IsAlbumsOverview}" />
+        <views:CatalogReleaseDetailView IsVisible="{Binding IsReleaseDetail}" />
+        <views:CatalogArtistsView IsVisible="{Binding IsArtistsOverview}" />
+        <views:CatalogArtistDetailView IsVisible="{Binding IsArtistDetail}" />
+        <views:HistoryView IsVisible="{Binding IsHistory}" />
+        <views:PlaylistsOverviewView IsVisible="{Binding IsPlaylistsOverview}" />
+        <views:PlaylistDetailView IsVisible="{Binding IsPlaylistsDetailVisible}" />
+        <views:InboxView IsVisible="{Binding IsInbox}" />
+
+        <!-- Floating Player Capsule: strictly centered in the browsing content area -->
+        <views:PlayerBarView HorizontalAlignment="Center"
+                             VerticalAlignment="Bottom"
+                             Margin="16,0,16,20"
+                             IsVisible="{Binding !IsNowPlayingOpen}"
+                             ZIndex="10" />
+      </Panel>
+
+      <!-- Integrated Trailing Drawers: Lyrics & Queue -->
+      <Panel Grid.Column="2">
+        <views:LyricsDrawerView VerticalAlignment="Stretch"
+                                IsVisible="{Binding IsLyricsDrawerOpen}" />
+        <views:QueueDrawerView VerticalAlignment="Stretch"
+                               IsVisible="{Binding IsQueueDrawerOpen}" />
+      </Panel>
+    </Grid>
+
+    <!-- Full-Window Now Playing Overlay -->
+    <views:NowPlayingView IsVisible="{Binding IsNowPlayingOpen}"
+                          ZIndex="25" />
+
+    <!-- YouTube Video Stage Overlay -->
+    <views:YouTubeVideoOverlay IsVisible="{Binding IsVideoOverlayOpen}"
+                               ZIndex="30" />
+
+    <Panel IsVisible="{Binding SettingsOpen}" ZIndex="20">
+      <Border Background="{StaticResource MusesScrimBrush}"
+              PointerPressed="OnScrimPressed" />
+      <Border Width="760" Height="580"
+              CornerRadius="18"
+              Background="{DynamicResource MusesGlassPanelBrush}"
+              BorderBrush="{StaticResource MusesHairlineBrush}"
+              BorderThickness="1"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              ClipToBounds="True">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="24,20,24,12">
+            <TextBlock Text="{Binding SettingsLabel}"
+                       FontSize="26" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <Button Grid.Column="1"
+                    Content="✕"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Width="32" Height="32"
+                    Padding="0"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    Foreground="{StaticResource MusesTextPrimaryBrush}"
+                    Cursor="Hand"
+                    Click="OnCloseSettings" />
+          </Grid>
+          <views:SettingsView />
+        </DockPanel>
+      </Border>
+    </Panel>
+
+    <Panel IsVisible="{Binding PasteOpen}" ZIndex="21">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnPasteScrimPressed" />
+      <ctrl:GlassDialogShell Width="480" Title="{Binding PasteTitle}" TitleFontSize="22">
+        <ctrl:GlassDialogShell.DialogContent>
+          <StackPanel Spacing="14">
+            <TextBox Text="{Binding PasteUrl}" Watermark="https://www.youtube.com/watch?v=…" />
+            <TextBlock Text="{Binding PasteError}" Foreground="{StaticResource MusesAccentBrush}" />
+            <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MusesTextSecondaryBrush}" FontSize="12" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+              <Button Content="{Binding CancelLabel}" Command="{Binding ClosePasteCommand}" />
+              <Button Content="{Binding ImportLabel}"
+                      Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                      Command="{Binding ImportPasteCommand}"
+                      IsEnabled="{Binding !PasteBusy}" />
+            </StackPanel>
+          </StackPanel>
+        </ctrl:GlassDialogShell.DialogContent>
+      </ctrl:GlassDialogShell>
+    </Panel>
+
+    <!-- Modal 1: Playlist Add Choice Sheet -->
+    <Panel IsVisible="{Binding ShowAddChoiceSheet}" ZIndex="22">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnAddChoiceScrimPressed" />
+      <Border Width="420"
+              CornerRadius="18"
+              Background="{DynamicResource MusesGlassPanelBrush}"
+              BorderBrush="{StaticResource MusesHairlineBrush}"
+              BorderThickness="1"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Padding="24">
+        <StackPanel Spacing="16">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding AddPlaylistLabel}" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <Button Grid.Column="1" Content="✕" Background="Transparent" BorderThickness="0" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                    Command="{Binding CloseAddChoiceCommand}" Cursor="Hand" />
+          </Grid>
+          <!-- Choice 1: New Playlist -->
+          <Button Background="{StaticResource MusesSurfaceBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1" CornerRadius="12" Padding="14"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                  Command="{Binding OpenNewPlaylistDialogCommand}" Cursor="Hand">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Data="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" Width="20" Height="20" Foreground="{StaticResource MusesAccentBrush}" Margin="0,0,14,0" />
+              <StackPanel Grid.Column="1" Spacing="3">
+                <TextBlock Text="{Binding NewPlaylistLabel}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <TextBlock Text="{Binding NewPlaylistDescLabel}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              </StackPanel>
+              <PathIcon Grid.Column="2" Data="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" Width="12" Height="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            </Grid>
+          </Button>
+          <!-- Choice 2: Import YouTube Playlist -->
+          <Button Background="{StaticResource MusesSurfaceBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1" CornerRadius="12" Padding="14"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                  Command="{Binding OpenImportDialogCommand}" Cursor="Hand">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <PathIcon Data="M14,2L20,8V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V4A2,2 0 0,1 6,2H14M18,20V9H13V4H6V20H18M12,12L16,16H13.5V19H10.5V16H8L12,12Z" Width="20" Height="20" Foreground="{StaticResource MusesAccentBrush}" Margin="0,0,14,0" />
+              <StackPanel Grid.Column="1" Spacing="3">
+                <TextBlock Text="{Binding ImportYouTubeLabel}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <TextBlock Text="{Binding ImportYouTubeDescLabel}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              </StackPanel>
+              <PathIcon Grid.Column="2" Data="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" Width="12" Height="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            </Grid>
+          </Button>
+        </StackPanel>
+      </Border>
+    </Panel>
+
+    <!-- Modal 2: New Playlist Dialog -->
+    <Panel IsVisible="{Binding ShowNewPlaylistDialog}" ZIndex="23">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnNewPlaylistScrimPressed" />
+      <ctrl:GlassDialogShell Width="360" Title="{Binding NewPlaylistLabel}">
+        <ctrl:GlassDialogShell.DialogContent>
+          <StackPanel Spacing="16">
+            <TextBox Text="{Binding NewPlaylistName}" Watermark="{Binding PlaylistNameWatermark}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+              <Button Content="{Binding CancelLabel}" Command="{Binding CloseNewPlaylistDialogCommand}" />
+              <Button Content="{Binding CreateLabel}"
+                      Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                      Command="{Binding CreatePlaylistCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </ctrl:GlassDialogShell.DialogContent>
+      </ctrl:GlassDialogShell>
+    </Panel>
+
+    <!-- Modal 3: Import YouTube Playlist Dialog -->
+    <Panel IsVisible="{Binding ShowImportDialog}" ZIndex="24">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnImportScrimPressed" />
+      <ctrl:GlassDialogShell Width="480" Title="{Binding ImportYouTubeLabel}">
+        <ctrl:GlassDialogShell.DialogContent>
+          <StackPanel Spacing="14">
+            <TextBox Text="{Binding ImportPlaylistUrl}" Watermark="https://www.youtube.com/playlist?list=PL..." />
+            <TextBlock Text="{Binding ImportNoticeLabel}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding ImportError}" Foreground="{StaticResource MusesAccentBrush}" IsVisible="{Binding ImportError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+              <Button Content="{Binding CancelLabel}" Command="{Binding CloseImportDialogCommand}" />
+              <Button Content="{Binding ImportActionLabel}"
+                      Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                      Command="{Binding ImportPlaylistCommand}"
+                      IsEnabled="{Binding !ImportBusy}" />
+            </StackPanel>
+          </StackPanel>
+        </ctrl:GlassDialogShell.DialogContent>
+      </ctrl:GlassDialogShell>
+    </Panel>
+
+    <!-- Modal: 32-band Graphic Equalizer -->
+    <Panel IsVisible="{Binding IsEQOpen}" ZIndex="25">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnEQScrimPressed" />
+      <views:EQView HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+
+    <!-- Modal: Save Custom EQ Preset Dialog -->
+    <Panel IsVisible="{Binding IsSaveEQPresetOpen}" ZIndex="26">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnSaveEQPresetScrimPressed" />
+      <ctrl:GlassDialogShell Width="360" Title="Save EQ Preset">
+        <ctrl:GlassDialogShell.DialogContent>
+          <StackPanel Spacing="16">
+            <TextBox Text="{Binding NewEQPresetName, Mode=TwoWay}" Watermark="Preset name..." />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+              <Button Content="{Binding CancelLabel}" Command="{Binding CloseSaveEQPresetCommand}" />
+              <Button Content="Save"
+                      Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
+                      Command="{Binding SaveEQPresetCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </ctrl:GlassDialogShell.DialogContent>
+      </ctrl:GlassDialogShell>
+    </Panel>
+
+    <!-- Modal: Audio Nerd Stream Info Panel -->
+    <Panel IsVisible="{Binding IsAudioNerdOpen}" ZIndex="25">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnAudioNerdScrimPressed" />
+      <views:AudioNerdPanel HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+
+    <!-- Modal: Focus Mode Controller -->
+    <Panel IsVisible="{Binding IsFocusOpen}" ZIndex="25">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnFocusScrimPressed" />
+      <views:FocusView HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+
+    <!-- Modal: Track Notes & Bookmarks Sheet -->
+    <Panel IsVisible="{Binding IsNotesOpen}" ZIndex="25">
+      <Border Background="{StaticResource MusesScrimBrush}" PointerPressed="OnNotesScrimPressed" />
+      <views:NotesSheet HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+  </Panel>
+</UserControl>

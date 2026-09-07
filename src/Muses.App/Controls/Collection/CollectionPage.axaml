@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             xmlns:col="using:Muses.App.Controls.Collection"
+             x:Class="Muses.App.Controls.Collection.CollectionPage"
+             Focusable="True">
+  <UserControl.Styles>
+    <Style Selector="Button.chromeBtn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.chromeBtn PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextMutedBrush}" />
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+    </Style>
+    <Style Selector="Button.chromeBtn:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+    </Style>
+    <Style Selector="Button.chromeBtn:pointerover PathIcon">
+      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel Background="{StaticResource MusesPageBrush}">
+    <!-- Empty State Container -->
+    <DockPanel x:Name="EmptyPanel" IsVisible="False">
+      <Border DockPanel.Dock="Top" Margin="40,32,40,28">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="4">
+            <TextBlock x:Name="EmptyPageTitle" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="EmptyPageSubtitle" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" x:Name="EmptyHeaderControls" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="14" Margin="0,0,0,80">
+        <PathIcon x:Name="EmptyIcon"
+                  Data="M12,3V13.55C11.41,13.21 10.73,13 10,13C7.79,13 6,14.79 6,17C6,19.21 7.79,21 10,21C12.21,21 14,19.21 14,17V7H18V3H12Z"
+                  Width="44" Height="44"
+                  Foreground="{StaticResource MusesWhiteOverlay66Brush}" />
+        <TextBlock x:Name="EmptyTitleText"
+                   FontSize="20" FontWeight="SemiBold"
+                   Foreground="{StaticResource MusesTextPrimaryBrush}"
+                   HorizontalAlignment="Center" />
+        <TextBlock x:Name="EmptySubtitleText"
+                   FontSize="13"
+                   Foreground="{StaticResource MusesTextSecondaryBrush}"
+                   HorizontalAlignment="Center" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- Main Content Container (Dual Mounted Stage & List) -->
+    <DockPanel x:Name="ContentPanel" IsVisible="True">
+      <!-- Shared Header -->
+      <Border DockPanel.Dock="Top" Margin="40,32,40,28">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <TextBlock x:Name="PageTitle" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <Button x:Name="YouTubeLinkButton" Classes="chromeBtn" ToolTip.Tip="Open on YouTube" IsVisible="False" VerticalAlignment="Center">
+                <ctrl:YouTubeMark MarkSize="14" />
+              </Button>
+            </StackPanel>
+            <TextBlock x:Name="PageSubtitle" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+          </StackPanel>
+
+          <!-- Header Action Controls -->
+          <StackPanel Grid.Column="1" x:Name="HeaderControls" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <Button x:Name="BackButton" Classes="chromeBtn" ToolTip.Tip="Back" IsVisible="False">
+              <PathIcon Data="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" />
+            </Button>
+            <Button x:Name="PlayAllButton" Classes="chromeBtn" ToolTip.Tip="Play All">
+              <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" />
+            </Button>
+            <Button x:Name="ShuffleButton" Classes="chromeBtn" ToolTip.Tip="Shuffle">
+              <PathIcon Data="M14.83,13.41L13.42,14.82L16.55,17.95L14.5,20H20V14.5L17.96,16.54L14.83,13.41M14.5,4L16.54,6.04L4,18.59L5.41,20L17.96,7.46L20,9.5V4M10.59,9.17L5.41,4L4,5.41L9.17,10.58L10.59,9.17Z" />
+            </Button>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Stage & List Viewports -->
+      <Panel>
+        <!-- Stage Viewport (Fan Deck) -->
+        <Panel x:Name="StageViewPanel">
+          <col:CollectionSongDeck x:Name="SongDeck" />
+        </Panel>
+
+        <!-- List Viewport (Complete Table) -->
+        <Panel x:Name="ListViewPanel" IsVisible="False" Opacity="0">
+          <col:CollectionTrackTable x:Name="TrackTable" />
+        </Panel>
+      </Panel>
+    </DockPanel>
+  </Panel>
+</UserControl>
