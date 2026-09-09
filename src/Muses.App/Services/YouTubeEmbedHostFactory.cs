@@ -1,27 +1,26 @@
+using Avalonia.Controls;
+using Microsoft.Web.WebView2.Core;
 using Muses.Core.YouTube;
 
 namespace Muses.App.Services;
 
 /// <summary>
-/// Creates an iframe client for the video overlay. Avalonia has no built-in
-/// WebView on net10.0 + Avalonia 11.3 that restores cleanly for this Mac
-/// checkout, so macOS-dev (and CI) get a degraded client. Win11 will host
-/// WebView2 inside the overlay only — never for Home/Search/capsule audio.
+/// Creates an iframe client for the video overlay. Win11 hosts WebView2 Evergreen
+/// inside the overlay only — never for Home/Search/capsule audio. macOS-dev and CI
+/// get a degraded client (no live WebView).
 /// </summary>
 public static class YouTubeEmbedHostFactory
 {
     public static IYouTubeIFrameClient CreateClient()
     {
-        // Prefer an explicit WebView2 host when a future Windows package is wired.
         if (OperatingSystem.IsWindows() && WindowsWebView2YouTubeIFrameClient.TryCreate(out var win))
             return win!;
 
-        // Honest degradation: never silently Process.Start as the only path.
         return new DegradedYouTubeIFrameClient(
             available: false,
             reason: OperatingSystem.IsMacOS()
                 ? "macOS-dev: Avalonia WebView/WebView2 host not wired for this TFM"
-                : "WebView host unavailable on this platform/build");
+                : "WebView2 runtime unavailable on this platform/build");
     }
 }
 
@@ -46,7 +45,6 @@ public sealed class DegradedYouTubeIFrameClient : IYouTubeIFrameClient
 
     public void Load(string videoId, string pageHtml)
     {
-        // Unavailable surfaces refuse to "load" a live iframe.
         if (!IsAvailable) return;
         LastVideoId = videoId;
         IsLoaded = true;
@@ -60,19 +58,41 @@ public sealed class DegradedYouTubeIFrameClient : IYouTubeIFrameClient
 }
 
 /// <summary>
-/// Placeholder for Win11 WebView2. Returns false until a compatible Avalonia
-/// WebView2 package is added for net10.0; structure is ready for Phase 2.1.
+/// Windows WebView2 iframe surface hosted exclusively in YouTubeVideoOverlay.EmbedHost.
 /// </summary>
 public sealed class WindowsWebView2YouTubeIFrameClient : IYouTubeIFrameClient
 {
-    private WindowsWebView2YouTubeIFrameClient() { }
+    private readonly WebView2NativeHost _host;
+    private string? _lastVideoId;
+
+    private WindowsWebView2YouTubeIFrameClient(WebView2NativeHost host)
+    {
+        _host = host;
+    }
+
+    /// <summary>NativeControlHost to attach under EmbedHost when the overlay is open.</summary>
+    public Control HostControl => _host;
 
     public static bool TryCreate(out WindowsWebView2YouTubeIFrameClient? client)
     {
-        // No WebView2 Avalonia package is referenced yet (net10.0 + Avalonia 11.3).
-        // Keep the hook so Win11 can light up without reshaping overlay policy.
         client = null;
-        return false;
+        if (!OperatingSystem.IsWindows()) return false;
+
+        try
+        {
+            // Throws / empty when Evergreen WebView2 runtime is missing.
+            var version = CoreWebView2Environment.GetAvailableBrowserVersionString();
+            if (string.IsNullOrWhiteSpace(version))
+                return false;
+
+            client = new WindowsWebView2YouTubeIFrameClient(new WebView2NativeHost());
+            return true;
+        }
+        catch
+        {
+            client = null;
+            return false;
+        }
     }
 
     public bool IsAvailable => true;
@@ -80,11 +100,15 @@ public sealed class WindowsWebView2YouTubeIFrameClient : IYouTubeIFrameClient
 
     public void Load(string videoId, string pageHtml)
     {
+        _lastVideoId = videoId;
         IsLoaded = true;
+        _host.NavigateToHtml(string.IsNullOrEmpty(pageHtml) ? YouTubeEmbed.PageHtml(videoId) : pageHtml);
     }
 
     public void TearDown()
     {
         IsLoaded = false;
+        _lastVideoId = null;
+        _host.NavigateBlank();
     }
 }

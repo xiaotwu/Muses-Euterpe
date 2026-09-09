@@ -12,7 +12,9 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
 {
     private readonly IYTDlpBridge _bridge;
     private readonly IMpvPlayerFactory _mpv;
-    private readonly string _quality;
+    private string _quality;
+    private bool _replayGainEnabled = true;
+    private double? _replayGainDb;
     private readonly object _gate = new();
 
     private CancellationTokenSource? _loadCts;
@@ -39,6 +41,34 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
     public PlayerState State { get; } = new();
     public Action? OnCompletion { get; set; }
 
+    /// <summary>Map Settings PrefKey.AudioQuality values onto yt-dlp format keys (audio-only).</summary>
+    public static string MapAudioQualityPref(string? pref) => pref switch
+    {
+        "high" => "128k",
+        "medium" => "64k",
+        "256k" => "256k",
+        "128k" => "128k",
+        "64k" => "64k",
+        "bestaudio" => "bestaudio",
+        // "best" in Settings means best audio, never the video+audio mux format.
+        _ => "bestaudio"
+    };
+
+    public void SetStreamQuality(string quality)
+    {
+        if (string.IsNullOrWhiteSpace(quality)) return;
+        lock (_gate) { _quality = quality; }
+    }
+
+    public void SetReplayGainEnabled(bool enabled)
+    {
+        lock (_gate)
+        {
+            _replayGainEnabled = enabled;
+            ApplyReplayGain_NoLock();
+        }
+    }
+
     public async Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
@@ -53,6 +83,7 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             StopSession_NoLock(suppressCompletion: true);
             _completionRaised = 0;
             State.Track = track;
+            _replayGainDb = track.ReplayGain;
             State.Duration = track.DurationSeconds;
             State.Position = 0;
             State.Buffering = true;
@@ -219,8 +250,29 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
 
     private void ApplyEq_NoLock()
     {
-        var chain = BuildEqAfChain(_eqBands);
-        _session?.SetAudioFilters(chain);
+        // EQ and ReplayGain share the af chain.
+        ApplyAudioFilters_NoLock();
+    }
+
+    private void ApplyReplayGain_NoLock()
+    {
+        ApplyAudioFilters_NoLock();
+    }
+
+    private void ApplyAudioFilters_NoLock()
+    {
+        var parts = new List<string>();
+        var eq = BuildEqAfChain(_eqBands);
+        if (!string.IsNullOrWhiteSpace(eq))
+            parts.Add(eq);
+
+        if (_replayGainEnabled && _replayGainDb is { } rg && Math.Abs(rg) >= 0.05)
+        {
+            var g = rg.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            parts.Add("volume=" + g + "dB");
+        }
+
+        _session?.SetAudioFilters(parts.Count == 0 ? "" : string.Join(",", parts));
     }
 
     public void Dispose()

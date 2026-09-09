@@ -35,3 +35,9 @@ resources/yt-dlp-LICENSE
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
+
+# Vendored player binaries (fetch locally / CI cache)
+resources/mpv.exe
+resources/mpv.com
+resources/*.dll
+

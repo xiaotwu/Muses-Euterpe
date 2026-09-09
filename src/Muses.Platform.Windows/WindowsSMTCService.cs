@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using System.Reflection;
 using Muses.Core.Domain;
 using Muses.Core.Platform;
 using Muses.Core.Playback;
@@ -109,11 +111,14 @@ public sealed class NullWindowsSmtcBackend : IWindowsSmtcBackend
 /// <summary>
 /// Windows SMTC backend. Uses Windows Runtime SystemMediaTransportControls when the OS APIs are present.
 /// Compiled for all TFMs; activation is runtime-gated so macOS/Linux builds stay no-op.
+/// Prefer MediaPlayer.SystemMediaTransportControls (works for unpackaged desktop) over GetForCurrentView.
 /// </summary>
 public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
 {
     private readonly object? _controls;
     private readonly object? _updater;
+    private readonly object? _mediaPlayerKeepAlive;
+    private Delegate? _buttonHandler;
     private bool _disposed;
 
     public bool IsAvailable => _controls is not null;
@@ -122,16 +127,14 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
     public event Action? NextPressed;
     public event Action? PreviousPressed;
 
-    private WindowsSmtcBackend(object controls, object updater)
+    private WindowsSmtcBackend(object controls, object updater, object? mediaPlayerKeepAlive)
     {
         _controls = controls;
         _updater = updater;
+        _mediaPlayerKeepAlive = mediaPlayerKeepAlive;
         TryHookButtons(controls);
-        // Keep event fields "used" under TreatWarningsAsErrors until WinRT ButtonPressed is hooked.
-        _ = (PlayPressed, PausePressed, NextPressed, PreviousPressed);
     }
 
-    // Invoked when a future WinRT ButtonPressed hook is wired.
     internal void EmitPlay() => PlayPressed?.Invoke();
     internal void EmitPause() => PausePressed?.Invoke();
     internal void EmitNext() => NextPressed?.Invoke();
@@ -142,31 +145,23 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
         if (!OperatingSystem.IsWindows()) return null;
         try
         {
-            // Prefer reflection so Mac/Linux CI never needs Windows SDK packages.
-            var smtcType = Type.GetType("Windows.Media.SystemMediaTransportControls, Windows.Media, ContentType=WindowsRuntime")
-                           ?? Type.GetType("Windows.Media.SystemMediaTransportControls, Microsoft.Windows.SDK.NET");
-            if (smtcType is null)
-            {
-                // Fallback: mark available via a lightweight stub that still accepts Update* calls no-op-safe.
-                // Real Win11 validation uses the WinRT path when the OS projection is present.
-                return null;
-            }
+            var fromPlayer = TryCreateFromMediaPlayer();
+            if (fromPlayer is not null) return fromPlayer;
+
+            var smtcType = ResolveType(
+                "Windows.Media.SystemMediaTransportControls, Windows.Media, ContentType=WindowsRuntime",
+                "Windows.Media.SystemMediaTransportControls, Microsoft.Windows.SDK.NET");
+            if (smtcType is null) return null;
+
             var getForCurrentView = smtcType.GetMethod("GetForCurrentView", Type.EmptyTypes);
             var controls = getForCurrentView?.Invoke(null, null);
             if (controls is null) return null;
 
-            var displayType = Type.GetType("Windows.Media.SystemMediaTransportControlsDisplayUpdater, Windows.Media, ContentType=WindowsRuntime")
-                              ?? controls.GetType().GetProperty("DisplayUpdater")?.PropertyType;
             var updater = controls.GetType().GetProperty("DisplayUpdater")?.GetValue(controls);
             if (updater is null) return null;
 
-            TrySet(controls, "IsEnabled", true);
-            TrySet(controls, "IsPlayEnabled", true);
-            TrySet(controls, "IsPauseEnabled", true);
-            TrySet(controls, "IsNextEnabled", true);
-            TrySet(controls, "IsPreviousEnabled", true);
-
-            return new WindowsSmtcBackend(controls, updater);
+            EnableTransport(controls);
+            return new WindowsSmtcBackend(controls, updater, null);
         }
         catch
         {
@@ -174,14 +169,101 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
         }
     }
 
+    private static WindowsSmtcBackend? TryCreateFromMediaPlayer()
+    {
+        try
+        {
+            var playerType = ResolveType(
+                "Windows.Media.Playback.MediaPlayer, Windows.Media, ContentType=WindowsRuntime",
+                "Windows.Media.Playback.MediaPlayer, Microsoft.Windows.SDK.NET");
+            if (playerType is null) return null;
+
+            var player = Activator.CreateInstance(playerType);
+            if (player is null) return null;
+
+            try
+            {
+                var cmdMgr = playerType.GetProperty("CommandManager")?.GetValue(player);
+                if (cmdMgr is not null)
+                    TrySet(cmdMgr, "IsEnabled", false);
+            }
+            catch { /* optional */ }
+
+            var controls = playerType.GetProperty("SystemMediaTransportControls")?.GetValue(player);
+            if (controls is null) return null;
+            var updater = controls.GetType().GetProperty("DisplayUpdater")?.GetValue(controls);
+            if (updater is null) return null;
+
+            EnableTransport(controls);
+            return new WindowsSmtcBackend(controls, updater, player);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void EnableTransport(object controls)
+    {
+        TrySet(controls, "IsEnabled", true);
+        TrySet(controls, "IsPlayEnabled", true);
+        TrySet(controls, "IsPauseEnabled", true);
+        TrySet(controls, "IsNextEnabled", true);
+        TrySet(controls, "IsPreviousEnabled", true);
+    }
+
     private void TryHookButtons(object controls)
     {
         try
         {
             var evt = controls.GetType().GetEvent("ButtonPressed");
-            if (evt is null) return;
-            // ButtonPressed handler signature varies; skip strong hook when types unavailable.
-            // Raise* from tests and tray still exercise PlaybackService wiring.
+            if (evt?.EventHandlerType is null || evt.AddMethod is null) return;
+
+            var invoke = evt.EventHandlerType.GetMethod("Invoke");
+            if (invoke is null) return;
+            var parms = invoke.GetParameters();
+            if (parms.Length != 2) return;
+
+            var senderParam = Expression.Parameter(parms[0].ParameterType, "sender");
+            var argsParam = Expression.Parameter(parms[1].ParameterType, "args");
+            var self = Expression.Constant(this);
+            var method = typeof(WindowsSmtcBackend).GetMethod(
+                nameof(OnButtonPressedCore),
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method is null) return;
+
+            var call = Expression.Call(self, method, Expression.Convert(argsParam, typeof(object)));
+            var lambda = Expression.Lambda(evt.EventHandlerType, call, senderParam, argsParam);
+            _buttonHandler = lambda.Compile();
+            evt.AddEventHandler(controls, _buttonHandler);
+        }
+        catch
+        {
+            // Projection mismatch — Raise* from tests still exercises PlaybackService wiring.
+        }
+    }
+
+    private void OnButtonPressedCore(object args)
+    {
+        try
+        {
+            var button = args.GetType().GetProperty("Button")?.GetValue(args);
+            var name = button?.ToString() ?? "";
+            switch (name)
+            {
+                case "Play":
+                    EmitPlay();
+                    break;
+                case "Pause":
+                    EmitPause();
+                    break;
+                case "Next":
+                    EmitNext();
+                    break;
+                case "Previous":
+                    EmitPrevious();
+                    break;
+            }
         }
         catch
         {
@@ -195,12 +277,15 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
         try
         {
             TrySet(_controls, "PlaybackStatus", isPlaying ? 3 /*Playing*/ : 4 /*Paused*/);
+            TrySet(_updater, "Type", 1);
             var musicProps = _updater.GetType().GetProperty("MusicProperties")?.GetValue(_updater);
             if (musicProps is not null)
             {
                 TrySet(musicProps, "Title", title ?? "");
                 TrySet(musicProps, "Artist", artist ?? "");
             }
+
+            TrySetArtwork(_updater, artworkUrl);
             _updater.GetType().GetMethod("Update", Type.EmptyTypes)?.Invoke(_updater, null);
         }
         catch
@@ -209,13 +294,37 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
         }
     }
 
+    private static void TrySetArtwork(object updater, string? artworkUrl)
+    {
+        if (string.IsNullOrWhiteSpace(artworkUrl)) return;
+        if (!Uri.TryCreate(artworkUrl, UriKind.Absolute, out var uri)) return;
+        try
+        {
+            var streamRefType = ResolveType(
+                "Windows.Storage.Streams.RandomAccessStreamReference, Windows.Storage, ContentType=WindowsRuntime",
+                "Windows.Storage.Streams.RandomAccessStreamReference, Microsoft.Windows.SDK.NET");
+            if (streamRefType is null) return;
+            var create = streamRefType.GetMethod("CreateFromUri", [typeof(Uri)])
+                         ?? streamRefType.GetMethods(BindingFlags.Public | BindingFlags.Static)
+                             .FirstOrDefault(m => m.Name == "CreateFromUri" && m.GetParameters().Length == 1);
+            if (create is null) return;
+            var thumb = create.Invoke(null, [uri]);
+            TrySet(updater, "Thumbnail", thumb);
+        }
+        catch
+        {
+            // Artwork is best-effort.
+        }
+    }
+
     public void UpdateTimeline(double positionSeconds, double durationSeconds)
     {
         if (_controls is null) return;
         try
         {
-            var timelineType = Type.GetType("Windows.Media.SystemMediaTransportControlsTimelineProperties, Windows.Media, ContentType=WindowsRuntime")
-                               ?? Type.GetType("Windows.Media.SystemMediaTransportControlsTimelineProperties, Microsoft.Windows.SDK.NET");
+            var timelineType = ResolveType(
+                "Windows.Media.SystemMediaTransportControlsTimelineProperties, Windows.Media, ContentType=WindowsRuntime",
+                "Windows.Media.SystemMediaTransportControlsTimelineProperties, Microsoft.Windows.SDK.NET");
             if (timelineType is null) return;
             var timeline = Activator.CreateInstance(timelineType);
             if (timeline is null) return;
@@ -230,6 +339,16 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
         {
             // ignore
         }
+    }
+
+    private static Type? ResolveType(params string[] names)
+    {
+        foreach (var n in names)
+        {
+            var t = Type.GetType(n);
+            if (t is not null) return t;
+        }
+        return null;
     }
 
     private static void TrySet(object target, string name, object? value)
@@ -253,6 +372,23 @@ public sealed class WindowsSmtcBackend : IWindowsSmtcBackend
     {
         if (_disposed) return;
         _disposed = true;
+        try
+        {
+            if (_controls is not null && _buttonHandler is not null)
+            {
+                var evt = _controls.GetType().GetEvent("ButtonPressed");
+                evt?.RemoveEventHandler(_controls, _buttonHandler);
+            }
+        }
+        catch { /* ignore */ }
         try { TrySet(_controls!, "IsEnabled", false); } catch { /* ignore */ }
+        try
+        {
+            if (_mediaPlayerKeepAlive is IDisposable d)
+                d.Dispose();
+            else
+                _mediaPlayerKeepAlive?.GetType().GetMethod("Dispose")?.Invoke(_mediaPlayerKeepAlive, null);
+        }
+        catch { /* ignore */ }
     }
 }

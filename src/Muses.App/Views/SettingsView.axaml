@@ -66,28 +66,28 @@
     <Border Background="{StaticResource MusesHairlineBrush}" CornerRadius="12,0,0,12" Padding="12,20">
       <StackPanel Spacing="4">
         <Button x:Name="CatGeneralBtn" Classes="categoryBtn selected" Click="OnSelectGeneral">
-          <TextBlock Text="General" />
+          <TextBlock Text="{Binding SettingsCatGeneral}" />
         </Button>
         <Button x:Name="CatPlaybackBtn" Classes="categoryBtn" Click="OnSelectPlayback">
-          <TextBlock Text="Playback" />
+          <TextBlock Text="{Binding SettingsCatPlayback}" />
         </Button>
         <Button x:Name="CatQualityBtn" Classes="categoryBtn" Click="OnSelectQuality">
-          <TextBlock Text="Audio Quality" />
+          <TextBlock Text="{Binding SettingsCatQuality}" />
         </Button>
         <Button x:Name="CatAppearanceBtn" Classes="categoryBtn" Click="OnSelectAppearance">
-          <TextBlock Text="Appearance" />
+          <TextBlock Text="{Binding SettingsCatAppearance}" />
         </Button>
         <Button x:Name="CatYouTubeBtn" Classes="categoryBtn" Click="OnSelectYouTube">
-          <TextBlock Text="YouTube" />
+          <TextBlock Text="{Binding SettingsCatYouTube}" />
         </Button>
         <Button x:Name="CatLyricsBtn" Classes="categoryBtn" Click="OnSelectLyrics">
-          <TextBlock Text="Lyrics" />
+          <TextBlock Text="{Binding SettingsCatLyrics}" />
         </Button>
         <Button x:Name="CatDesktopBtn" Classes="categoryBtn" Click="OnSelectDesktop">
-          <TextBlock Text="Desktop" />
+          <TextBlock Text="{Binding SettingsCatDesktop}" />
         </Button>
         <Button x:Name="CatAboutBtn" Classes="categoryBtn" Click="OnSelectAbout">
-          <TextBlock Text="About" />
+          <TextBlock Text="{Binding SettingsCatAbout}" />
         </Button>
       </StackPanel>
     </Border>
@@ -117,13 +117,14 @@
             <TextBlock Text="{Binding SettingsPlaybackTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <CheckBox Content="{Binding SettingsResumeAfterVideoLabel}" IsChecked="{Binding ResumeAfterVideo}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <CheckBox Content="{Binding SettingsReplayGainLabel}" IsChecked="{Binding ReplayGainEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsReplayGainUnavailableNote}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
           </StackPanel>
 
           <!-- 3. QUALITY -->
           <StackPanel x:Name="PageQuality" Spacing="20" IsVisible="False">
-            <TextBlock Text="Audio Quality" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsAudioQualityTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <StackPanel Spacing="8">
-              <TextBlock Text="Preferred Stream Quality" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="{Binding SettingsPreferredStreamLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <ComboBox SelectedIndex="{Binding AudioQualitySelectedIndex}" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
                 <ComboBoxItem Content="Best (Opus 160kbps / AAC)" />
                 <ComboBoxItem Content="High (128kbps)" />
@@ -132,30 +133,29 @@
             </StackPanel>
             <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="12">
               <StackPanel Spacing="4">
-                <TextBlock Text="yt-dlp Engine Status" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                <TextBlock Text="Bundled native process engine active and operational." FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                <TextBlock Text="{Binding SettingsEngineStatusTitle}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <TextBlock Text="{Binding SettingsEngineStatusBody}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
           </StackPanel>
 
           <!-- 4. APPEARANCE -->
           <StackPanel x:Name="PageAppearance" Spacing="20" IsVisible="False">
-            <TextBlock Text="Appearance" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsAppearanceTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <StackPanel Spacing="8">
-              <TextBlock Text="Accent Color" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="{Binding SettingsAccentLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource MusesAccentBrush}" BorderBrush="White" BorderThickness="2" />
                 <TextBlock Text="Muses Crimson (#FA586A)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
               </StackPanel>
             </StackPanel>
             <StackPanel Spacing="8">
-              <TextBlock Text="Theme" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="{Binding SettingsThemeLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <ComboBox SelectedIndex="{Binding ThemeSelectedIndex}" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
                 <ComboBoxItem Content="Dark (Muses Default)" />
                 <ComboBoxItem Content="Follow System" />
               </ComboBox>
             </StackPanel>
-            <CheckBox Content="Reduce animation motion" IsChecked="False" Foreground="{StaticResource MusesTextPrimaryBrush}" />
           </StackPanel>
 
           <!-- 5. YOUTUBE -->
@@ -193,8 +193,8 @@
               <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Spacing="2">
-                    <TextBlock Text="Web Home (opt-in)" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                    <TextBlock Text="Uses an isolated helper process with an ephemeral cookie jar deleted on exit. Off by default; requires consent. No scraping runs in the Muses UI process."
+                    <TextBlock Text="{Binding SettingsWebHomeTitle}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SettingsWebHomeBody}"
                                FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding WebHomeStatusText}" FontSize="12" Foreground="{StaticResource MusesAccentBrush}" TextWrapping="Wrap" />
                   </StackPanel>
@@ -213,52 +213,47 @@
 
           <!-- 6. LYRICS -->
           <StackPanel x:Name="PageLyrics" Spacing="20" IsVisible="False">
-            <TextBlock Text="Lyrics Settings" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <StackPanel Spacing="8">
-              <TextBlock Text="Lyrics Provider" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-              <ComboBox SelectedIndex="0" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
-                <ComboBoxItem Content="LRCLIB (Free, Synced &amp; Plain)" />
-                <ComboBoxItem Content="Musixmatch Fallback" />
-              </ComboBox>
-            </StackPanel>
-            <CheckBox Content="Auto-scroll to current lyric line during playback" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsLyricsTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsLyricsProviderNote}" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
           </StackPanel>
 
           <!-- 7. DESKTOP -->
           <StackPanel x:Name="PageDesktop" Spacing="20" IsVisible="False">
-            <TextBlock Text="Desktop Tools &amp; Widgets" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsDesktopTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
-              <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="2">
-                  <TextBlock Text="Mini Player" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                  <TextBlock Text="Compact floating player window with always-on-top mode." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-                </StackPanel>
-                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenMiniPlayer"
-                        IsEnabled="{Binding MiniPlayerEnabled}">
-                  <TextBlock Text="Open Mini Player" />
-                </Button>
-              </Grid>
+              <StackPanel Spacing="10">
+                <CheckBox Content="{Binding SettingsMiniPlayerLabel}" IsChecked="{Binding MiniPlayerEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding SettingsMiniPlayerBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenMiniPlayer"
+                          IsEnabled="{Binding MiniPlayerEnabled}">
+                    <TextBlock Text="Open Mini Player" />
+                  </Button>
+                </Grid>
+              </StackPanel>
             </Border>
 
             <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
-              <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="2">
-                  <TextBlock Text="Desktop Lyrics" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                  <TextBlock Text="Transparent, draggable desktop lyrics banner on top of other windows." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-                </StackPanel>
-                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenDesktopLyrics"
-                        IsEnabled="{Binding DesktopLyricsEnabled}">
-                  <TextBlock Text="Toggle Desktop Lyrics" />
-                </Button>
-              </Grid>
+              <StackPanel Spacing="10">
+                <CheckBox Content="{Binding SettingsDesktopLyricsLabel}" IsChecked="{Binding DesktopLyricsEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding SettingsDesktopLyricsBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenDesktopLyrics"
+                          IsEnabled="{Binding DesktopLyricsEnabled}">
+                    <TextBlock Text="Toggle Desktop Lyrics" />
+                  </Button>
+                </Grid>
+              </StackPanel>
             </Border>
 
             <StackPanel Spacing="6">
-              <TextBlock Text="Global Keyboard Shortcuts" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="In-window shortcuts" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <TextBlock Text="• Ctrl + F : Open Search Window" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-              <TextBlock Text="• Ctrl + P / Space : Play / Pause" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="• Ctrl + P / Space : Play / Pause (when Muses is focused)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
               <TextBlock Text="• Ctrl + Right : Next Track" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
               <TextBlock Text="• Ctrl + Left : Previous Track" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <CheckBox Content="{Binding SettingsGlobalHotkeysLabel}" IsChecked="{Binding GlobalHotkeysEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" Margin="0,8,0,0" />
+              <TextBlock Text="{Binding SettingsGlobalHotkeysBody}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
             </StackPanel>
           </StackPanel>
 

@@ -1,8 +1,9 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Muses.App.Services;
 using Muses.App.ViewModels;
 using Muses.Core.L10n;
 using Muses.Core.YouTube;
@@ -12,6 +13,7 @@ namespace Muses.App.Views;
 public partial class YouTubeVideoOverlay : UserControl
 {
     private ShellViewModel? _vm;
+    private Control? _attachedHost;
 
     public YouTubeVideoOverlay()
     {
@@ -28,11 +30,10 @@ public partial class YouTubeVideoOverlay : UserControl
 
     private void OnControlPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == IsVisibleProperty && IsVisible)
-        {
-            Focus();
+        if (e.Property == IsVisibleProperty)
             SyncEmbedSurface();
-        }
+        if (e.Property == IsVisibleProperty && IsVisible)
+            Focus();
     }
 
     private void ApplyLocalizedChrome()
@@ -46,11 +47,33 @@ public partial class YouTubeVideoOverlay : UserControl
 
     private void SyncEmbedSurface()
     {
-        var available = _vm?.IsVideoEmbedAvailable == true;
+        var available = _vm?.IsVideoEmbedAvailable == true && IsVisible;
         DegradedPanel.IsVisible = !available;
         EmbedHost.IsVisible = available;
-        // Live WebView host is not wired on this TFM; EmbedHost stays empty until Win11 WebView2 lands.
-        // Policy still tears down the IYouTubeIFrameClient on close.
+
+        if (!available)
+        {
+            DetachHost();
+            return;
+        }
+
+        if (_vm?.VideoIFrameClient is WindowsWebView2YouTubeIFrameClient win)
+        {
+            if (!ReferenceEquals(_attachedHost, win.HostControl))
+            {
+                DetachHost();
+                EmbedHost.Children.Clear();
+                EmbedHost.Children.Add(win.HostControl);
+                _attachedHost = win.HostControl;
+            }
+        }
+    }
+
+    private void DetachHost()
+    {
+        if (_attachedHost is null) return;
+        EmbedHost.Children.Remove(_attachedHost);
+        _attachedHost = null;
     }
 
     private void OnScrimPointerPressed(object? sender, PointerPressedEventArgs e)

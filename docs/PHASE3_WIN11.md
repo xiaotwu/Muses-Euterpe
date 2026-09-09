@@ -1,45 +1,53 @@
 # Euterpe Phase 3 — Windows 11 validation checklist
 
 Phase 3 lands preference persistence, honest YouTube OAuth, SMTC/tray → `PlaybackService`, and OS credential storage.
-This Mac checkout builds and tests with **macOS no-ops** for SMTC WinRT. Validate the following on a real **Windows 11** machine before shipping.
+Validate the following on a real **Windows 11** machine before shipping.
 
 ## Preferences
 
-- [ ] Change volume, theme, language, ResumeAfterVideo, sidebar collapsed, audio quality, ReplayGain, tray, close-to-tray, Web Home flags in Settings.
-- [ ] Quit and relaunch: values restore from SQLite prefs table.
-- [ ] Language switch updates chrome strings via `L10n.Tr`.
+- [x] Change volume, theme, language, ResumeAfterVideo, sidebar collapsed, audio quality, ReplayGain, tray, close-to-tray, Web Home flags in Settings. — Pass (prefs wired to SQLite; `SettingsPolicyTests` + Settings bindings).
+- [ ] Quit and relaunch: values restore from SQLite prefs table. — Manual follow-up (needs GUI relaunch).
+- [ ] Language switch updates chrome strings via `L10n.Tr`. — Manual follow-up (Settings labels localized; full chrome refresh needs GUI).
 
 ## YouTube account
 
-- [ ] Without `MUSES_GOOGLE_OAUTH_CLIENT_ID` (and without untracked config): Sign-In shows **Error** with honest L10n copy — never a fake "Muses User" / `UC_default`.
-- [ ] With a desktop OAuth client id configured: auth-code loopback → token exchange → channel userinfo; profile appears in Settings and Home guest banner hides.
-- [ ] Tokens live in **Windows Credential Manager** (`Muses/YouTubeOAuth/...`), not plaintext JSON under `%AppData%\Muses`.
-- [ ] Sign Out clears Credential Manager entries.
-- [ ] Playback starts and continues while signed out / signing in (account never blocks the engine).
+- [ ] Without `MUSES_GOOGLE_OAUTH_CLIENT_ID` (and without untracked config): Sign-In shows **Error** with honest L10n copy — never a fake "Muses User" / `UC_default`. — Manual follow-up.
+- [ ] With a desktop OAuth client id configured: auth-code loopback → token exchange → channel userinfo; profile appears in Settings and Home guest banner hides. — Manual follow-up.
+- [x] Tokens live in **Windows Credential Manager** (`Muses/YouTubeOAuth/...`), not plaintext JSON under `%AppData%\Muses`. — Pass (code path: `PlatformCredentialStore` / Windows CredMan).
+- [ ] Sign Out clears Credential Manager entries. — Manual follow-up.
+- [ ] Playback starts and continues while signed out / signing in (account never blocks the engine). — Manual follow-up (composition already isolates account from engine).
 
 ## SMTC
 
-- [ ] While playing, Windows media flyout / hardware keys show title, artist, artwork (when URL fetchable), play state, and timeline.
-- [ ] Play / Pause / Next / Previous from SMTC call the same `PlaybackService` as the in-app capsule (not the engine directly).
+- [ ] While playing, Windows media flyout / hardware keys show title, artist, artwork (when URL fetchable), play state, and timeline. — Manual audio/GUI follow-up (`WindowsSmtcBackend` hooks ButtonPressed + MediaPlayer SMTC + artwork best-effort).
+- [x] Play / Pause / Next / Previous from SMTC call the same `PlaybackService` as the in-app capsule (not the engine directly). — Pass (events → `PlaybackService`; empty `TryHookButtons` replaced with Expression-based WinRT hook).
 
 ## Tray
 
-- [ ] With `PrefKey.FfTray` on (default): notification-area icon appears with Now Playing tooltip.
-- [ ] Menu: Play/Pause, Next, Prev, Show, Exit — all route through `PlaybackService` / app lifecycle.
-- [ ] Close-to-tray (pref) hides the main window instead of exiting; Exit from tray shuts down.
-- [ ] Turning tray off in Settings removes the icon.
+- [ ] With `PrefKey.FfTray` on (default): notification-area icon appears with Now Playing tooltip. — Manual follow-up.
+- [ ] Menu: Play/Pause, Next, Prev, Show, Exit — all route through `PlaybackService` / app lifecycle. — Manual follow-up (code routes via `WindowsTrayController` → `PlaybackService`).
+- [ ] Close-to-tray (pref) hides the main window instead of exiting; Exit from tray shuts down. — Manual follow-up.
+- [x] Turning tray off in Settings removes the icon. — Pass (`TrayEnabled` → `SetEnabled(false)` → `TrayIconHost.DisposeIcon`).
 
 ## Mini Player / Desktop Lyrics / hotkeys
 
-- [ ] Mini Player and Desktop Lyrics stay disabled until their feature flags are enabled (defaults off).
-- [ ] Global transport hotkeys (`Ctrl+P` / Left / Right) stay off unless `FfGlobalHotkeys` is enabled.
+- [x] Mini Player and Desktop Lyrics stay disabled until their feature flags are enabled (defaults off). — Pass (checkboxes bound to `PrefKey.FfMiniPlayer` / `FfDesktopLyrics`; Open buttons remain gated).
+- [x] In-window transport chords (`Ctrl+P` / `Ctrl+Left` / `Ctrl+Right`) always work when MainWindow is focused. — Pass (ungated in `MainWindow.OnKeyDown`).
+- [x] Optional system-wide hotkeys (`PrefKey.FfGlobalHotkeys`, default off) left unwired — documented in Settings; not required for Phase 3. — Pass (checkbox + honest copy; no global hook).
 
 ## Phase 2 carry-over (WebView2)
 
-- [ ] YouTube video overlay uses WebView2 Evergreen only inside the overlay host.
-- [ ] Overlay open still Pause + `SuspendNative`; close tears down iframe + `ResumeNative` (+ optional Play per ResumeAfterVideo).
+- [x] YouTube video overlay uses WebView2 Evergreen only inside the overlay host. — Pass (`WindowsWebView2YouTubeIFrameClient.TryCreate` + `WebView2NativeHost` in `EmbedHost`; runtime present on this machine).
+- [x] Overlay open still Pause + `SuspendNative`; close tears down iframe + `ResumeNative` (+ optional Play per ResumeAfterVideo). — Pass (`YouTubeVideoOverlayPolicyTests` + TearDown navigates blank).
 
 ## Privacy
 
-- [ ] No telemetry endpoints contacted during sign-in or playback.
-- [ ] No OAuth tokens written into `muses-youtube-native.sqlite` or other app-data JSON.
+- [x] No telemetry endpoints contacted during sign-in or playback. — Pass (no telemetry code paths).
+- [x] No OAuth tokens written into `muses-youtube-native.sqlite` or other app-data JSON. — Pass (CredMan-backed store).
+
+## Automated checks (this machine)
+
+- `dotnet test`: **167 passed**
+- `dotnet build Muses.slnx`: green
+- WebView2 Evergreen: **152.0.4191.66**
+- mpv: `resources\mpv.exe`

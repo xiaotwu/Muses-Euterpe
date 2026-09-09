@@ -17,6 +17,7 @@ using Muses.Infrastructure.Advanced;
 using Muses.Infrastructure.Update;
 using Muses.Infrastructure.YTDlp;
 using Muses.Infrastructure.Account;
+using Muses.Infrastructure.Playback;
 using Muses.Platform.Windows;
 using Muses.App.Services;
 
@@ -219,6 +220,10 @@ public partial class ShellViewModel : ObservableObject
     private DispatcherTimer? _playbackTimer;
     private YouTubeVideoOverlaySession? _videoOverlaySession;
     private IYouTubeIFrameClient? _videoIFrameClient;
+    private ProcessStreamEngine? _streamEngine;
+
+    /// <summary>Live iframe client for the overlay host (WebView2 on Windows, degraded elsewhere).</summary>
+    public IYouTubeIFrameClient? VideoIFrameClient => _videoIFrameClient;
     public IPreferences Preferences { get; private set; } = new MemoryPreferences();
     public YouTubeAccountService? Account { get; private set; }
     public WebHomeSessionController? WebHome { get; private set; }
@@ -239,6 +244,7 @@ public partial class ShellViewModel : ObservableObject
         {
             if (ReplayGainEnabled == value) return;
             Preferences.SetBool(PrefKey.ReplayGainEnabled, value);
+            _streamEngine?.SetReplayGainEnabled(value);
             OnPropertyChanged(nameof(ReplayGainEnabled));
         }
     }
@@ -266,10 +272,42 @@ public partial class ShellViewModel : ObservableObject
         }
     }
 
-    public bool MiniPlayerEnabled => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfMiniPlayer);
-    public bool DesktopLyricsEnabled => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfDesktopLyrics);
-    public bool GlobalHotkeysEnabled => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfGlobalHotkeys);
+    public bool MiniPlayerEnabled
+    {
+        get => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfMiniPlayer);
+        set
+        {
+            if (MiniPlayerEnabled == value) return;
+            Preferences.SetBool(PrefKey.FfMiniPlayer, value);
+            OnPropertyChanged(nameof(MiniPlayerEnabled));
+        }
+    }
 
+    public bool DesktopLyricsEnabled
+    {
+        get => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfDesktopLyrics);
+        set
+        {
+            if (DesktopLyricsEnabled == value) return;
+            Preferences.SetBool(PrefKey.FfDesktopLyrics, value);
+            OnPropertyChanged(nameof(DesktopLyricsEnabled));
+        }
+    }
+
+    /// <summary>
+    /// Optional system-wide hotkeys (default off). In-window Ctrl+P / Ctrl+Left / Ctrl+Right
+    /// are always handled by MainWindow when focused — this flag does not gate those.
+    /// </summary>
+    public bool GlobalHotkeysEnabled
+    {
+        get => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfGlobalHotkeys);
+        set
+        {
+            if (GlobalHotkeysEnabled == value) return;
+            Preferences.SetBool(PrefKey.FfGlobalHotkeys, value);
+            OnPropertyChanged(nameof(GlobalHotkeysEnabled));
+        }
+    }
     public string LanguagePreference
     {
         get => Preferences.GetString(PrefKey.Language, "system");
@@ -333,6 +371,7 @@ public partial class ShellViewModel : ObservableObject
         {
             if (AudioQuality == value) return;
             Preferences.SetString(PrefKey.AudioQuality, value);
+            _streamEngine?.SetStreamQuality(ProcessStreamEngine.MapAudioQualityPref(value));
             OnPropertyChanged(nameof(AudioQuality));
             OnPropertyChanged(nameof(AudioQualitySelectedIndex));
         }
@@ -453,6 +492,50 @@ public partial class ShellViewModel : ObservableObject
     public string SettingsGoogleSignInBody => L10n.Tr(
         "Sign in to personalize Home and sync your liked tracks and playlists.",
         "登录后即可个性化首页并同步喜欢的歌曲与歌单。");
+
+    public string SettingsAudioQualityTitle => L10n.Tr("Audio Quality", "音频质量");
+    public string SettingsPreferredStreamLabel => L10n.Tr("Preferred Stream Quality", "首选流质量");
+    public string SettingsAppearanceTitle => L10n.Tr("Appearance", "外观");
+    public string SettingsThemeLabel => L10n.Tr("Theme", "主题");
+    public string SettingsAccentLabel => L10n.Tr("Accent Color", "强调色");
+    public string SettingsLyricsTitle => L10n.Tr("Lyrics Settings", "歌词设置");
+    public string SettingsLyricsProviderNote => L10n.Tr(
+        "Lyrics are fetched from LRCLIB (synced and plain). No alternate provider is wired yet.",
+        "歌词来自 LRCLIB（支持逐行与纯文本）。尚未接入其他提供方。");
+    public string SettingsDesktopTitle => L10n.Tr("Desktop Tools & Widgets", "桌面工具与小组件");
+    public string SettingsMiniPlayerLabel => L10n.Tr("Mini Player", "迷你播放器");
+    public string SettingsMiniPlayerBody => L10n.Tr(
+        "Compact floating player window with always-on-top mode.",
+        "可置顶的紧凑浮动播放器窗口。");
+    public string SettingsDesktopLyricsLabel => L10n.Tr("Desktop Lyrics", "桌面歌词");
+    public string SettingsDesktopLyricsBody => L10n.Tr(
+        "Transparent, draggable desktop lyrics banner on top of other windows.",
+        "可拖动的透明桌面歌词条，置于其他窗口之上。");
+    public string SettingsGlobalHotkeysLabel => L10n.Tr(
+        "System-wide transport hotkeys (experimental, default off)",
+        "系统级播放快捷键（实验性，默认关闭）");
+    public string SettingsGlobalHotkeysBody => L10n.Tr(
+        "In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when Muses is focused. System-wide hooks stay off unless enabled here.",
+        "Muses 聚焦时窗口内 Ctrl+P / Ctrl+Left / Ctrl+Right 始终可用。系统级钩子仅在此处开启后生效。");
+    public string SettingsWebHomeTitle => L10n.Tr("Web Home (opt-in)", "Web Home（需同意）");
+    public string SettingsWebHomeBody => L10n.Tr(
+        "Uses an isolated helper process with an ephemeral cookie jar deleted on exit. Off by default; requires consent. No scraping runs in the Muses UI process.",
+        "使用隔离的辅助进程与退出即删的临时 Cookie。默认关闭，需同意。Muses UI 进程内不进行抓取。");
+    public string SettingsCatGeneral => L10n.Tr("General", "通用");
+    public string SettingsCatPlayback => L10n.Tr("Playback", "播放");
+    public string SettingsCatQuality => L10n.Tr("Audio Quality", "音频质量");
+    public string SettingsCatAppearance => L10n.Tr("Appearance", "外观");
+    public string SettingsCatYouTube => L10n.Tr("YouTube", "YouTube");
+    public string SettingsCatLyrics => L10n.Tr("Lyrics", "歌词");
+    public string SettingsCatDesktop => L10n.Tr("Desktop", "桌面");
+    public string SettingsCatAbout => L10n.Tr("About", "关于");
+    public string SettingsEngineStatusTitle => L10n.Tr("Stream engine", "流引擎");
+    public string SettingsEngineStatusBody => L10n.Tr(
+        "Uses bundled yt-dlp + mpv when available on PATH or under resources/.",
+        "在 PATH 或 resources/ 可用时使用自带的 yt-dlp 与 mpv。");
+    public string SettingsReplayGainUnavailableNote => L10n.Tr(
+        "When enabled, track ReplayGain (dB) is applied via mpv volume adjustment when metadata is present.",
+        "开启后，若曲目含 ReplayGain（dB）元数据，将通过 mpv 音量调整应用。");
     public string SettingsTokensPrivacyLabel => L10n.Tr(
         "Tokens stay in the OS credential locker on this device. No telemetry.",
         "令牌保存在本机操作系统凭证保管库中。无遥测。");
@@ -485,7 +568,8 @@ public partial class ShellViewModel : ObservableObject
         YouTubeAccountService? account = null,
         WindowsSMTCService? smtc = null,
         WindowsTrayController? tray = null,
-        WebHomeSessionController? webHome = null)
+        WebHomeSessionController? webHome = null,
+        ProcessStreamEngine? streamEngine = null)
     {
         Playback = playback;
         Preferences = preferences ?? new MemoryPreferences();
@@ -493,6 +577,12 @@ public partial class ShellViewModel : ObservableObject
         Smtc = smtc;
         Tray = tray;
         WebHome = webHome;
+        _streamEngine = streamEngine;
+        if (_streamEngine is not null)
+        {
+            _streamEngine.SetStreamQuality(ProcessStreamEngine.MapAudioQualityPref(AudioQuality));
+            _streamEngine.SetReplayGainEnabled(ReplayGainEnabled);
+        }
         WebHomeEnabled = Preferences.GetBool(PrefKey.WebHomeEnabled, false);
         RefreshWebHomeStatus();
         if (WebHome is not null)
@@ -1390,6 +1480,31 @@ public partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(GuestBannerTitle));
         OnPropertyChanged(nameof(GuestBannerBody));
         OnPropertyChanged(nameof(NotPlayingLabel));
+        OnPropertyChanged(nameof(SettingsGeneralTitle));
+        OnPropertyChanged(nameof(SettingsLanguageLabel));
+        OnPropertyChanged(nameof(SettingsCloseToTrayLabel));
+        OnPropertyChanged(nameof(SettingsTrayLabel));
+        OnPropertyChanged(nameof(SettingsPlaybackTitle));
+        OnPropertyChanged(nameof(SettingsResumeAfterVideoLabel));
+        OnPropertyChanged(nameof(SettingsReplayGainLabel));
+        OnPropertyChanged(nameof(SettingsYouTubeTitle));
+        OnPropertyChanged(nameof(SettingsAudioQualityTitle));
+        OnPropertyChanged(nameof(SettingsPreferredStreamLabel));
+        OnPropertyChanged(nameof(SettingsAppearanceTitle));
+        OnPropertyChanged(nameof(SettingsLyricsTitle));
+        OnPropertyChanged(nameof(SettingsDesktopTitle));
+        OnPropertyChanged(nameof(SettingsMiniPlayerLabel));
+        OnPropertyChanged(nameof(SettingsDesktopLyricsLabel));
+        OnPropertyChanged(nameof(SettingsGlobalHotkeysLabel));
+        OnPropertyChanged(nameof(SettingsCatGeneral));
+        OnPropertyChanged(nameof(SettingsCatPlayback));
+        OnPropertyChanged(nameof(SettingsCatQuality));
+        OnPropertyChanged(nameof(SettingsCatAppearance));
+        OnPropertyChanged(nameof(SettingsCatYouTube));
+        OnPropertyChanged(nameof(SettingsCatLyrics));
+        OnPropertyChanged(nameof(SettingsCatDesktop));
+        OnPropertyChanged(nameof(SettingsCatAbout));
+        OnPropertyChanged(nameof(VideoEmbedUnavailableMessage));
     }
 
     [RelayCommand]

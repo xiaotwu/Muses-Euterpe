@@ -121,7 +121,7 @@ public partial class SettingsView : UserControl
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://github.com/xiaotwu/Muses",
+                FileName = "https://github.com/xiaotwu/Muses-Euterpe",
                 UseShellExecute = true
             });
         }

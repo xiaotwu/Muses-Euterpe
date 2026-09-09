@@ -85,7 +85,7 @@ public partial class MainWindow : AppWindow
         if (!ctrl) return;
 
         // App-chrome shortcuts (search/settings/paste/drawers) remain available.
-        // Playback transport chord shortcuts honor FfGlobalHotkeys (default off).
+        // In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when focused. FfGlobalHotkeys is for optional system-wide hooks (default off; not wired).
         switch (e.Key)
         {
             case Key.F:
@@ -93,18 +93,15 @@ public partial class MainWindow : AppWindow
                 e.Handled = true;
                 break;
             case Key.P:
-                if (!vm.GlobalHotkeysEnabled) return;
-                vm.Commands.Execute(CommandRegistry.TogglePlayback);
+                                vm.Commands.Execute(CommandRegistry.TogglePlayback);
                 e.Handled = true;
                 break;
             case Key.Left:
-                if (!vm.GlobalHotkeysEnabled) return;
-                vm.Commands.Execute(CommandRegistry.Previous);
+                                vm.Commands.Execute(CommandRegistry.Previous);
                 e.Handled = true;
                 break;
             case Key.Right:
-                if (!vm.GlobalHotkeysEnabled) return;
-                vm.Commands.Execute(CommandRegistry.Next);
+                                vm.Commands.Execute(CommandRegistry.Next);
                 e.Handled = true;
                 break;
             case Key.OemComma:

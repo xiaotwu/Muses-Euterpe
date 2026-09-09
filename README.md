@@ -46,7 +46,7 @@
 - **32-band EQ** — band changes call `IPlayerEngine.SetEq`; production applies mpv `af` equalizer filters. If the engine cannot EQ, the UI disables with honest copy.
 - **Audio Nerd** inspector — shows known track/stream fields; **does not invent** output device names (Unknown until real device enumeration exists).
 - Focus Mode, Notes & Bookmarks, Music Inbox.
-- Automation rules engine (playback triggers + time-band / headphone conditions when a real context is supplied — no fabricated device names).
+- Automation rules engine (playback triggers + time-band / headphone conditions when a real context is supplied — no fabricated device names). **No visual automation editor / rule builder UI is shipped** — rules are engine-side only.
 - **Web Home helper** (opt-in, default off) — isolated `MusesWebHomeHelper` process; ephemeral cookie jar deleted on exit; no scraping in the Avalonia process.
 
 ### Not claimed / not published

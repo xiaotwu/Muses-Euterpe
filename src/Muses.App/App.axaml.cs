@@ -51,7 +51,9 @@ public partial class App : Application
             queue.Restore();
             var library = new LibraryService(_store);
             var ytdlp = new YTDlpBridge();
-            _engine = new ProcessStreamEngine(ytdlp);
+            var quality = ProcessStreamEngine.MapAudioQualityPref(preferences.GetString(PrefKey.AudioQuality, "best"));
+            _engine = new ProcessStreamEngine(ytdlp, quality);
+            _engine.SetReplayGainEnabled(preferences.GetBool(PrefKey.ReplayGainEnabled, true));
             var playback = new PlaybackService(_engine, queue, library, preferences);
             var playlistService = new PlaylistService(_store);
             var youtubeImportService = new YouTubeImportService(_store, _store, ytdlp);
@@ -110,7 +112,7 @@ public partial class App : Application
             shell.Attach(
                 playback, library, ytdlp, playlistService, youtubeImportService, homeDiscovery, catalog,
                 situational, search, lyrics, history, eq, focus, notes, inbox, automation,
-                preferences, account, _smtc, tray, webHome);
+                preferences, account, _smtc, tray, webHome, _engine);
 
             var main = new MainWindow { DataContext = shell };
             desktop.MainWindow = main;

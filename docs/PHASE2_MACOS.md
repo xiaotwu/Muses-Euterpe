@@ -19,6 +19,6 @@ This checkout runs on macOS for development. Production target remains Windows 1
 
 ## Win11 follow-ups
 
-- Wire WebView2 (or Avalonia WebView) **only** inside `YouTubeVideoOverlay` via `WindowsWebView2YouTubeIFrameClient.TryCreate`.
+- **Done on Win11:** WebView2 Evergreen via `NativeControlHost` + `Microsoft.Web.WebView2` inside `YouTubeVideoOverlay` (`WindowsWebView2YouTubeIFrameClient.TryCreate`). macOS-dev still degraded.
 - Prefs persistence: landed in Phase 3 (`SqlitePreferences`).
 - Confirm WebView2 Evergreen runtime on target machines.
