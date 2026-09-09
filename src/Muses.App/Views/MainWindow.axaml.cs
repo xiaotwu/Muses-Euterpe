@@ -85,7 +85,7 @@ public partial class MainWindow : AppWindow
         if (!ctrl) return;
 
         // App-chrome shortcuts (search/settings/paste/drawers) remain available.
-        // In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when focused. FfGlobalHotkeys is for optional system-wide hooks (default off; not wired).
+        // In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when focused. FfGlobalHotkeys is the optional system-wide RegisterHotKey hook (default off).
         switch (e.Key)
         {
             case Key.F:

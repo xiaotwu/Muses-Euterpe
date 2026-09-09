@@ -53,6 +53,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
                      "--really-quiet",
                      "--idle=no",
                      "--keep-open=no",
+                     "--gapless-audio=weak",
                      ipcArg,
                      $"--volume={volume}",
                      "--",

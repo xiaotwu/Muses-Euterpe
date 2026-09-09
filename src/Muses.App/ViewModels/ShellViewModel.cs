@@ -20,6 +20,8 @@ using Muses.Infrastructure.Account;
 using Muses.Infrastructure.Playback;
 using Muses.Platform.Windows;
 using Muses.App.Services;
+using Muses.Core.Platform;
+using Muses.Infrastructure;
 
 namespace Muses.App.ViewModels;
 
@@ -221,6 +223,9 @@ public partial class ShellViewModel : ObservableObject
     private YouTubeVideoOverlaySession? _videoOverlaySession;
     private IYouTubeIFrameClient? _videoIFrameClient;
     private ProcessStreamEngine? _streamEngine;
+    private IGlobalHotkeys? _globalHotkeys;
+    private IAudioOutputProbe? _audioProbe;
+    public event Action? RequestAppExit;
 
     /// <summary>Live iframe client for the overlay host (WebView2 on Windows, degraded elsewhere).</summary>
     public IYouTubeIFrameClient? VideoIFrameClient => _videoIFrameClient;
@@ -339,7 +344,9 @@ public partial class ShellViewModel : ObservableObject
         WindowsSMTCService? smtc = null,
         WindowsTrayController? tray = null,
         WebHomeSessionController? webHome = null,
-        ProcessStreamEngine? streamEngine = null)
+        ProcessStreamEngine? streamEngine = null,
+        IGlobalHotkeys? globalHotkeys = null,
+        IAudioOutputProbe? audioProbe = null)
     {
         Playback = playback;
         Preferences = preferences ?? new MemoryPreferences();
@@ -348,10 +355,20 @@ public partial class ShellViewModel : ObservableObject
         Tray = tray;
         WebHome = webHome;
         _streamEngine = streamEngine;
+        _globalHotkeys = globalHotkeys;
+        _audioProbe = audioProbe;
         if (_streamEngine is not null)
         {
             _streamEngine.SetStreamQuality(ProcessStreamEngine.MapAudioQualityPref(AudioQuality));
             _streamEngine.SetReplayGainEnabled(ReplayGainEnabled);
+            _streamEngine.SetCrossfadeSeconds(CrossfadeSeconds);
+        }
+        _globalHotkeys?.SetEnabled(GlobalHotkeysEnabled);
+        if (_globalHotkeys is not null)
+        {
+            _globalHotkeys.PlayPausePressed += () => Dispatcher.UIThread.Post(() => Playback?.Toggle());
+            _globalHotkeys.NextPressed += () => Dispatcher.UIThread.Post(() => Playback?.Next());
+            _globalHotkeys.PreviousPressed += () => Dispatcher.UIThread.Post(() => Playback?.Previous());
         }
         WebHomeEnabled = Preferences.GetBool(PrefKey.WebHomeEnabled, false);
         RefreshWebHomeStatus();
@@ -757,7 +774,9 @@ public partial class ShellViewModel : ObservableObject
     public void RefreshAudioInfo()
     {
         var track = Playback?.State.Track;
-        AudioInfoRows = AudioInfoModel.BuildRows(track, null, EQ?.ActivePresetName, CurrentVolume);
+        var device = _audioProbe?.DefaultDeviceName;
+        var latency = _audioProbe?.LatencyMilliseconds;
+        AudioInfoRows = AudioInfoModel.BuildRows(track, device, EQ?.ActivePresetName, CurrentVolume, latency);
     }
 
     public void RefreshNotesState()
@@ -1193,6 +1212,7 @@ public partial class ShellViewModel : ObservableObject
             _ => WebHome.Status.ToString()
         };
         OnPropertyChanged(nameof(WebHomeStatusText));
+        OnPropertyChanged(nameof(IsWebHomeAvailable));
     }
 
     [RelayCommand]

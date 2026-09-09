@@ -1,5 +1,7 @@
+using CommunityToolkit.Mvvm.Input;
 using Muses.Core.L10n;
 using Muses.Core.Preferences;
+using Muses.Infrastructure;
 using Muses.Infrastructure.Playback;
 
 namespace Muses.App.ViewModels;
@@ -78,6 +80,7 @@ public partial class ShellViewModel
         {
             if (GlobalHotkeysEnabled == value) return;
             Preferences.SetBool(PrefKey.FfGlobalHotkeys, value);
+            _globalHotkeys?.SetEnabled(value);
             OnPropertyChanged(nameof(GlobalHotkeysEnabled));
         }
     }
@@ -123,6 +126,7 @@ public partial class ShellViewModel
         {
             if (ThemePreference == value) return;
             Preferences.SetString(PrefKey.Theme, value);
+            global::Muses.App.App.ApplyTheme(Preferences);
             OnPropertyChanged(nameof(ThemePreference));
             OnPropertyChanged(nameof(ThemeSelectedIndex));
         }
@@ -130,11 +134,86 @@ public partial class ShellViewModel
 
     public int ThemeSelectedIndex
     {
-        get => ThemePreference == "system" ? 1 : 0;
+        get => ThemePreference switch
+        {
+            "light" => 1,
+            "system" => 2,
+            _ => 0
+        };
         set
         {
-            ThemePreference = value == 1 ? "system" : "dark";
+            ThemePreference = value switch
+            {
+                1 => "light",
+                2 => "system",
+                _ => "dark"
+            };
             OnPropertyChanged(nameof(ThemeSelectedIndex));
+        }
+    }
+
+    public double CrossfadeSeconds
+    {
+        get => Preferences.GetDouble(PrefKey.CrossfadeSeconds, 0);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, 12);
+            if (Math.Abs(CrossfadeSeconds - clamped) < 0.01) return;
+            Preferences.SetDouble(PrefKey.CrossfadeSeconds, clamped);
+            _streamEngine?.SetCrossfadeSeconds(clamped);
+            Playback?.SetCrossfadeSeconds(clamped);
+            OnPropertyChanged(nameof(CrossfadeSeconds));
+            OnPropertyChanged(nameof(CrossfadeLabel));
+        }
+    }
+
+    public string CrossfadeLabel => CrossfadeSeconds < 0.05
+        ? L10n.Tr("Off (YouTube streams are not gapless)", "关（YouTube 流无法无缝）")
+        : L10n.Tr($"{CrossfadeSeconds:0.#} s overlap", $"{CrossfadeSeconds:0.#} 秒重叠");
+
+    public bool IsWebHomeAvailable => WebHome?.Status == Muses.Core.Advanced.WebHomeSessionStatus.Available;
+    public string WebHomeVerifiedLabel => L10n.Tr(
+        "Web Home session matches this account. Personalized Home stays off until a lawful feed is wired.",
+        "Web Home 会话与此账号匹配。在接入合法信息流之前，个性化首页不会开启。");
+
+    public string SettingsThemeLightLabel => L10n.Tr("Light", "浅色");
+    public string SettingsCrossfadeLabel => L10n.Tr("Crossfade", "交叉淡化");
+    public string SettingsCrossfadeBody => L10n.Tr(
+        "Overlaps the current and next mpv session. 0 is off. YouTube URLs are not gapless; mpv uses weak gapless when consecutive codecs match.",
+        "重叠当前与下一首 mpv 会话。0 为关闭。YouTube 流无法无缝；编码相同时 mpv 使用弱无缝。");
+    public string SettingsClearCacheLabel => L10n.Tr("Clear Cache", "清除缓存");
+    public string SettingsClearCacheBody => L10n.Tr(
+        "Deletes artwork and Home feed caches. Playlists and history stay.",
+        "删除封面与首页缓存。歌单与历史保留。");
+    public string SettingsResetDataLabel => L10n.Tr("Reset Data", "重置数据");
+    public string SettingsResetDataBody => L10n.Tr(
+        "Deletes the local library database and caches, signs out, then quits Muses. Tokens are removed from Credential Manager. This cannot be undone.",
+        "删除本地曲库数据库与缓存，退出登录并关闭 Muses。凭证从凭据管理器删除。此操作不可撤销。");
+    public string SettingsResetDataConfirmLabel => L10n.Tr("Confirm reset and quit", "确认重置并退出");
+    public string SettingsCacheStatus { get; private set; } = "";
+    public bool ResetOnExit { get; private set; }
+
+    [RelayCommand]
+    public void ClearCache()
+    {
+        var n = LocalDataMaintenance.ClearCache();
+        SettingsCacheStatus = L10n.Tr($"Cleared {n} cached files.", $"已清除 {n} 个缓存文件。");
+        OnPropertyChanged(nameof(SettingsCacheStatus));
+    }
+
+    [RelayCommand]
+    public void ResetData()
+    {
+        try
+        {
+            ResetOnExit = true;
+            Account?.SignOut();
+            RequestAppExit?.Invoke();
+        }
+        catch
+        {
+            SettingsCacheStatus = L10n.Tr("Reset failed.", "重置失败。");
+            OnPropertyChanged(nameof(SettingsCacheStatus));
         }
     }
 
@@ -216,8 +295,8 @@ public partial class ShellViewModel
         "System-wide transport hotkeys (experimental, default off)",
         "系统级播放快捷键（实验性，默认关闭）");
     public string SettingsGlobalHotkeysBody => L10n.Tr(
-        "In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when Muses is focused. System-wide hooks stay off unless enabled here.",
-        "Muses 聚焦时窗口内 Ctrl+P / Ctrl+Left / Ctrl+Right 始终可用。系统级钩子仅在此处开启后生效。");
+        "When on, Ctrl+P / Ctrl+Left / Ctrl+Right register system-wide (they steal those chords from other apps). In-window chords always work while Muses is focused, even if this is off.",
+        "开启后 Ctrl+P / Ctrl+Left / Ctrl+Right 会全局注册（会占用其他应用的这些快捷键）。即使关闭，Muses 聚焦时窗口内快捷键始终可用。");
     public string SettingsWebHomeTitle => L10n.Tr("Web Home (opt-in)", "Web Home（需同意）");
     public string SettingsWebHomeBody => L10n.Tr(
         "Uses an isolated helper process with an ephemeral cookie jar deleted on exit. Off by default; requires consent. No scraping runs in the Muses UI process.",
@@ -348,5 +427,15 @@ public partial class ShellViewModel
         OnPropertyChanged(nameof(SettingsGoogleSignInBody));
         OnPropertyChanged(nameof(SettingsAccentLabel));
         OnPropertyChanged(nameof(SettingsThemeLabel));
+        OnPropertyChanged(nameof(SettingsThemeLightLabel));
+        OnPropertyChanged(nameof(SettingsCrossfadeLabel));
+        OnPropertyChanged(nameof(SettingsCrossfadeBody));
+        OnPropertyChanged(nameof(CrossfadeLabel));
+        OnPropertyChanged(nameof(SettingsClearCacheLabel));
+        OnPropertyChanged(nameof(SettingsClearCacheBody));
+        OnPropertyChanged(nameof(SettingsResetDataLabel));
+        OnPropertyChanged(nameof(SettingsResetDataBody));
+        OnPropertyChanged(nameof(SettingsResetDataConfirmLabel));
+        OnPropertyChanged(nameof(WebHomeVerifiedLabel));
     }
 }

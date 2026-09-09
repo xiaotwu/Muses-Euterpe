@@ -5,6 +5,7 @@
              x:Class="Muses.App.App"
              RequestedThemeVariant="Dark">
   <Application.Resources>
+    <ResourceDictionary>
     <FontFamily x:Key="MonteCarlo">avares://Muses/Assets/Fonts/MonteCarlo.ttf#MonteCarlo</FontFamily>
     <FontFamily x:Key="Inter">fonts:Inter#Inter, Segoe UI Variable, Segoe UI, sans-serif</FontFamily>
 
@@ -149,6 +150,44 @@
     <SolidColorBrush x:Key="MusesGlassPanelBrush" Color="{StaticResource MusesSurfaceChrome}" />
     <SolidColorBrush x:Key="MusesGlassCapsuleBrush" Color="{StaticResource MusesCapsule}" />
     <SolidColorBrush x:Key="MusesGlassDrawerBrush" Color="{StaticResource MusesDrawer}" />
+
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="MusesPageBrush" Color="#1F1F1F" />
+          <SolidColorBrush x:Key="MusesSurfaceBrush" Color="#26262B" />
+          <SolidColorBrush x:Key="MusesTextPrimaryBrush" Color="#F0F0F0" />
+          <SolidColorBrush x:Key="MusesTextSecondaryBrush" Color="#A6A6AD" />
+          <SolidColorBrush x:Key="MusesTextMutedBrush" Color="#B3B3B8" />
+          <SolidColorBrush x:Key="MusesHairlineBrush" Color="#1AFFFFFF" />
+          <SolidColorBrush x:Key="MusesCapsuleBrush" Color="#CC26262B" />
+          <SolidColorBrush x:Key="MusesDrawerBrush" Color="#F226262B" />
+          <SolidColorBrush x:Key="MusesSurfaceChromeBrush" Color="#E626262B" />
+          <SolidColorBrush x:Key="MusesGlassSidebarBrush" Color="#E626262B" />
+          <SolidColorBrush x:Key="MusesGlassPanelBrush" Color="#E626262B" />
+          <SolidColorBrush x:Key="MusesGlassCapsuleBrush" Color="#CC26262B" />
+          <SolidColorBrush x:Key="MusesGlassDrawerBrush" Color="#F226262B" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="MusesPageBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="MusesSurfaceBrush" Color="#F5F5F7" />
+          <SolidColorBrush x:Key="MusesTextPrimaryBrush" Color="#1D1D1F" />
+          <SolidColorBrush x:Key="MusesTextSecondaryBrush" Color="#6E6E73" />
+          <SolidColorBrush x:Key="MusesTextMutedBrush" Color="#86868B" />
+          <SolidColorBrush x:Key="MusesHairlineBrush" Color="#1A000000" />
+          <SolidColorBrush x:Key="MusesCapsuleBrush" Color="#F2F5F5F7" />
+          <SolidColorBrush x:Key="MusesDrawerBrush" Color="#FFF5F5F7" />
+          <SolidColorBrush x:Key="MusesSurfaceChromeBrush" Color="#F2F5F5F7" />
+          <SolidColorBrush x:Key="MusesGlassSidebarBrush" Color="#F2F5F5F7" />
+          <SolidColorBrush x:Key="MusesGlassPanelBrush" Color="#F2F5F5F7" />
+          <SolidColorBrush x:Key="MusesGlassCapsuleBrush" Color="#F2F5F5F7" />
+          <SolidColorBrush x:Key="MusesGlassDrawerBrush" Color="#FFF5F5F7" />
+          <SolidColorBrush x:Key="MusesWhiteOverlay14Brush" Color="#14000000" />
+          <SolidColorBrush x:Key="MusesWhiteOverlay1ABrush" Color="#1A000000" />
+          <SolidColorBrush x:Key="MusesWhiteOverlay33Brush" Color="#33000000" />
+          <SolidColorBrush x:Key="MusesPageOpaqueDarkBrush" Color="#D9FFFFFF" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <sty:FluentAvaloniaTheme PreferSystemTheme="False" PreferUserAccentColor="False" />

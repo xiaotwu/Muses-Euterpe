@@ -27,7 +27,8 @@ public static class AudioInfoModel
         TrackSnapshot? track,
         string? outputDevice,
         string? eqPresetId,
-        double volume)
+        double volume,
+        double? latencyMs = null)
     {
         var src = track == null ? Unknown : "YouTube";
         return
@@ -46,6 +47,7 @@ public static class AudioInfoModel
             }),
             new(Localization.Tr("Source", "来源"), src),
             new(Localization.Tr("Output Device", "输出设备"), outputDevice ?? Unknown),
+            new(Localization.Tr("Device period", "设备周期"), latencyMs is { } ms ? $"{ms:0.#} ms" : Unknown),
             new(Localization.Tr("ReplayGain", "回放增益"), track?.ReplayGain.HasValue == true ? $"{track.ReplayGain.Value:+0.0;-0.0;0.0} dB" : Unknown),
             new(Localization.Tr("EQ Preset", "EQ 预设"), string.IsNullOrEmpty(eqPresetId) ? Unknown : eqPresetId),
             new(Localization.Tr("Volume", "音量"), $"{volume * 100:0}%")

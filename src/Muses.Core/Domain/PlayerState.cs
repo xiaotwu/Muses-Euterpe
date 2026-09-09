@@ -40,6 +40,7 @@ public interface IPlayerEngine
     void Seek(double time);
     void SetVolume(float value);
     void SetEq(IReadOnlyList<EqBand> bands);
+    void SetCrossfadeSeconds(double seconds) { }
     bool SupportsEq { get; }
     void InstallSpectrumTap(Action<SpectrumFrame> handler);
     void RemoveSpectrumTap();

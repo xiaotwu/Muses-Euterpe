@@ -40,4 +40,4 @@ Delete application data by removing the app-data folder:
 - Windows: `%APPDATA%\Muses` (and `%LOCALAPPDATA%\Muses` if present)
 - macOS (dev): `~/Library/Application Support/MusesEuterpe`
 
-There is currently **no** in-app “Clear Cache & Reset Data” action; do not expect one in Settings until it is implemented.
+Settings → General includes **Clear Cache** (artwork + Home feed cache) and **Reset Data** (deletes the SQLite library, caches, signs out of Credential Manager, then quits). Reset is irreversible.

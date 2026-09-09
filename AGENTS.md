@@ -54,4 +54,5 @@ Identifiers and comments are English. User-visible strings go through `L10n.Tr`.
 - Web Home helper jar: `%TEMP%\muses-web-home-helper\...`, deleted on helper exit. Helper exe is copied to `Helpers/` next to the app.
 - Vendored `resources/mpv.exe` and `resources/yt-dlp.exe` are gitignored; drop them in locally. App copies them to output when present.
 - Automation is a background engine. There is no user-facing rules editor yet.
-- Optional system-wide hotkeys (`PrefKey.FfGlobalHotkeys`) stay off and unwired. In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when the main window is focused.
+- Optional system-wide hotkeys (`PrefKey.FfGlobalHotkeys`, default off) use Windows `RegisterHotKey` for Ctrl+P / Ctrl+Left / Ctrl+Right. In-window chords always work when the main window is focused.
+- Microsoft Store and WinGet remain unpublished — remind the user later; do not advertise them.

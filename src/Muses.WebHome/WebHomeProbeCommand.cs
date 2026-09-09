@@ -4,15 +4,16 @@ namespace Muses.WebHome;
 
 /// <summary>
 /// Helper-side probeSession implementation. Owns the ephemeral cookie jar and never
-/// scrapes inside the Avalonia process. Identity verification beyond a channel hint
-/// is intentionally Unavailable until a later wave ports the full session client.
+/// scrapes inside the Avalonia process. Identity is a channel hint beside a test jar,
+/// or yt-dlp against Liked Videos (LL) using the opted-in cookies.
 /// </summary>
 public static class WebHomeProbeCommand
 {
     public static async Task<WebHomeResponse> ExecuteAsync(
         WebHomeRequest request,
         string? ytdlpPath = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<string, CancellationToken, Task<string?>>? resolveChannelFromCookies = null)
     {
         if (request.ProtocolVersion != WebHomeProtocolVersion.Current)
             return WebHomeResponse.Unavailable("protocolMismatch", "Unsupported Web Home protocol version.");
@@ -69,10 +70,19 @@ public static class WebHomeProbeCommand
             var channel = jar.ReadChannelHint();
             if (channel is null)
             {
-                // Honest: cookies exist but identity scrape is not in this helper build.
+                var ytdlp = ytdlpPath ?? LocateYTDlp();
+                var resolver = resolveChannelFromCookies
+                    ?? ((path, ct) => ytdlp is null
+                        ? Task.FromResult<string?>(null)
+                        : WebHomeIdentity.TryResolveChannelAsync(ytdlp, path, ct));
+                channel = await resolver(jar.CookieFilePath, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (channel is null)
+            {
                 return WebHomeResponse.Unavailable(
                     "identityUnavailable",
-                    "Cookie jar was created and will be deleted on exit; channel identity probe is not available in this build.");
+                    "Cookie jar was created and will be deleted on exit; channel identity could not be read from the opted-in cookies.");
             }
 
             if (!string.Equals(channel, request.ExpectedChannelId, StringComparison.Ordinal))

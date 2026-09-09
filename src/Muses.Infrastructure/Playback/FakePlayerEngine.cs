@@ -58,6 +58,9 @@ public sealed class FakePlayerEngine : IPlayerEngine
         LastEqBands = bands.ToList();
     }
 
+    public double CrossfadeSeconds { get; private set; }
+    public void SetCrossfadeSeconds(double seconds) => CrossfadeSeconds = Math.Clamp(seconds, 0, 12);
+
     public void InstallSpectrumTap(Action<SpectrumFrame> handler) => SpectrumTapInstalled = true;
     public void RemoveSpectrumTap() => SpectrumTapInstalled = false;
 

@@ -110,6 +110,20 @@
             </StackPanel>
             <CheckBox Content="{Binding SettingsCloseToTrayLabel}" IsChecked="{Binding CloseToTray}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <CheckBox Content="{Binding SettingsTrayLabel}" IsChecked="{Binding TrayEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding SettingsClearCacheLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="{Binding SettingsClearCacheBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+              <Button Classes="actionBtn" Command="{Binding ClearCacheCommand}" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding SettingsClearCacheLabel}" />
+              </Button>
+              <TextBlock Text="{Binding SettingsResetDataLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" Margin="0,8,0,0" />
+              <TextBlock Text="{Binding SettingsResetDataBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+              <Button Classes="actionBtn" Command="{Binding ResetDataCommand}" HorizontalAlignment="Left">
+                <TextBlock Text="{Binding SettingsResetDataConfirmLabel}" />
+              </Button>
+              <TextBlock Text="{Binding SettingsCacheStatus}" FontSize="12" Foreground="{StaticResource MusesAccentBrush}"
+                         IsVisible="{Binding SettingsCacheStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
           </StackPanel>
 
           <!-- 2. PLAYBACK -->
@@ -118,6 +132,13 @@
             <CheckBox Content="{Binding SettingsResumeAfterVideoLabel}" IsChecked="{Binding ResumeAfterVideo}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <CheckBox Content="{Binding SettingsReplayGainLabel}" IsChecked="{Binding ReplayGainEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <TextBlock Text="{Binding SettingsReplayGainUnavailableNote}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding SettingsCrossfadeLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <Slider Minimum="0" Maximum="8" SmallChange="0.5" LargeChange="1" TickFrequency="0.5"
+                      IsSnapToTickEnabled="True" Value="{Binding CrossfadeSeconds}" Width="280" HorizontalAlignment="Left" />
+              <TextBlock Text="{Binding CrossfadeLabel}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SettingsCrossfadeBody}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+            </StackPanel>
           </StackPanel>
 
           <!-- 3. QUALITY -->
@@ -153,6 +174,7 @@
               <TextBlock Text="{Binding SettingsThemeLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <ComboBox SelectedIndex="{Binding ThemeSelectedIndex}" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
                 <ComboBoxItem Content="{Binding SettingsThemeDarkLabel}" />
+                <ComboBoxItem Content="{Binding SettingsThemeLightLabel}" />
                 <ComboBoxItem Content="{Binding SettingsThemeSystemLabel}" />
               </ComboBox>
             </StackPanel>

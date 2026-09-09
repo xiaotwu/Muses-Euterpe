@@ -79,6 +79,15 @@
         <StackPanel x:Name="MoodChipsContainer" Orientation="Horizontal" Spacing="8" />
       </ScrollViewer>
 
+      <Border Background="{StaticResource MusesAccentOverlay1ABrush}"
+              CornerRadius="14"
+              Padding="18,12"
+              BorderBrush="{StaticResource MusesAccentOverlay33Brush}"
+              BorderThickness="1"
+              IsVisible="{Binding IsWebHomeAvailable}">
+        <TextBlock Text="{Binding WebHomeVerifiedLabel}" FontSize="13" Foreground="{StaticResource MusesTextPrimaryBrush}" TextWrapping="Wrap" />
+      </Border>
+
       <!-- Guest Banner -->
       <Border Background="{StaticResource MusesSurfaceBrush}"
               CornerRadius="14"

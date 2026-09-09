@@ -19,7 +19,7 @@
         </Border>
       </Panel>
 
-      <Panel Grid.Column="1" Background="{StaticResource MusesPageBrush}">
+      <Panel Grid.Column="1" Background="{DynamicResource MusesPageBrush}">
         <views:HomeView IsVisible="{Binding IsHome}" />
         <views:NewView IsVisible="{Binding IsDiscover}" />
         <views:RecentlyView IsVisible="{Binding IsRecently}" />

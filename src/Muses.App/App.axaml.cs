@@ -11,6 +11,8 @@ using Muses.Core.Library;
 using Muses.Core.L10n;
 using Muses.Core.Playback;
 using Muses.Core.Preferences;
+using Muses.Core.Platform;
+using Muses.Infrastructure;
 using Muses.Core.Queue;
 using Muses.Infrastructure.Account;
 using Muses.Infrastructure.Playback;
@@ -27,6 +29,8 @@ public partial class App : Application
     private ProcessStreamEngine? _engine;
     private WindowsSMTCService? _smtc;
     private TrayIconHost? _trayHost;
+    private IGlobalHotkeys? _globalHotkeys;
+    private ShellViewModel? _shell;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -54,6 +58,7 @@ public partial class App : Application
             var quality = ProcessStreamEngine.MapAudioQualityPref(preferences.GetString(PrefKey.AudioQuality, "best"));
             _engine = new ProcessStreamEngine(ytdlp, quality);
             _engine.SetReplayGainEnabled(preferences.GetBool(PrefKey.ReplayGainEnabled, true));
+            _engine.SetCrossfadeSeconds(preferences.GetDouble(PrefKey.CrossfadeSeconds, 0));
             var playback = new PlaybackService(_engine, queue, library, preferences);
             var playlistService = new PlaylistService(_store);
             var youtubeImportService = new YouTubeImportService(_store, _store, ytdlp);
@@ -102,6 +107,8 @@ public partial class App : Application
                 preferences);
 
             _smtc = new WindowsSMTCService(playback);
+            _globalHotkeys = WindowsGlobalHotkeys.Create();
+            var audioProbe = WindowsAudioOutputProbe.Create();
             var tray = new WindowsTrayController(
                 playback,
                 preferences,
@@ -112,7 +119,9 @@ public partial class App : Application
             shell.Attach(
                 playback, library, ytdlp, playlistService, youtubeImportService, homeDiscovery, catalog,
                 situational, search, lyrics, history, eq, focus, notes, inbox, automation,
-                preferences, account, _smtc, tray, webHome, _engine);
+                preferences, account, _smtc, tray, webHome, _engine, _globalHotkeys, audioProbe);
+            _shell = shell;
+            shell.RequestAppExit += () => desktop.Shutdown();
 
             var main = new MainWindow { DataContext = shell };
             desktop.MainWindow = main;
@@ -131,15 +140,19 @@ public partial class App : Application
                 queue.Persist();
                 _trayHost?.Dispose();
                 _smtc?.Dispose();
+                _globalHotkeys?.Dispose();
                 _engine.Dispose();
+                var reset = _shell?.ResetOnExit == true;
                 _store.Dispose();
+                if (reset)
+                    LocalDataMaintenance.ResetDataFiles();
             };
         }
 
         base.OnFrameworkInitializationCompleted();
     }
 
-    private static void ApplyTheme(IPreferences preferences)
+    public static void ApplyTheme(IPreferences preferences)
     {
         var theme = AppThemeCodec.Parse(preferences.GetString(PrefKey.Theme, "dark"));
         if (Current is null) return;

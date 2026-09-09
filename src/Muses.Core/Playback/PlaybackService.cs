@@ -35,6 +35,8 @@ public sealed class PlaybackService
 
     public void SetEq(IReadOnlyList<EqBand> bands) => _engine.SetEq(bands);
 
+    public void SetCrossfadeSeconds(double seconds) => _engine.SetCrossfadeSeconds(seconds);
+
     public void PlayTrack(TrackSnapshot track, IReadOnlyList<TrackSnapshot> context, QueueSource from)
     {
         _playbackRequested = true;

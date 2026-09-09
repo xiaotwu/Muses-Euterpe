@@ -32,3 +32,13 @@ Automated on Win11 (2026-09-09 PT): **171 passed**, build green.
 ## CI
 
 `.github/workflows/ci.yml` still runs `ubuntu-latest` + `windows-latest`. Push `675c425`: [CI run 34414066986](https://github.com/xiaotwu/Muses-Euterpe/actions/runs/34414066986) **success** (ubuntu-latest + windows-latest).
+
+## Stage 3 (this machine)
+
+- Web Home identity: helper uses opted-in browser cookies (yt-dlp `--cookies-from-browser`) then yt-dlp Liked Videos (`LL`) to read `UC…`. No scrape in Avalonia. No fake personalized Home — verified session chip only.
+- Global hotkeys: `RegisterHotKey` Ctrl+P / Left / Right when `FfGlobalHotkeys` is on (default off). In-window chords stay ungated.
+- Light theme: Appearance combo Dark / Light / System. Dark remains default. Accent stays `#FA586A`.
+- Clear Cache / Reset Data: Settings → General. Reset signs out, deletes sqlite + caches, quits.
+- Audio Nerd: WASAPI default render device name when COM succeeds; otherwise Unknown. Never invents “Realtek…”. Device period left Unknown (no unsafe IAudioClient vtable).
+- Crossfade: Settings slider 0–8 s overlaps two mpv sessions. 0 = off. mpv `--gapless-audio=weak`. YouTube streams are not gapless.
+- Store / WinGet: skipped; remind later.

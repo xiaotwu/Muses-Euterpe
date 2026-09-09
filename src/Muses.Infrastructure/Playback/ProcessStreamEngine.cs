@@ -22,6 +22,8 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
     private Timer? _positionTimer;
     private float _volume = 0.8f;
     private IReadOnlyList<EqBand> _eqBands = Array.Empty<EqBand>();
+    private double _crossfadeSeconds;
+    private IMpvPlayerSession? _outgoing;
     private bool _suppressCompletion;
     private int _completionRaised;
     private int _disposed;
@@ -107,7 +109,14 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             _loadCts?.Dispose();
             loadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             _loadCts = loadCts;
-            StopSession_NoLock(suppressCompletion: true);
+            if (_crossfadeSeconds >= 0.05 && _session is { IsAlive: true })
+            {
+                DetachOutgoing_NoLock();
+            }
+            else
+            {
+                StopSession_NoLock(suppressCompletion: true);
+            }
             _completionRaised = 0;
             State.Track = track;
             _replayGainDb = track.ReplayGain;
@@ -166,9 +175,13 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
                 }
 
                 AttachSession_NoLock(session);
+                if (_outgoing is not null)
+                    session.SetVolume(0);
                 State.Buffering = false;
                 State.IsPlaying = true;
                 StartPositionTimer_NoLock();
+                if (_outgoing is not null)
+                    BeginCrossfade_NoLock();
             }
         }
         catch (OperationCanceledException)
@@ -256,6 +269,14 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
         }
     }
 
+    public void SetCrossfadeSeconds(double seconds)
+    {
+        lock (_gate)
+        {
+            _crossfadeSeconds = Math.Clamp(seconds, 0, 12);
+        }
+    }
+
     public void InstallSpectrumTap(Action<SpectrumFrame> handler) { }
     public void RemoveSpectrumTap() { }
 
@@ -313,7 +334,47 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             _loadCts = null;
             StopPositionTimer_NoLock();
             StopSession_NoLock(suppressCompletion: true);
+            try { _outgoing?.Dispose(); } catch { /* ignore */ }
+            _outgoing = null;
         }
+    }
+
+    private void DetachOutgoing_NoLock()
+    {
+        try { _outgoing?.Dispose(); } catch { /* ignore */ }
+        _outgoing = null;
+        if (_session is null) return;
+        _session.EndOfFile -= HandleEndOfFile;
+        _session.Exited -= HandleExited;
+        _outgoing = _session;
+        _session = null;
+    }
+
+    private void BeginCrossfade_NoLock()
+    {
+        var outgoing = _outgoing;
+        var incoming = _session;
+        var seconds = _crossfadeSeconds;
+        var target = VolumeToMpv(_volume);
+        if (outgoing is null || incoming is null || seconds < 0.05) return;
+        _ = Task.Run(async () =>
+        {
+            const int steps = 8;
+            var slice = TimeSpan.FromSeconds(Math.Max(0.05, seconds / steps));
+            for (var i = 1; i <= steps; i++)
+            {
+                await Task.Delay(slice).ConfigureAwait(false);
+                var t = i / (double)steps;
+                try { outgoing.SetVolume((int)Math.Round(target * (1 - t))); } catch { /* ignore */ }
+                try { incoming.SetVolume((int)Math.Round(target * t)); } catch { /* ignore */ }
+            }
+            try { outgoing.Dispose(); } catch { /* ignore */ }
+            lock (_gate)
+            {
+                if (ReferenceEquals(_outgoing, outgoing))
+                    _outgoing = null;
+            }
+        });
     }
 
     private void AttachSession_NoLock(IMpvPlayerSession session)
@@ -331,6 +392,12 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
         StopPositionTimer_NoLock();
         var session = _session;
         _session = null;
+        var outgoing = _outgoing;
+        _outgoing = null;
+        if (outgoing is not null)
+        {
+            try { outgoing.Dispose(); } catch { /* ignore */ }
+        }
         if (session is null) return;
         session.EndOfFile -= HandleEndOfFile;
         session.Exited -= HandleExited;
