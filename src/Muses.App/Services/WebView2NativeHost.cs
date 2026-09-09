@@ -32,6 +32,18 @@ public sealed class WebView2NativeHost : NativeControlHost
 
     public void NavigateBlank()
     {
+        if (_controller?.CoreWebView2 is { } webView)
+        {
+            try
+            {
+                _ = webView.ExecuteScriptAsync(YouTubeEmbed.PauseIframeScript());
+            }
+            catch
+            {
+                // Best-effort pause before blanking so the iframe cannot keep playing.
+            }
+        }
+
         NavigateToHtml(YouTubeEmbed.BlankHtml());
     }
 
@@ -39,6 +51,10 @@ public sealed class WebView2NativeHost : NativeControlHost
     {
         if (!OperatingSystem.IsWindows())
             return base.CreateNativeControlCore(parent);
+
+        // Overlay close destroys the HWND; a later open reuses this host instance.
+        _destroying = false;
+        _controller = null;
 
         _hwnd = CreateWindowEx(
             0,

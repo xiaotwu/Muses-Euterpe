@@ -93,15 +93,15 @@ public partial class MainWindow : AppWindow
                 e.Handled = true;
                 break;
             case Key.P:
-                                vm.Commands.Execute(CommandRegistry.TogglePlayback);
+                vm.Commands.Execute(CommandRegistry.TogglePlayback);
                 e.Handled = true;
                 break;
             case Key.Left:
-                                vm.Commands.Execute(CommandRegistry.Previous);
+                vm.Commands.Execute(CommandRegistry.Previous);
                 e.Handled = true;
                 break;
             case Key.Right:
-                                vm.Commands.Execute(CommandRegistry.Next);
+                vm.Commands.Execute(CommandRegistry.Next);
                 e.Handled = true;
                 break;
             case Key.OemComma:

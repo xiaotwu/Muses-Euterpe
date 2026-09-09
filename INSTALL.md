@@ -39,11 +39,27 @@ Muses (Windows 11 port: Euterpe) is intended for **Windows 10/11**. The supporte
 
 ## MSIX packaging (Windows only)
 
-`scripts/package-msix.ps1` publishes the app and, when the Windows SDK `MakeAppx.exe` is present, packs an `.msix`.
+`scripts/package-msix.ps1` publishes the app, packs an `.msix` with `MakeAppx.exe` (Windows SDK **or** the `Microsoft.Windows.SDK.BuildTools` NuGet package), and **signs** it with a local `CN=xiaotwu` code-signing certificate (matches `Package.appxmanifest` Publisher). The private key stays in `Cert:\CurrentUser\My` and is never committed. The public cert is imported to `CurrentUser\TrustedPeople` so this account can sideload.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\package-msix.ps1 -Configuration Release
+Add-AppxPackage -Path artifacts\msix\Muses-0.1.0.0-win-x64.msix
 ```
+
+This is a **self-signed sideload** certificate, not a public CA / EV Authenticode cert. AppX install (`0x800B0109`) needs the cert in **LocalMachine\TrustedPeople**, which requires an elevated PowerShell **once**:
+
+```powershell
+Import-Certificate -FilePath artifacts\msix\Muses-sideload.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+Add-AppxPackage -Path artifacts\msix\Muses-0.1.0.0-win-x64.msix
+```
+
+Microsoft SmartScreen may still warn once for an unknown publisher — *More info* → *Run anyway*. A silent SmartScreen reputation requires a purchased Authenticode certificate (Stage 3; not done here).
+
+Source `dotnet run --project src/Muses.App` remains the supported development path. Store / WinGet are **not published**.
+
+### This Windows 11 machine (2026-09-09)
+
+Packed and signed: `artifacts/msix/Muses-0.1.0.0-win-x64.msix`. Full Windows SDK is still not installed; tools come from `Microsoft.Windows.SDK.BuildTools`.
 
 ### macOS / Linux limitation
 
@@ -59,8 +75,17 @@ powershell -ExecutionPolicy Bypass -File scripts\package-msix.ps1 -Configuration
 
 ## Media engine
 
-- `yt-dlp` resolves stream URLs; a binary may be copied from `resources/` at build time.
-- Playback uses **mpv** over JSON IPC (`ProcessStreamEngine`). Install `mpv` on PATH or place it under `resources/` for audible playback and EQ filters.
+Playback is **yt-dlp → mpv IPC** (`ProcessStreamEngine`). Official YouTube IFrame is not the sound source.
+
+Vendored layout for `dotnet run` without a global PATH (binaries are gitignored — drop them in locally):
+
+| File | Role |
+| --- | --- |
+| `resources/yt-dlp.exe` | Resolves YouTube stream URLs (copied to the app output directory when present) |
+| `resources/mpv.exe` | Emits audio over named-pipe IPC (copied to output when present) |
+| `resources/d3dcompiler_43.dll` | mpv companion DLL on Windows (copied next to `mpv.exe` when present) |
+
+`MpvPlayerFactory` looks on `PATH`, then next to the app, then walks up to repo `resources/`. If mpv is missing, `LoadAsync` fails with `PlayerErrorKind.EngineStartFailed` (not a hung Buffering state). Settings → Audio Quality reports that honestly.
 
 ---
 

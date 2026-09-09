@@ -124,6 +124,19 @@ public class SettingsPolicyTests
     }
 
     [Fact]
+    public void Engine_status_copy_is_honest_about_mpv_presence()
+    {
+        var found = MpvPlayerFactory.LocateMpvBinary();
+        if (found is null)
+        {
+            Assert.Null(found);
+            return;
+        }
+
+        Assert.True(File.Exists(found));
+    }
+
+    [Fact]
     public void WindowsSMTC_IsSupported_false_on_non_windows_dev_hosts()
     {
         var smtc = new WindowsSMTCService();

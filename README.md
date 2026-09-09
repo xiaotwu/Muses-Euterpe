@@ -96,7 +96,9 @@ dotnet run --project src/Muses.App
 
 CI: `.github/workflows/ci.yml` runs `dotnet test` + `dotnet build` on `ubuntu-latest` and `windows-latest`.
 
-MSIX: see [INSTALL.md](INSTALL.md) — **Windows only**; macOS cannot produce MSIX.
+MSIX: see [INSTALL.md](INSTALL.md) — **Windows only**; macOS cannot produce MSIX. Source build remains the supported path. A sideload `.msix` is produced only when `MakeAppx.exe` (Windows SDK) is on the packing machine.
+
+Vendored player binaries (`resources/mpv.exe`, `resources/yt-dlp.exe`) are gitignored. Place them under `resources/` for `dotnet run` without a global PATH.
 
 ---
 

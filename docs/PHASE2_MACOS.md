@@ -1,6 +1,6 @@
 # Euterpe Phase 2 — macOS-dev notes
 
-This checkout runs on macOS for development. Production target remains Windows 11.
+Windows 11 is the primary development host. This file remains for macOS-dev checkouts of the Avalonia shell. Production SMTC, tray, WebView2, Credential Manager, and MSIX are proven only on Windows.
 
 ## WebView / YouTube embed
 

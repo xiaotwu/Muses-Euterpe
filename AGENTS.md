@@ -45,3 +45,13 @@ Identifiers and comments are English. User-visible strings go through `L10n.Tr`.
 - `scripts/package-msix.ps1` prepares / packs MSIX on **Windows** with the Windows SDK.
 - macOS and Linux checkouts cannot produce a MSIX artifact — document that honestly in INSTALL.
 - Microsoft Store and WinGet are **not published**.
+
+## Windows 11 host notes
+
+- Primary development host is Windows 11. `dotnet test` / `dotnet build Muses.slnx` / `dotnet run --project src/Muses.App` are the supported loop.
+- SQLite: `%APPDATA%\Muses\muses-youtube-native.sqlite`.
+- OAuth tokens: Windows Credential Manager (`Muses/YouTubeOAuth/...`), never plaintext JSON under `%AppData%\Muses`.
+- Web Home helper jar: `%TEMP%\muses-web-home-helper\...`, deleted on helper exit. Helper exe is copied to `Helpers/` next to the app.
+- Vendored `resources/mpv.exe` and `resources/yt-dlp.exe` are gitignored; drop them in locally. App copies them to output when present.
+- Automation is a background engine. There is no user-facing rules editor yet.
+- Optional system-wide hotkeys (`PrefKey.FfGlobalHotkeys`) stay off and unwired. In-window Ctrl+P / Ctrl+Left / Ctrl+Right always work when the main window is focused.

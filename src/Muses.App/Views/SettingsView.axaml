@@ -126,9 +126,9 @@
             <StackPanel Spacing="8">
               <TextBlock Text="{Binding SettingsPreferredStreamLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <ComboBox SelectedIndex="{Binding AudioQualitySelectedIndex}" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
-                <ComboBoxItem Content="Best (Opus 160kbps / AAC)" />
-                <ComboBoxItem Content="High (128kbps)" />
-                <ComboBoxItem Content="Medium (96kbps)" />
+                <ComboBoxItem Content="{Binding SettingsQualityBestLabel}" />
+                <ComboBoxItem Content="{Binding SettingsQualityHighLabel}" />
+                <ComboBoxItem Content="{Binding SettingsQualityMediumLabel}" />
               </ComboBox>
             </StackPanel>
             <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="12">
@@ -146,16 +146,17 @@
               <TextBlock Text="{Binding SettingsAccentLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Border Width="28" Height="28" CornerRadius="14" Background="{StaticResource MusesAccentBrush}" BorderBrush="White" BorderThickness="2" />
-                <TextBlock Text="Muses Crimson (#FA586A)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding SettingsAccentNameLabel}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
               </StackPanel>
             </StackPanel>
             <StackPanel Spacing="8">
               <TextBlock Text="{Binding SettingsThemeLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
               <ComboBox SelectedIndex="{Binding ThemeSelectedIndex}" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
-                <ComboBoxItem Content="Dark (Muses Default)" />
-                <ComboBoxItem Content="Follow System" />
+                <ComboBoxItem Content="{Binding SettingsThemeDarkLabel}" />
+                <ComboBoxItem Content="{Binding SettingsThemeSystemLabel}" />
               </ComboBox>
             </StackPanel>
+            <TextBlock Text="{Binding SettingsReduceMotionNote}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
           </StackPanel>
 
           <!-- 5. YOUTUBE -->
@@ -200,10 +201,10 @@
                   </StackPanel>
                   <StackPanel Grid.Column="1" Spacing="8">
                     <Button Classes="primaryActionBtn" Command="{Binding ToggleWebHomeCommand}">
-                      <TextBlock Text="Toggle Web Home" />
+                      <TextBlock Text="{Binding SettingsToggleWebHomeLabel}" />
                     </Button>
                     <Button Classes="actionBtn" Command="{Binding ProbeWebHomeCommand}">
-                      <TextBlock Text="Probe Session" />
+                      <TextBlock Text="{Binding SettingsProbeWebHomeLabel}" />
                     </Button>
                   </StackPanel>
                 </Grid>
@@ -215,6 +216,7 @@
           <StackPanel x:Name="PageLyrics" Spacing="20" IsVisible="False">
             <TextBlock Text="{Binding SettingsLyricsTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <TextBlock Text="{Binding SettingsLyricsProviderNote}" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding SettingsLyricsAutoScrollNote}" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
           </StackPanel>
 
           <!-- 7. DESKTOP -->
@@ -227,7 +229,7 @@
                   <TextBlock Text="{Binding SettingsMiniPlayerBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenMiniPlayer"
                           IsEnabled="{Binding MiniPlayerEnabled}">
-                    <TextBlock Text="Open Mini Player" />
+                    <TextBlock Text="{Binding SettingsOpenMiniPlayerLabel}" />
                   </Button>
                 </Grid>
               </StackPanel>
@@ -240,18 +242,18 @@
                   <TextBlock Text="{Binding SettingsDesktopLyricsBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" VerticalAlignment="Center" />
                   <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenDesktopLyrics"
                           IsEnabled="{Binding DesktopLyricsEnabled}">
-                    <TextBlock Text="Toggle Desktop Lyrics" />
+                    <TextBlock Text="{Binding SettingsToggleDesktopLyricsLabel}" />
                   </Button>
                 </Grid>
               </StackPanel>
             </Border>
 
             <StackPanel Spacing="6">
-              <TextBlock Text="In-window shortcuts" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-              <TextBlock Text="• Ctrl + F : Open Search Window" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-              <TextBlock Text="• Ctrl + P / Space : Play / Pause (when Muses is focused)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-              <TextBlock Text="• Ctrl + Right : Next Track" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-              <TextBlock Text="• Ctrl + Left : Previous Track" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SettingsInWindowShortcutsTitle}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock Text="{Binding SettingsShortcutSearch}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SettingsShortcutPlay}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SettingsShortcutNext}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock Text="{Binding SettingsShortcutPrev}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
               <CheckBox Content="{Binding SettingsGlobalHotkeysLabel}" IsChecked="{Binding GlobalHotkeysEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" Margin="0,8,0,0" />
               <TextBlock Text="{Binding SettingsGlobalHotkeysBody}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
             </StackPanel>
@@ -263,24 +265,25 @@
               <ctrl:MusesMark MarkSize="36" />
               <StackPanel>
                 <TextBlock Text="Muses" FontSize="24" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                <TextBlock Text="Version 0.1.0 (Windows 11)" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                <TextBlock Text="{Binding SettingsAboutVersion}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
               </StackPanel>
             </StackPanel>
-            <TextBlock Text="A native desktop YouTube-native music application. Display name Muses, repo/solution Euterpe. Built with C# / .NET 10 and Avalonia."
+            <TextBlock Text="{Binding SettingsAboutTagline}"
                        FontSize="13" Foreground="{StaticResource MusesTextMutedBrush}" TextWrapping="Wrap" />
-            <TextBlock Text="Author: xiaotwu" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock Text="{Binding SettingsAboutAuthor}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock Text="{Binding SettingsAutomationNote}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
 
             <!-- Software Update Card -->
             <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
               <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Spacing="2">
-                    <TextBlock Text="Software Update" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                    <TextBlock Text="Check for newer versions of Muses on GitHub." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                    <TextBlock Text="{Binding SettingsSoftwareUpdateTitle}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SettingsSoftwareUpdateBody}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
                   </StackPanel>
                   <Button Grid.Column="1" Classes="actionBtn" Command="{Binding CheckForUpdatesCommand}"
                           IsEnabled="{Binding !IsCheckingForUpdates}">
-                    <TextBlock Text="Check for Updates" />
+                    <TextBlock Text="{Binding SettingsCheckForUpdatesLabel}" />
                   </Button>
                 </Grid>
 
@@ -290,14 +293,14 @@
                 <StackPanel Spacing="6" IsVisible="{Binding HasAvailableUpdate}">
                   <TextBlock Text="{Binding AvailableUpdateInfo.ReleaseTitle}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
                   <Button Classes="primaryActionBtn" Command="{Binding DownloadUpdateCommand}" HorizontalAlignment="Left">
-                    <TextBlock Text="Download Update" />
+                    <TextBlock Text="{Binding SettingsDownloadUpdateLabel}" />
                   </Button>
                 </StackPanel>
               </StackPanel>
             </Border>
 
             <Button Classes="actionBtn" Click="OnOpenGitHub" HorizontalAlignment="Left">
-              <TextBlock Text="View on GitHub" />
+              <TextBlock Text="{Binding SettingsViewOnGitHubLabel}" />
             </Button>
           </StackPanel>
 

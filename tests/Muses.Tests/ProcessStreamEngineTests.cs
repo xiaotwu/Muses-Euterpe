@@ -125,6 +125,50 @@ public class ProcessStreamEngineTests
     }
 
     [Fact]
+    public void MapAudioQualityPref_maps_settings_values_to_yt_dlp_keys()
+    {
+        Assert.Equal("bestaudio", ProcessStreamEngine.MapAudioQualityPref("best"));
+        Assert.Equal("128k", ProcessStreamEngine.MapAudioQualityPref("high"));
+        Assert.Equal("64k", ProcessStreamEngine.MapAudioQualityPref("medium"));
+        Assert.Equal("bestaudio", ProcessStreamEngine.MapAudioQualityPref(null));
+        Assert.Equal("bestaudio", ProcessStreamEngine.MapAudioQualityPref(""));
+        Assert.Equal("256k", ProcessStreamEngine.MapAudioQualityPref("256k"));
+    }
+
+    [Fact]
+    public async Task SetStreamQuality_re_resolves_current_track_when_playing()
+    {
+        var bridge = new FakeBridge();
+        var factory = new FakeMpvFactory();
+        await using var engine = new EngineOwner(new ProcessStreamEngine(bridge, factory, "bestaudio"));
+
+        await engine.Inner.LoadAsync(TrackSnapshot.Test("song", "vid-1", 90));
+        Assert.Equal(1, bridge.ResolveCount);
+        Assert.Equal("bestaudio", bridge.LastQuality);
+
+        engine.Inner.SetStreamQuality("128k");
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (bridge.ResolveCount < 2 && DateTime.UtcNow < deadline)
+            await Task.Delay(20);
+
+        Assert.Equal(2, bridge.ResolveCount);
+        Assert.Equal("128k", bridge.LastQuality);
+        Assert.True(engine.Inner.State.IsPlaying);
+        Assert.False(engine.Inner.State.Buffering);
+    }
+
+    [Fact]
+    public async Task SetStreamQuality_same_value_does_not_re_resolve()
+    {
+        var bridge = new FakeBridge();
+        await using var engine = new EngineOwner(new ProcessStreamEngine(bridge, new FakeMpvFactory(), "bestaudio"));
+        await engine.Inner.LoadAsync(TrackSnapshot.Test("song", "vid-1", 30));
+        engine.Inner.SetStreamQuality("bestaudio");
+        await Task.Delay(50);
+        Assert.Equal(1, bridge.ResolveCount);
+    }
+
+    [Fact]
     public async Task Missing_mpv_sets_EngineStartFailed()
     {
         var factory = new FakeMpvFactory { BinaryPath = null };
@@ -167,11 +211,13 @@ public class ProcessStreamEngineTests
     private sealed class FakeBridge : IYTDlpBridge
     {
         public int ResolveCount { get; private set; }
+        public string? LastQuality { get; private set; }
         public TimeSpan ResolveDelay { get; set; } = TimeSpan.Zero;
 
         public async Task<Uri> ResolveStreamUrlAsync(string videoId, string quality, TimeSpan timeout, CancellationToken ct = default)
         {
             ResolveCount++;
+            LastQuality = quality;
             if (ResolveDelay > TimeSpan.Zero)
                 await Task.Delay(ResolveDelay, ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();

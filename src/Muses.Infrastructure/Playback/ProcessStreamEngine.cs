@@ -57,7 +57,33 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
     public void SetStreamQuality(string quality)
     {
         if (string.IsNullOrWhiteSpace(quality)) return;
-        lock (_gate) { _quality = quality; }
+        TrackSnapshot? reload = null;
+        lock (_gate)
+        {
+            if (string.Equals(_quality, quality, StringComparison.Ordinal)) return;
+            _quality = quality;
+            if (State.Track is not null && (State.IsPlaying || State.Buffering || _session is not null))
+                reload = State.Track;
+        }
+
+        if (reload is not null)
+            _ = ReloadForQualityAsync(reload);
+    }
+
+    private async Task ReloadForQualityAsync(TrackSnapshot track)
+    {
+        try
+        {
+            await LoadAsync(track).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a newer load.
+        }
+        catch
+        {
+            // LoadAsync records State.Error.
+        }
     }
 
     public void SetReplayGainEnabled(bool enabled)
@@ -74,6 +100,7 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
 
         CancellationTokenSource loadCts;
+        string quality;
         lock (_gate)
         {
             _loadCts?.Cancel();
@@ -89,12 +116,13 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             State.Buffering = true;
             State.Error = null;
             State.IsPlaying = false;
+            quality = _quality;
         }
 
         var ct = loadCts.Token;
         try
         {
-            var url = await _bridge.ResolveStreamUrlAsync(track.YouTubeId, _quality, TimeSpan.FromSeconds(25), ct)
+            var url = await _bridge.ResolveStreamUrlAsync(track.YouTubeId, quality, TimeSpan.FromSeconds(25), ct)
                 .ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
 

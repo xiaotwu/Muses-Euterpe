@@ -100,7 +100,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         return new MpvPlayerSession(process, ipc, endpoint, windows);
     }
 
-    internal static string? LocateMpvBinary()
+    public static string? LocateMpvBinary()
     {
         var exe = OperatingSystem.IsWindows() ? "mpv.exe" : "mpv";
         if (FindOnPath(exe) is { } fromPath) return fromPath;

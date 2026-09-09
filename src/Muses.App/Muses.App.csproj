@@ -27,10 +27,27 @@
     <ProjectReference Include="..\Muses.Persistence\Muses.Persistence.csproj" />
     <ProjectReference Include="..\Muses.Infrastructure\Muses.Infrastructure.csproj" />
     <ProjectReference Include="..\Muses.Platform.Windows\Muses.Platform.Windows.csproj" />
+    <ProjectReference Include="..\Muses.WebHome.Helper\Muses.WebHome.Helper.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <Private>false</Private>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
     <None Include="..\..\resources\yt-dlp" Link="yt-dlp" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\yt-dlp')" />
     <None Include="..\..\resources\yt-dlp.exe" Link="yt-dlp.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\yt-dlp.exe')" />
+    <None Include="..\..\resources\mpv.exe" Link="mpv.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\mpv.exe')" />
+    <None Include="..\..\resources\d3dcompiler_43.dll" Link="d3dcompiler_43.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\d3dcompiler_43.dll')" />
   </ItemGroup>
+  <Target Name="CopyWebHomeHelper" AfterTargets="Build">
+    <PropertyGroup>
+      <_HelperOut>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Muses.WebHome.Helper\bin\$(Configuration)\$(TargetFramework)\'))</_HelperOut>
+      <_HelperDest>$(OutputPath)Helpers\</_HelperDest>
+    </PropertyGroup>
+    <ItemGroup>
+      <_HelperFiles Include="$(_HelperOut)**\*.*" Condition="Exists('$(_HelperOut)')" />
+    </ItemGroup>
+    <MakeDir Directories="$(_HelperDest)" Condition="'@(_HelperFiles)' != ''" />
+    <Copy SourceFiles="@(_HelperFiles)" DestinationFolder="$(_HelperDest)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="'@(_HelperFiles)' != ''" />
+  </Target>
 </Project>

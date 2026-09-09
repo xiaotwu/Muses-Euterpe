@@ -27,6 +27,8 @@ node_modules/
 
 # Secrets and vendored binaries
 client_secret*.json
+*.pfx
+*.p12
 resources/yt-dlp
 resources/yt-dlp.exe
 resources/yt-dlp-LICENSE
