@@ -31,6 +31,9 @@ public sealed class PlaybackService
     public LibraryService? Library { get; }
     public PlaybackEventBus EventBus { get; } = new();
     public float Volume { get; private set; }
+    public bool EngineSupportsEq => _engine.SupportsEq;
+
+    public void SetEq(IReadOnlyList<EqBand> bands) => _engine.SetEq(bands);
 
     public void PlayTrack(TrackSnapshot track, IReadOnlyList<TrackSnapshot> context, QueueSource from)
     {
@@ -110,6 +113,41 @@ public sealed class PlaybackService
         _engine.SetVolume(Volume);
     }
 
+    /// <summary>
+    /// Silence native audio without clearing desired play intent. Video overlay
+    /// (and similar surfaces) pass a token so nested owners cannot resume while
+    /// another suspension is still active.
+    /// </summary>
+    public void SuspendNative(Guid token)
+    {
+        var wasEmpty = _nativeSuspensions.Count == 0;
+        _nativeSuspensions.Add(token);
+        if (!wasEmpty) return;
+
+        var wasAudible = State.IsPlaying;
+        _engine.Pause();
+        State.IsPlaying = false;
+        if (wasAudible && State.Track is { } track && _startedTrackId == track.Id)
+            EventBus.Post(new PlaybackEvent(PlaybackEventKind.TrackPaused, track));
+    }
+
+    /// <summary>
+    /// Release one native-audio suspension. When the set becomes empty and play
+    /// is still requested, resume the engine idempotently.
+    /// </summary>
+    public void ResumeNative(Guid token)
+    {
+        if (!_nativeSuspensions.Remove(token)) return;
+        if (_nativeSuspensions.Count > 0) return;
+        if (!_playbackRequested) return;
+        if (State.Track is null || State.Buffering || State.IsPlaying) return;
+        _engine.Play();
+        if (_startedTrackId == State.Track.Id)
+            EventBus.Post(new PlaybackEvent(PlaybackEventKind.TrackResumed, State.Track));
+        else
+            MarkStarted(State.Track);
+    }
+
     public void CycleRepeat() => Queue.SetRepeat(RepeatModeCodec.Next(Queue.RepeatMode));
     public void ToggleShuffle() => Queue.ToggleShuffle();
 
@@ -133,7 +171,7 @@ public sealed class PlaybackService
         catch
         {
             if (seq != _loadSeq) return;
-            State.Error = new PlayerError(PlayerErrorKind.SourceUnavailable);
+            State.Error ??= new PlayerError(PlayerErrorKind.SourceUnavailable);
             State.IsPlaying = false;
         }
     }
@@ -171,18 +209,4 @@ public sealed class PlaybackService
         _startedTrackId = track.Id;
         EventBus.Post(new PlaybackEvent(PlaybackEventKind.TrackStarted, track));
     }
-}
-
-public interface IPreferences
-{
-    double GetDouble(string key, double fallback);
-    void SetDouble(string key, double value);
-}
-
-public sealed class MemoryPreferences : IPreferences
-{
-    public static MemoryPreferences Empty { get; } = new();
-    private readonly Dictionary<string, double> _values = new();
-    public double GetDouble(string key, double fallback) => _values.TryGetValue(key, out var v) ? v : fallback;
-    public void SetDouble(string key, double value) => _values[key] = value;
 }

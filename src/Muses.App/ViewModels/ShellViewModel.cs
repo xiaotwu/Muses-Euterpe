@@ -8,6 +8,7 @@ using Muses.Core.Domain;
 using Muses.Core.L10n;
 using Muses.Core.Library;
 using Muses.Core.Playback;
+using Muses.Core.Queue;
 using Muses.Core.Preferences;
 using Muses.Core.System;
 using Muses.Core.Update;
@@ -15,6 +16,9 @@ using Muses.Core.YouTube;
 using Muses.Infrastructure.Advanced;
 using Muses.Infrastructure.Update;
 using Muses.Infrastructure.YTDlp;
+using Muses.Infrastructure.Account;
+using Muses.Platform.Windows;
+using Muses.App.Services;
 
 namespace Muses.App.ViewModels;
 
@@ -128,6 +132,8 @@ public partial class ShellViewModel : ObservableObject
 
     // Wave 6 modals & state
     [ObservableProperty] private bool _isEQOpen;
+    [ObservableProperty] private bool _webHomeEnabled;
+    [ObservableProperty] private string _webHomeStatusText = "";
     [ObservableProperty] private bool _isAudioNerdOpen;
     [ObservableProperty] private bool _isFocusOpen;
     [ObservableProperty] private bool _isNotesOpen;
@@ -195,6 +201,8 @@ public partial class ShellViewModel : ObservableObject
     public Muses.Infrastructure.Lyrics.LyricsService? Lyrics { get; private set; }
     public Muses.Infrastructure.History.HistoryService? History { get; private set; }
     public EQService? EQ { get; private set; }
+    public bool IsEqAvailable { get; private set; } = true;
+    public string EqUnavailableReason { get; private set; } = "";
     public FocusService? Focus { get; private set; }
     public NotesService? Notes { get; private set; }
     public InboxService? Inbox { get; private set; }
@@ -209,7 +217,163 @@ public partial class ShellViewModel : ObservableObject
     [ObservableProperty] private bool _autoCheckUpdates = true;
 
     private DispatcherTimer? _playbackTimer;
-    private bool _wasPlayingBeforeVideo;
+    private YouTubeVideoOverlaySession? _videoOverlaySession;
+    private IYouTubeIFrameClient? _videoIFrameClient;
+    public IPreferences Preferences { get; private set; } = new MemoryPreferences();
+    public YouTubeAccountService? Account { get; private set; }
+    public WebHomeSessionController? WebHome { get; private set; }
+    public WindowsTrayController? Tray { get; private set; }
+    public WindowsSMTCService? Smtc { get; private set; }
+
+    public bool ShowGuestBanner => Account is null || !Account.IsSignedIn;
+    public string? AccountDisplayName => Account?.Profile?.DisplayName;
+    public string? AccountErrorMessage => Account?.ErrorMessage;
+    public bool IsAccountError => Account?.State == Muses.Core.Account.YouTubeAccountState.Error;
+    public bool IsAccountSignedIn => Account?.IsSignedIn == true;
+    public bool IsAccountSigningIn => Account?.State == Muses.Core.Account.YouTubeAccountState.SigningIn;
+
+    public bool ReplayGainEnabled
+    {
+        get => Preferences.GetBool(PrefKey.ReplayGainEnabled, true);
+        set
+        {
+            if (ReplayGainEnabled == value) return;
+            Preferences.SetBool(PrefKey.ReplayGainEnabled, value);
+            OnPropertyChanged(nameof(ReplayGainEnabled));
+        }
+    }
+
+    public bool CloseToTray
+    {
+        get => Preferences.GetBool(PrefKey.CloseToTray, true);
+        set
+        {
+            if (CloseToTray == value) return;
+            Preferences.SetBool(PrefKey.CloseToTray, value);
+            OnPropertyChanged(nameof(CloseToTray));
+        }
+    }
+
+    public bool TrayEnabled
+    {
+        get => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfTray);
+        set
+        {
+            if (TrayEnabled == value) return;
+            Preferences.SetBool(PrefKey.FfTray, value);
+            Tray?.SetEnabled(value);
+            OnPropertyChanged(nameof(TrayEnabled));
+        }
+    }
+
+    public bool MiniPlayerEnabled => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfMiniPlayer);
+    public bool DesktopLyricsEnabled => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfDesktopLyrics);
+    public bool GlobalHotkeysEnabled => FeatureFlagDefaults.IsEnabled(Preferences, PrefKey.FfGlobalHotkeys);
+
+    public string LanguagePreference
+    {
+        get => Preferences.GetString(PrefKey.Language, "system");
+        set
+        {
+            if (LanguagePreference == value) return;
+            Preferences.SetString(PrefKey.Language, value);
+            if (L10n.Source is SystemLanguageSource sys)
+                sys.Preference = value;
+            OnPropertyChanged(nameof(LanguagePreference));
+            NotifyL10nLabels();
+        }
+    }
+
+    public int LanguageSelectedIndex
+    {
+        get => LanguagePreference switch
+        {
+            "en" => 1,
+            "zh" or "zh-Hans" => 2,
+            _ => 0
+        };
+        set
+        {
+            LanguagePreference = value switch
+            {
+                1 => "en",
+                2 => "zh",
+                _ => "system"
+            };
+            OnPropertyChanged(nameof(LanguageSelectedIndex));
+        }
+    }
+
+    public string ThemePreference
+    {
+        get => Preferences.GetString(PrefKey.Theme, "dark");
+        set
+        {
+            if (ThemePreference == value) return;
+            Preferences.SetString(PrefKey.Theme, value);
+            OnPropertyChanged(nameof(ThemePreference));
+            OnPropertyChanged(nameof(ThemeSelectedIndex));
+        }
+    }
+
+    public int ThemeSelectedIndex
+    {
+        get => ThemePreference == "system" ? 1 : 0;
+        set
+        {
+            ThemePreference = value == 1 ? "system" : "dark";
+            OnPropertyChanged(nameof(ThemeSelectedIndex));
+        }
+    }
+
+    public string AudioQuality
+    {
+        get => Preferences.GetString(PrefKey.AudioQuality, "best");
+        set
+        {
+            if (AudioQuality == value) return;
+            Preferences.SetString(PrefKey.AudioQuality, value);
+            OnPropertyChanged(nameof(AudioQuality));
+            OnPropertyChanged(nameof(AudioQualitySelectedIndex));
+        }
+    }
+
+    public int AudioQualitySelectedIndex
+    {
+        get => AudioQuality switch
+        {
+            "high" => 1,
+            "medium" => 2,
+            _ => 0
+        };
+        set
+        {
+            AudioQuality = value switch
+            {
+                1 => "high",
+                2 => "medium",
+                _ => "best"
+            };
+            OnPropertyChanged(nameof(AudioQualitySelectedIndex));
+        }
+    }
+
+    public bool IsCapsuleVisible => !IsNowPlayingOpen && !IsVideoOverlayOpen;
+
+    public bool ResumeAfterVideo
+    {
+        get => Preferences.GetBool(PrefKey.ResumeAfterVideo, true);
+        set
+        {
+            if (ResumeAfterVideo == value) return;
+            Preferences.SetBool(PrefKey.ResumeAfterVideo, value);
+            OnPropertyChanged(nameof(ResumeAfterVideo));
+        }
+    }
+    public bool IsVideoEmbedAvailable => _videoIFrameClient?.IsAvailable ?? false;
+    public string VideoEmbedUnavailableMessage => L10n.Tr(
+        "In-app YouTube embed requires WebView2 (Windows). On this Mac build the embed surface is disabled — use Open in YouTube, or continue with native audio.",
+        "应用内 YouTube 嵌入需要 WebView2（Windows）。当前 Mac 构建已禁用嵌入画面 — 请使用“在 YouTube 中打开”，或继续使用原生音频。");
 
     public double SidebarWidth =>
         SidebarCollapsed ? AppleMusicTokens.SidebarCollapsedWidth : AppleMusicTokens.SidebarWidth;
@@ -276,6 +440,22 @@ public partial class ShellViewModel : ObservableObject
         "Sign in to personalize recommendations. Playback never waits on an account.",
         "登录后即可个性化推荐。播放从不依赖账号。");
     public string SignInLabel => L10n.Tr("Sign In", "登录");
+    public string SignOutLabel => L10n.Tr("Sign Out", "退出登录");
+    public string SettingsGeneralTitle => L10n.Tr("General Settings", "通用设置");
+    public string SettingsLanguageLabel => L10n.Tr("Language", "语言");
+    public string SettingsCloseToTrayLabel => L10n.Tr("Close button minimizes to System Tray", "关闭按钮最小化到系统托盘");
+    public string SettingsTrayLabel => L10n.Tr("Show tray / notification area icon", "显示托盘 / 通知区域图标");
+    public string SettingsPlaybackTitle => L10n.Tr("Playback Settings", "播放设置");
+    public string SettingsResumeAfterVideoLabel => L10n.Tr("Resume music playback when video overlay closes", "关闭视频浮层后恢复音乐播放");
+    public string SettingsReplayGainLabel => L10n.Tr("Volume normalization (ReplayGain)", "音量标准化（ReplayGain）");
+    public string SettingsYouTubeTitle => L10n.Tr("YouTube Account", "YouTube 账号");
+    public string SettingsGoogleSignInLabel => L10n.Tr("Google Account Sign-In", "Google 账号登录");
+    public string SettingsGoogleSignInBody => L10n.Tr(
+        "Sign in to personalize Home and sync your liked tracks and playlists.",
+        "登录后即可个性化首页并同步喜欢的歌曲与歌单。");
+    public string SettingsTokensPrivacyLabel => L10n.Tr(
+        "Tokens stay in the OS credential locker on this device. No telemetry.",
+        "令牌保存在本机操作系统凭证保管库中。无遥测。");
     public string NewReleasesLabel => L10n.Tr("New Releases", "新发行");
     public string SeeAllLabel => L10n.Tr("See All", "查看全部");
     public string PasteTitle => L10n.Tr("Paste YouTube Link", "粘贴 YouTube 链接");
@@ -300,9 +480,35 @@ public partial class ShellViewModel : ObservableObject
         FocusService? focus = null,
         NotesService? notes = null,
         InboxService? inbox = null,
-        AutomationService? automation = null)
+        AutomationService? automation = null,
+        IPreferences? preferences = null,
+        YouTubeAccountService? account = null,
+        WindowsSMTCService? smtc = null,
+        WindowsTrayController? tray = null,
+        WebHomeSessionController? webHome = null)
     {
         Playback = playback;
+        Preferences = preferences ?? new MemoryPreferences();
+        Account = account;
+        Smtc = smtc;
+        Tray = tray;
+        WebHome = webHome;
+        WebHomeEnabled = Preferences.GetBool(PrefKey.WebHomeEnabled, false);
+        RefreshWebHomeStatus();
+        if (WebHome is not null)
+            WebHome.StatusChanged += () => Dispatcher.UIThread.Post(RefreshWebHomeStatus);
+        if (Account is not null)
+            Account.Changed += () => Dispatcher.UIThread.Post(NotifyAccountChanged);
+        var lang = Preferences.GetString(PrefKey.Language, "system");
+        if (L10n.Source is SystemLanguageSource sys)
+            sys.Preference = lang;
+        SidebarCollapsed = Preferences.GetBool(PrefKey.SidebarCollapsed, false);
+        var modeRaw = Preferences.GetString(PrefKey.NowPlayingMode, "cover");
+        NowPlayingMode = modeRaw == "vinyl"
+            ? Muses.Core.NowPlaying.NowPlayingMode.Vinyl
+            : Muses.Core.NowPlaying.NowPlayingMode.Cover;
+        _videoIFrameClient = YouTubeEmbedHostFactory.CreateClient();
+        _videoOverlaySession = new YouTubeVideoOverlaySession(playback, _videoIFrameClient, Preferences);
         _library = library;
         _ytdlp = ytdlp;
         PlaylistService = playlistService;
@@ -314,6 +520,12 @@ public partial class ShellViewModel : ObservableObject
         Lyrics = lyrics;
         History = history;
         EQ = eq;
+        IsEqAvailable = playback.EngineSupportsEq;
+        EqUnavailableReason = IsEqAvailable
+            ? ""
+            : L10n.Tr("Equalizer is unavailable because the audio engine cannot apply EQ filters.", "均衡器不可用：当前音频引擎无法应用 EQ 滤镜。");
+        OnPropertyChanged(nameof(IsEqAvailable));
+        OnPropertyChanged(nameof(EqUnavailableReason));
         Focus = focus;
         Notes = notes;
         Inbox = inbox;
@@ -554,12 +766,14 @@ public partial class ShellViewModel : ObservableObject
             IsLyricsDrawerOpen = false;
             IsQueueDrawerOpen = false;
         }
+        OnPropertyChanged(nameof(IsCapsuleVisible));
     }
 
     [RelayCommand]
     public void CloseNowPlaying()
     {
         IsNowPlayingOpen = false;
+        OnPropertyChanged(nameof(IsCapsuleVisible));
     }
 
     [RelayCommand]
@@ -568,6 +782,8 @@ public partial class ShellViewModel : ObservableObject
         NowPlayingMode = NowPlayingMode == Muses.Core.NowPlaying.NowPlayingMode.Cover
             ? Muses.Core.NowPlaying.NowPlayingMode.Vinyl
             : Muses.Core.NowPlaying.NowPlayingMode.Cover;
+        Preferences.SetString(PrefKey.NowPlayingMode,
+            NowPlayingMode == Muses.Core.NowPlaying.NowPlayingMode.Vinyl ? "vinyl" : "cover");
     }
 
     [RelayCommand]
@@ -610,9 +826,13 @@ public partial class ShellViewModel : ObservableObject
         if (!IsVideoOverlayOpen)
         {
             if (string.IsNullOrEmpty(NowPlayingYouTubeId)) return;
-            _wasPlayingBeforeVideo = IsPlaying;
-            if (IsPlaying) Playback?.Pause();
+            // Opening video closes drawers; capsule hides via IsCapsuleVisible.
+            IsLyricsDrawerOpen = false;
+            IsQueueDrawerOpen = false;
+            _videoOverlaySession?.Open(NowPlayingYouTubeId);
             IsVideoOverlayOpen = true;
+            OnPropertyChanged(nameof(IsCapsuleVisible));
+            OnPropertyChanged(nameof(IsVideoEmbedAvailable));
         }
         else
         {
@@ -623,12 +843,9 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     public void CloseVideoOverlay()
     {
+        _videoOverlaySession?.Close();
         IsVideoOverlayOpen = false;
-        if (_wasPlayingBeforeVideo)
-        {
-            Playback?.Play();
-            _wasPlayingBeforeVideo = false;
-        }
+        OnPropertyChanged(nameof(IsCapsuleVisible));
     }
 
     [RelayCommand]
@@ -649,7 +866,22 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     public void RemoveQueueItem(int index)
     {
+        // Legacy: collection Items index only. Prefer RemoveUpcomingRow for drawer rows.
         Playback?.Queue.RemoveItem(index);
+        OnPropertyChanged(nameof(Playback));
+    }
+
+    public void RemoveUpcomingRow(QueuePresentationRow row)
+    {
+        if (Playback is null) return;
+        QueuePresentation.TryRemove(Playback.Queue, row);
+        OnPropertyChanged(nameof(Playback));
+    }
+
+    public void MoveUpNextRow(int from, int to)
+    {
+        if (Playback is null) return;
+        QueuePresentation.TryMoveUpNext(Playback.Queue, from, to);
         OnPropertyChanged(nameof(Playback));
     }
 
@@ -1073,7 +1305,107 @@ public partial class ShellViewModel : ObservableObject
     public event Action? PlaylistsChanged;
 
     [RelayCommand]
-    private void ToggleSidebar() => SidebarCollapsed = !SidebarCollapsed;
+    private void ToggleSidebar()
+    {
+        SidebarCollapsed = !SidebarCollapsed;
+        Preferences.SetBool(PrefKey.SidebarCollapsed, SidebarCollapsed);
+    }
+
+
+    public void RefreshWebHomeStatus()
+    {
+        if (WebHome is null)
+        {
+            WebHomeStatusText = L10n.Tr("Web Home helper is not configured.", "Web Home 助手未配置。");
+            return;
+        }
+        WebHomeEnabled = WebHome.IsEnabled;
+        WebHomeStatusText = WebHome.Status switch
+        {
+            Muses.Core.Advanced.WebHomeSessionStatus.Available => L10n.Tr("Web Home session available.", "Web Home 会话可用。"),
+            Muses.Core.Advanced.WebHomeSessionStatus.AccountMismatch => L10n.Tr("Web Home account mismatch.", "Web Home 账号不匹配。"),
+            Muses.Core.Advanced.WebHomeSessionStatus.PendingConsent => L10n.Tr("Consent required before enabling Web Home.", "启用 Web Home 前需要同意。"),
+            Muses.Core.Advanced.WebHomeSessionStatus.Checking => L10n.Tr("Checking Web Home session…", "正在检查 Web Home 会话…"),
+            Muses.Core.Advanced.WebHomeSessionStatus.Unavailable => L10n.Tr("Web Home unavailable.", "Web Home 不可用。"),
+            Muses.Core.Advanced.WebHomeSessionStatus.Closed => WebHome.IsEnabled
+                ? L10n.Tr("Web Home enabled — probe when signed in.", "Web Home 已启用 — 登录后可探测。")
+                : L10n.Tr("Web Home is off (default).", "Web Home 默认关闭。"),
+            _ => WebHome.Status.ToString()
+        };
+        OnPropertyChanged(nameof(WebHomeStatusText));
+    }
+
+    [RelayCommand]
+    public async Task ToggleWebHomeAsync()
+    {
+        if (WebHome is null) return;
+        if (WebHome.IsEnabled)
+        {
+            await WebHome.DisableAndClearAsync();
+        }
+        else
+        {
+            WebHome.EnableWithConsent();
+            if (IsAccountSignedIn)
+                await WebHome.ProbeSessionAsync();
+        }
+        WebHomeEnabled = WebHome.IsEnabled;
+        RefreshWebHomeStatus();
+    }
+
+    [RelayCommand]
+    public async Task ProbeWebHomeAsync()
+    {
+        if (WebHome is null) return;
+        if (!WebHome.IsEnabled || !WebHome.HasConsent)
+            WebHome.EnableWithConsent();
+        await WebHome.ProbeSessionAsync();
+        RefreshWebHomeStatus();
+    }
+
+    private void NotifyAccountChanged()
+    {
+        OnPropertyChanged(nameof(ShowGuestBanner));
+        OnPropertyChanged(nameof(AccountDisplayName));
+        OnPropertyChanged(nameof(AccountErrorMessage));
+        OnPropertyChanged(nameof(IsAccountError));
+        OnPropertyChanged(nameof(IsAccountSignedIn));
+        OnPropertyChanged(nameof(IsAccountSigningIn));
+    }
+
+    private void NotifyL10nLabels()
+    {
+        OnPropertyChanged(nameof(SearchLabel));
+        OnPropertyChanged(nameof(HomeLabel));
+        OnPropertyChanged(nameof(DiscoverLabel));
+        OnPropertyChanged(nameof(LibraryLabel));
+        OnPropertyChanged(nameof(RecentlyLabel));
+        OnPropertyChanged(nameof(SongsLabel));
+        OnPropertyChanged(nameof(AlbumsLabel));
+        OnPropertyChanged(nameof(ArtistsLabel));
+        OnPropertyChanged(nameof(HistoryLabel));
+        OnPropertyChanged(nameof(PlaylistsLabel));
+        OnPropertyChanged(nameof(SettingsLabel));
+        OnPropertyChanged(nameof(SignInLabel));
+        OnPropertyChanged(nameof(GuestBannerTitle));
+        OnPropertyChanged(nameof(GuestBannerBody));
+        OnPropertyChanged(nameof(NotPlayingLabel));
+    }
+
+    [RelayCommand]
+    private async Task SignInWithGoogleAsync()
+    {
+        if (Account is null) return;
+        await Account.StartGoogleSignInAsync();
+        NotifyAccountChanged();
+    }
+
+    [RelayCommand]
+    private void SignOutYouTube()
+    {
+        Account?.SignOut();
+        NotifyAccountChanged();
+    }
 
     [RelayCommand]
     private void OpenSettings() => SettingsOpen = true;

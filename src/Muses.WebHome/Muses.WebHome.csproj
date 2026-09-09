@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Muses.WebHome</RootNamespace>
+    <AssemblyName>Muses.WebHome</AssemblyName>
+    <Description>Isolated Web Home cookie jar and probe command. Cookies never live in the Avalonia process.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
+  </ItemGroup>
+</Project>

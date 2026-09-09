@@ -1,18 +1,25 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Muses.App.Controls;
+using Muses.App.Theme;
 using Muses.App.ViewModels;
 using Muses.Core.Domain;
+using Muses.Core.L10n;
+using Muses.Core.Playback;
 using Muses.Core.Queue;
-using Muses.App.Theme;
 
 namespace Muses.App.Views;
 
 public partial class QueueDrawerView : UserControl
 {
     private ShellViewModel? _vm;
+    private Action<PlaybackEvent>? _eventHandler;
+    private Point? _dragStart;
+    private int _dragFromUpNext = -1;
 
     public QueueDrawerView()
     {
@@ -22,14 +29,53 @@ public partial class QueueDrawerView : UserControl
 
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
+        Unsubscribe();
         _vm = DataContext as ShellViewModel;
+        ApplyLocalizedChrome();
+        Subscribe();
         UpdateQueue();
     }
 
-    protected override void OnAttachedToVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        Subscribe();
         UpdateQueue();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        Unsubscribe();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == IsVisibleProperty && IsVisible)
+            UpdateQueue();
+    }
+
+    private void ApplyLocalizedChrome()
+    {
+        QueueTitle.Text = L10n.Tr("Queue", "队列");
+        NowPlayingHeader.Text = L10n.Tr("Now Playing", "正在播放");
+        HistoryHeader.Text = L10n.Tr("History", "历史记录");
+        ClearLabel.Text = L10n.Tr("Clear", "清空");
+    }
+
+    private void Subscribe()
+    {
+        if (_vm?.Playback is null || _eventHandler is not null) return;
+        _eventHandler = _ => Dispatcher.UIThread.Post(UpdateQueue);
+        _vm.Playback.EventBus.EventPosted += _eventHandler;
+    }
+
+    private void Unsubscribe()
+    {
+        if (_vm?.Playback is null || _eventHandler is null) return;
+        _vm.Playback.EventBus.EventPosted -= _eventHandler;
+        _eventHandler = null;
     }
 
     public void UpdateQueue()
@@ -40,46 +86,43 @@ public partial class QueueDrawerView : UserControl
         UpNextContainer.Children.Clear();
         HistoryContainer.Children.Clear();
 
-        // 1. Up Next items
-        var upNextList = queue.UpNext.ToList();
-        var remainingItems = queue.Items.Skip(queue.CurrentIndex + 1).ToList();
-        var allUpcoming = upNextList.Concat(remainingItems).ToList();
+        var upcoming = QueuePresentation.BuildUpcoming(queue);
+        UpNextHeader.Text = $"{L10n.Tr("Up Next", "下一首")} ({upcoming.Count})";
 
-        UpNextHeader.Text = $"Up Next ({allUpcoming.Count})";
-
-        for (var i = 0; i < allUpcoming.Count; i++)
+        foreach (var row in upcoming)
         {
-            var item = allUpcoming[i];
-            var btn = BuildQueueRow(item.Track, () =>
-            {
-                _vm.Playback.PlayTrack(item.Track, allUpcoming.Select(q => q.Track).ToList(), QueueSource.Playlist);
-            }, () =>
-            {
-                _vm.RemoveQueueItem(i);
-                Dispatcher.UIThread.Post(UpdateQueue);
-            });
+            var captured = row;
+            var btn = BuildQueueRow(
+                captured.Item.Track,
+                onPlay: () => PlayKeepingCollectionContext(captured),
+                onRemove: () =>
+                {
+                    _vm.RemoveUpcomingRow(captured);
+                    Dispatcher.UIThread.Post(UpdateQueue);
+                },
+                upNextIndex: captured.Kind == QueuePresentationKind.UpNext ? captured.SourceIndex : null);
             UpNextContainer.Children.Add(btn);
         }
 
-        if (allUpcoming.Count == 0)
+        if (upcoming.Count == 0)
         {
             UpNextContainer.Children.Add(new TextBlock
             {
-                Text = "No upcoming tracks",
+                Text = L10n.Tr("No upcoming tracks", "没有即将播放的曲目"),
                 FontSize = 12,
                 Foreground = ThemeBrushes.WhiteOverlay59,
-                Margin = new Avalonia.Thickness(4, 6)
+                Margin = new Thickness(4, 6)
             });
         }
 
-        // 2. History items
-        var histList = queue.History.TakeLast(10).Reverse().ToList();
-        foreach (var item in histList)
+        var histList = QueuePresentation.BuildHistory(queue, take: 10);
+        foreach (var row in histList)
         {
-            var btn = BuildQueueRow(item.Track, () =>
+            var captured = row;
+            var btn = BuildQueueRow(captured.Item.Track, () =>
             {
-                _vm.Playback.PlayTrack(item.Track, [item.Track], QueueSource.Album);
-            }, null);
+                _vm.Playback.PlayTrack(captured.Item.Track, [captured.Item.Track], captured.Item.FromContext);
+            }, null, upNextIndex: null);
             HistoryContainer.Children.Add(btn);
         }
 
@@ -87,20 +130,35 @@ public partial class QueueDrawerView : UserControl
         {
             HistoryContainer.Children.Add(new TextBlock
             {
-                Text = "No recent tracks",
+                Text = L10n.Tr("No recent tracks", "没有最近曲目"),
                 FontSize = 12,
                 Foreground = ThemeBrushes.WhiteOverlay59,
-                Margin = new Avalonia.Thickness(4, 6)
+                Margin = new Thickness(4, 6)
             });
         }
     }
 
-    private Button BuildQueueRow(TrackSnapshot track, Action onPlay, Action? onRemove)
+    private void PlayKeepingCollectionContext(QueuePresentationRow row)
+    {
+        if (_vm?.Playback is null) return;
+        var queue = _vm.Playback.Queue;
+        // Always prefer the live collection Items as play context so tapping a
+        // drawer row does not invent a one-track queue that drops the album/playlist.
+        var context = queue.Items.Select(i => i.Track).ToList();
+        if (context.Count == 0 || context.TrueForAll(t => t.Id != row.Item.Track.Id))
+            context = [row.Item.Track, ..context];
+        var from = row.Item.FromContext != QueueSource.Songs
+            ? row.Item.FromContext
+            : (queue.Current()?.FromContext ?? row.Item.FromContext);
+        _vm.Playback.PlayTrack(row.Item.Track, context, from);
+    }
+
+    private Button BuildQueueRow(TrackSnapshot track, Action onPlay, Action? onRemove, int? upNextIndex)
     {
         var btn = new Button
         {
             Classes = { "queueRow" },
-            Tag = track
+            Tag = upNextIndex
         };
 
         var grid = new Grid
@@ -112,7 +170,7 @@ public partial class QueueDrawerView : UserControl
         {
             Width = 32,
             Height = 32,
-            CornerRadius = new Avalonia.CornerRadius(4),
+            CornerRadius = new CornerRadius(4),
             GlyphSize = 14,
             SourceUrl = track.ArtworkUrl
         };
@@ -122,7 +180,7 @@ public partial class QueueDrawerView : UserControl
         var textPanel = new StackPanel
         {
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Avalonia.Thickness(10, 0, 8, 0),
+            Margin = new Thickness(10, 0, 8, 0),
             Spacing = 1
         };
         textPanel.Children.Add(new TextBlock
@@ -148,11 +206,11 @@ public partial class QueueDrawerView : UserControl
             var removeBtn = new Button
             {
                 Background = Brushes.Transparent,
-                BorderThickness = new Avalonia.Thickness(0),
+                BorderThickness = new Thickness(0),
                 Width = 24,
                 Height = 24,
-                Padding = new Avalonia.Thickness(0),
-                Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                Padding = new Thickness(0),
+                Cursor = new Cursor(StandardCursorType.Hand),
                 Content = new PathIcon
                 {
                     Data = StreamGeometry.Parse("M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"),
@@ -161,7 +219,8 @@ public partial class QueueDrawerView : UserControl
                     Foreground = ThemeBrushes.WhiteOverlay66
                 }
             };
-            removeBtn.Click += (s, e) =>
+            ToolTip.SetTip(removeBtn, L10n.Tr("Remove", "移除"));
+            removeBtn.Click += (_, e) =>
             {
                 e.Handled = true;
                 onRemove();
@@ -172,6 +231,47 @@ public partial class QueueDrawerView : UserControl
 
         btn.Content = grid;
         btn.Click += (_, _) => onPlay();
+
+        if (upNextIndex is int fromIdx)
+        {
+            btn.PointerPressed += (_, e) =>
+            {
+                if (!e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed) return;
+                _dragStart = e.GetPosition(this);
+                _dragFromUpNext = fromIdx;
+            };
+            btn.PointerReleased += (_, e) =>
+            {
+                if (_dragStart is null || _dragFromUpNext < 0)
+                {
+                    _dragStart = null;
+                    _dragFromUpNext = -1;
+                    return;
+                }
+
+                var y = e.GetPosition(UpNextContainer).Y;
+                var rowH = 44.0;
+                var count = _vm?.Playback?.Queue.UpNext.Count ?? 0;
+                if (count <= 0)
+                {
+                    _dragStart = null;
+                    _dragFromUpNext = -1;
+                    return;
+                }
+
+                var to = (int)Math.Clamp(Math.Floor(y / rowH), 0, count - 1);
+                if (to != _dragFromUpNext)
+                {
+                    _vm?.MoveUpNextRow(_dragFromUpNext, to);
+                    Dispatcher.UIThread.Post(UpdateQueue);
+                    e.Handled = true;
+                }
+
+                _dragStart = null;
+                _dragFromUpNext = -1;
+            };
+        }
+
         return btn;
     }
 }

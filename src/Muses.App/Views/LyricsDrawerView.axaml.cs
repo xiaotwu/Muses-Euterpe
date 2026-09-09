@@ -90,7 +90,7 @@ public partial class LyricsDrawerView : UserControl
             {
                 tb.FontSize = 17;
                 tb.FontWeight = FontWeight.Bold;
-                tb.Foreground = Brushes.White;
+                tb.Foreground = ThemeBrushes.Accent;
             }
             else
             {

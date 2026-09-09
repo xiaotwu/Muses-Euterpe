@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Muses.App.ViewModels;
+using Muses.Core.Preferences;
 
 namespace Muses.App.Views;
 
@@ -12,6 +13,9 @@ public partial class MiniPlayerWindow : Window
 
     public static void ShowOrActivate(ShellViewModel vm)
     {
+        if (!FeatureFlagDefaults.IsEnabled(vm.Preferences, PrefKey.FfMiniPlayer))
+            return;
+
         if (_instance is not null)
         {
             _instance.Activate();

@@ -5,10 +5,11 @@ using Muses.Core.Domain;
 using Muses.Core.History;
 using Muses.Core.Library;
 using Muses.Core.Queue;
+using Muses.Core.Preferences;
 
 namespace Muses.Persistence;
 
-public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IPlaylistRepository, IYouTubeImportRepository, ICatalogRepository, IHistoryRepository, IEQRepository, INotesRepository, IInboxRepository, IAutomationRepository, IFocusRepository
+public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IPlaylistRepository, IYouTubeImportRepository, ICatalogRepository, IHistoryRepository, IEQRepository, INotesRepository, IInboxRepository, IAutomationRepository, IFocusRepository, IPreferencesStore
 {
     private readonly SqliteConnection _connection;
     public bool UsedInMemoryFallback { get; }
@@ -854,6 +855,79 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
         RefreshedAt = DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(reader.GetOrdinal("refreshed_at"))),
         Unavailable = reader.GetInt32(reader.GetOrdinal("unavailable")) != 0
     };
+
+    
+    // --- Preferences ---
+    public double GetPreferenceDouble(string key, double fallback)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT value_kind, value_num FROM preferences WHERE key = $k LIMIT 1;";
+        cmd.Parameters.AddWithValue("$k", key);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return fallback;
+        var kind = reader.GetString(0);
+        if (kind != "double" || reader.IsDBNull(1)) return fallback;
+        return reader.GetDouble(1);
+    }
+
+    public void SetPreferenceDouble(string key, double value)
+    {
+        UpsertPreference(key, "double", null, value, null);
+    }
+
+    public bool GetPreferenceBool(string key, bool fallback)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT value_kind, value_bool FROM preferences WHERE key = $k LIMIT 1;";
+        cmd.Parameters.AddWithValue("$k", key);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return fallback;
+        var kind = reader.GetString(0);
+        if (kind != "bool" || reader.IsDBNull(1)) return fallback;
+        return reader.GetInt32(1) != 0;
+    }
+
+    public void SetPreferenceBool(string key, bool value)
+    {
+        UpsertPreference(key, "bool", null, null, value);
+    }
+
+    public string GetPreferenceString(string key, string fallback)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "SELECT value_kind, value_text FROM preferences WHERE key = $k LIMIT 1;";
+        cmd.Parameters.AddWithValue("$k", key);
+        using var reader = cmd.ExecuteReader();
+        if (!reader.Read()) return fallback;
+        var kind = reader.GetString(0);
+        if (kind != "string" || reader.IsDBNull(1)) return fallback;
+        return reader.GetString(1);
+    }
+
+    public void SetPreferenceString(string key, string value)
+    {
+        UpsertPreference(key, "string", value, null, null);
+    }
+
+    private void UpsertPreference(string key, string kind, string? text, double? num, bool? boolean)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO preferences (key, value_kind, value_text, value_num, value_bool)
+            VALUES ($k, $kind, $text, $num, $bool)
+            ON CONFLICT(key) DO UPDATE SET
+                value_kind = excluded.value_kind,
+                value_text = excluded.value_text,
+                value_num = excluded.value_num,
+                value_bool = excluded.value_bool;
+            """;
+        cmd.Parameters.AddWithValue("$k", key);
+        cmd.Parameters.AddWithValue("$kind", kind);
+        cmd.Parameters.AddWithValue("$text", (object?)text ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$num", (object?)num ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$bool", boolean is null ? DBNull.Value : (boolean.Value ? 1 : 0));
+        cmd.ExecuteNonQuery();
+    }
 
     public void Dispose() => _connection.Dispose();
 

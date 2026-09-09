@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using FluentAvalonia.UI.Windowing;
@@ -24,6 +25,7 @@ public partial class MainWindow : AppWindow
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         DragDrop.SetAllowDrop(this, true);
+        Closing += OnClosingToTray;
 
         DataContextChanged += (_, _) =>
         {
@@ -32,6 +34,15 @@ public partial class MainWindow : AppWindow
                 vm.RequestOpenSearchWindow += (q, s) => SearchWindow.ShowOrActivate(this, vm, q, s);
             }
         };
+    }
+
+    private void OnClosingToTray(object? sender, WindowClosingEventArgs e)
+    {
+        if (DataContext is not ShellViewModel vm) return;
+        if (!vm.CloseToTray) return;
+        if (!vm.TrayEnabled) return;
+        e.Cancel = true;
+        Hide();
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -73,6 +84,8 @@ public partial class MainWindow : AppWindow
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta);
         if (!ctrl) return;
 
+        // App-chrome shortcuts (search/settings/paste/drawers) remain available.
+        // Playback transport chord shortcuts honor FfGlobalHotkeys (default off).
         switch (e.Key)
         {
             case Key.F:
@@ -80,14 +93,17 @@ public partial class MainWindow : AppWindow
                 e.Handled = true;
                 break;
             case Key.P:
+                if (!vm.GlobalHotkeysEnabled) return;
                 vm.Commands.Execute(CommandRegistry.TogglePlayback);
                 e.Handled = true;
                 break;
             case Key.Left:
+                if (!vm.GlobalHotkeysEnabled) return;
                 vm.Commands.Execute(CommandRegistry.Previous);
                 e.Handled = true;
                 break;
             case Key.Right:
+                if (!vm.GlobalHotkeysEnabled) return;
                 vm.Commands.Execute(CommandRegistry.Next);
                 e.Handled = true;
                 break;

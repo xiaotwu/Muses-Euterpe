@@ -123,21 +123,42 @@ public partial class NowPlayingView : UserControl
     private void UpdateLayoutMode()
     {
         if (_vm is null) return;
-        var width = Bounds.Width;
-        var isSplit = width >= NowPlayingLayout.SplitBreakpoint;
+        var width = Bounds.Width > 0 ? Bounds.Width : Bounds.Width;
+        var height = Bounds.Height > 0 ? Bounds.Height : 800;
+        var layout = NowPlayingLayout.Resolve(
+            width,
+            height,
+            _vm.IsPlaying,
+            reduceMotion: MotionChrome.PreferReducedMotion);
 
-        if (isSplit)
+        var stageSide = layout.StageSide;
+        CoverArtBorder.Width = stageSide;
+        CoverArtBorder.Height = stageSide;
+        VinylContainer.Width = stageSide * 1.1;
+        VinylContainer.Height = stageSide * 0.78;
+
+        if (layout.Presentation == NowPlayingPresentation.Split)
         {
+            StageGrid.ColumnDefinitions = new ColumnDefinitions($"*,{layout.ColumnGap},*");
+            // Children: [0]=stage scroll, [1]=lyrics. Keep two columns with gap via margin.
             StageGrid.ColumnDefinitions = new ColumnDefinitions("*,*");
             LyricsColumn.IsVisible = true;
+            LyricsColumn.Margin = new Thickness(layout.LyricsLeadingInset + layout.ColumnGap * 0.15, 0, 0, 0);
+            StageGrid.Children[0].IsVisible = true;
             Grid.SetColumnSpan(StageGrid.Children[0], 1);
+            Grid.SetColumn(LyricsColumn, 1);
         }
         else
         {
             StageGrid.ColumnDefinitions = new ColumnDefinitions("*,Auto");
             var showFullscreenLyrics = _vm.NowPlayingLyricsMode == NowPlayingLyricsMode.Fullscreen;
             LyricsColumn.IsVisible = showFullscreenLyrics;
+            LyricsColumn.Margin = new Thickness(0);
             StageGrid.Children[0].IsVisible = !showFullscreenLyrics;
+            if (showFullscreenLyrics)
+                Grid.SetColumn(LyricsColumn, 0);
+            else
+                Grid.SetColumn(LyricsColumn, 1);
         }
     }
 
@@ -193,7 +214,7 @@ public partial class NowPlayingView : UserControl
             {
                 tb.FontSize = 24;
                 tb.FontWeight = FontWeight.Bold;
-                tb.Foreground = Brushes.White;
+                tb.Foreground = ThemeBrushes.Accent;
             }
             else
             {

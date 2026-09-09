@@ -13,14 +13,14 @@ Display name is **Muses**. The repository and solution are named Euterpe.
 
 ## Architecture
 
-- `src/Muses.Core` — tokens, domain, policies. No UI.
-- `src/Muses.App` — Avalonia 11 + FluentAvalonia chrome.
-- `src/Muses.Infrastructure` — yt-dlp, caches (later waves).
-- `src/Muses.Persistence` — SQLite store (later waves).
-- `src/Muses.Platform` / `Muses.Platform.Windows` — SMTC, tray, credentials (later waves).
-- `src/Muses.WebHome.*` — isolated Web Home helper (later waves).
+- `src/Muses.Core` — tokens, domain, policies, `PlaybackService` facade, L10n. No UI.
+- `src/Muses.App` — Avalonia 11 + FluentAvalonia chrome and ViewModels.
+- `src/Muses.Infrastructure` — yt-dlp, mpv `ProcessStreamEngine`, discovery, lyrics, history, advanced services, update checker (GitHub releases API only).
+- `src/Muses.Persistence` — SQLite store (`SqliteStore.DefaultPath`).
+- `src/Muses.Platform.Windows` — SMTC + tray bridges (no-op / limited on non-Windows). Credentials live in Infrastructure via `ICredentialStore`.
+- `src/Muses.WebHome` + `src/Muses.WebHome.Helper` — isolated Web Home helper. Cookie jars are ephemeral, permission-restricted, and deleted on helper exit. No scraping in the Avalonia process.
 
-`PlaybackService` is the only UI-facing playback facade once Wave 1 lands. Views never own a second engine or store.
+`PlaybackService` is the only UI-facing playback facade. Views never own a second engine or store. EQ band changes reach the engine through `PlaybackService.SetEq` → `IPlayerEngine.SetEq` (mpv `af` equalizer in production; recorded by `FakePlayerEngine` in tests).
 
 ## Visual contract
 
@@ -32,10 +32,16 @@ Play/pause in the main capsule is a white circle, not pink.
 
 ## Privacy
 
-Local-first. Tokens in the platform credential store. Web Home cookies live only in a permission-restricted helper jar deleted on exit. No telemetry.
+Local-first. Tokens in the platform credential store. Web Home cookies live only in a permission-restricted helper jar deleted on exit. No telemetry. Update checks only hit the GitHub releases API.
 
 ## Verification
 
 `dotnet test` and `dotnet build`. Do not claim done without running them. Visual work is judged in the running app against Muses screenshots.
 
 Identifiers and comments are English. User-visible strings go through `L10n.Tr`.
+
+## Packaging
+
+- `scripts/package-msix.ps1` prepares / packs MSIX on **Windows** with the Windows SDK.
+- macOS and Linux checkouts cannot produce a MSIX artifact — document that honestly in INSTALL.
+- Microsoft Store and WinGet are **not published**.

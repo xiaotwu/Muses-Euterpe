@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Muses.Platform.Windows</RootNamespace>
+    <AssemblyName>Muses.Platform.Windows</AssemblyName>
+    <Description>Windows 11 SMTC, tray, and OS credential helpers. No-ops on non-Windows so Mac/Linux can build and run for development.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,87 +1,70 @@
 # Installing Muses
 
-Muses (Windows 11 port: Euterpe) can be installed via MSIX package, portable release, or built directly from source code.
+Muses (Windows 11 port: Euterpe) is intended for **Windows 10/11**. The supported end-user path today is **build from source**. Prebuilt MSIX / WinGet packages are **not published** yet.
 
 ## System Requirements
 
-- **Operating System**: Windows 11 (recommended for Mica and native caption integration) or Windows 10 (version 2004 / build 19041 or newer).
+- **Operating System**: Windows 11 (recommended for Mica and native caption integration) or Windows 10 (version 2004 / build 19041 or newer) for the full desktop experience.
 - **Architecture**: 64-bit (`x64` or `arm64`).
-- **Runtime**:
-  - For framework-dependent builds: [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
-  - For self-contained packages: No runtime installation required.
+- **Runtime / SDK**: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) for source builds. Framework-dependent publishes need the .NET 10 Desktop Runtime.
+- **Dev hosts**: macOS and Linux can `dotnet build` / `dotnet test` / run the Avalonia shell for UI work. SMTC, tray, and MSIX packaging are Windows-only.
 
 ---
 
-## Installation Options
+## Supported path: build from source
 
-### Method 1: MSIX Package (Recommended)
-
-1. Download the latest `Muses-x.y.z-win-x64.msix` package from [GitHub Releases](https://github.com/xiaotwu/Muses-Euterpe/releases).
-2. Double-click the `.msix` file and select **Install** via the Windows App Installer.
-3. Alternatively, install via PowerShell:
-   ```powershell
-   Add-AppxPackage -Path .\Muses-0.1.0-win-x64.msix
-   ```
-
-### Method 2: WinGet (Windows Package Manager)
-
-Once published to the community repository:
-```powershell
-winget install xiaotwu.Muses
-```
-
-### Method 3: Portable ZIP
-
-1. Download `Muses-win-x64.zip` from GitHub Releases.
-2. Extract the archive to any desired location (e.g., `C:\Tools\Muses` or `%LOCALAPPDATA%\Programs\Muses`).
-3. Launch `Muses.exe`.
-4. (Optional) Create a shortcut on your Desktop or pin to Taskbar / Start Menu.
-
----
-
-## Building from Source
-
-### Prerequisites
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) (10.0.100 or newer)
-- Git
-- `python3` (for asset generation scripts if customizing)
-
-### Steps
-
-1. **Clone the repository**:
+1. **Clone**:
    ```bash
    git clone https://github.com/xiaotwu/Muses-Euterpe.git
    cd Muses-Euterpe
    ```
 
-2. **Run tests**:
+2. **Test**:
    ```bash
    dotnet test
    ```
 
-3. **Build and run the application**:
+3. **Run**:
    ```bash
    dotnet run --project src/Muses.App
    ```
 
-4. **Package MSIX (Windows only)**:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts\package-msix.ps1 -Configuration Release
+4. **Optional helper** (Web Home isolation boundary):
+   ```bash
+   dotnet build src/Muses.WebHome.Helper
    ```
+   The UI process launches `MusesWebHomeHelper` when Web Home is opted in; cookies never live in the Avalonia process.
 
 ---
 
-## Media Engine & Streaming Requirements
+## MSIX packaging (Windows only)
 
-Muses resolves streaming URLs using `yt-dlp`.
-- A compatible binary is automatically copied into the app directory during build.
-- If you wish to use a system-installed `yt-dlp`, ensure `yt-dlp.exe` is available in your system `PATH`.
-- To update the bundled `yt-dlp` manually, run `yt-dlp -U` or replace `yt-dlp.exe` in the application directory.
+`scripts/package-msix.ps1` publishes the app and, when the Windows SDK `MakeAppx.exe` is present, packs an `.msix`.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\package-msix.ps1 -Configuration Release
+```
+
+### macOS / Linux limitation
+
+**You cannot produce a MSIX artifact on macOS or Linux.** MSIX requires the Windows App SDK / `MakeAppx` toolchain. On a Mac checkout, use `dotnet build` / `dotnet test` only; run `package-msix.ps1` on a Windows machine or CI `windows-latest` runner.
+
+### Store / WinGet status
+
+- Microsoft Store: **not published**
+- WinGet (`winget install xiaotwu.Muses`): **not published**
+- GitHub Releases MSIX: publish when you intentionally cut a release — do not assume a package exists
 
 ---
 
-## Keyboard Shortcuts Reference
+## Media engine
+
+- `yt-dlp` resolves stream URLs; a binary may be copied from `resources/` at build time.
+- Playback uses **mpv** over JSON IPC (`ProcessStreamEngine`). Install `mpv` on PATH or place it under `resources/` for audible playback and EQ filters.
+
+---
+
+## Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
@@ -104,6 +87,6 @@ Muses resolves streaming URLs using `yt-dlp`.
 
 ## Troubleshooting
 
-- **No audio output**: Verify default Windows audio output device in Windows Settings > Sound. Check the volume slider in Muses.
-- **Stream fails to resolve**: Ensure internet connectivity and check that `yt-dlp` has not been blocked by firewall software.
-- **SmartScreen warning**: If downloading pre-release unsigned MSIX packages, click *More info* -> *Run anyway*, or install the publisher certificate into the Trusted People store.
+- **No audio**: confirm `mpv` is installed and the Windows output device works; check Muses volume.
+- **Stream fails**: check network / `yt-dlp` availability.
+- **SmartScreen** (if you sideload an unsigned MSIX built on Windows): *More info* → *Run anyway*, or trust the publisher certificate.

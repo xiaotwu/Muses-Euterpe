@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Muses.WebHome.Helper</RootNamespace>
+    <AssemblyName>MusesWebHomeHelper</AssemblyName>
+    <Description>Isolated Web Home helper process. Owns ephemeral cookies deleted on exit.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Muses.WebHome\Muses.WebHome.csproj" />
+    <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
+  </ItemGroup>
+</Project>

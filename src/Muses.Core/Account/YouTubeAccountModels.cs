@@ -18,5 +18,8 @@ public sealed record YouTubeUserProfile(
 public sealed record YouTubeAuthTokens(
     string AccessToken,
     string? RefreshToken,
-    DateTimeOffset ExpiresAt
-);
+    DateTimeOffset ExpiresAt,
+    string? Scope = null)
+{
+    public bool IsAccessExpired => DateTimeOffset.UtcNow.AddSeconds(60) >= ExpiresAt;
+}

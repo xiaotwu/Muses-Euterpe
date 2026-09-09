@@ -1,4 +1,5 @@
 # Muses Windows 11 MSIX Packaging Script
+# Note: Store/WinGet are NOT published. Run this on Windows only — macOS cannot produce MSIX.
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\package-msix.ps1 [-Configuration Release] [-Version 0.1.0.0]
 

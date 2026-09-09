@@ -99,24 +99,24 @@
 
           <!-- 1. GENERAL -->
           <StackPanel x:Name="PageGeneral" Spacing="20">
-            <TextBlock Text="General Settings" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsGeneralTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <StackPanel Spacing="8">
-              <TextBlock Text="Language" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-              <ComboBox SelectedIndex="0" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+              <TextBlock Text="{Binding SettingsLanguageLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <ComboBox SelectedIndex="{Binding LanguageSelectedIndex}" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+                <ComboBoxItem Content="System" />
                 <ComboBoxItem Content="English" />
                 <ComboBoxItem Content="简体中文" />
               </ComboBox>
             </StackPanel>
-            <CheckBox Content="Launch Muses on Windows startup" IsChecked="False" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <CheckBox Content="Close button minimizes to System Tray" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="{Binding SettingsCloseToTrayLabel}" IsChecked="{Binding CloseToTray}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="{Binding SettingsTrayLabel}" IsChecked="{Binding TrayEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
           </StackPanel>
 
           <!-- 2. PLAYBACK -->
           <StackPanel x:Name="PagePlayback" Spacing="20" IsVisible="False">
-            <TextBlock Text="Playback Settings" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <CheckBox Content="Resume music playback when video overlay closes" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <CheckBox Content="Volume normalization (ReplayGain)" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <CheckBox Content="Gapless audio streaming" IsChecked="True" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsPlaybackTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="{Binding SettingsResumeAfterVideoLabel}" IsChecked="{Binding ResumeAfterVideo}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <CheckBox Content="{Binding SettingsReplayGainLabel}" IsChecked="{Binding ReplayGainEnabled}" Foreground="{StaticResource MusesTextPrimaryBrush}" />
           </StackPanel>
 
           <!-- 3. QUALITY -->
@@ -124,7 +124,7 @@
             <TextBlock Text="Audio Quality" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <StackPanel Spacing="8">
               <TextBlock Text="Preferred Stream Quality" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-              <ComboBox SelectedIndex="0" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+              <ComboBox SelectedIndex="{Binding AudioQualitySelectedIndex}" Width="240" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
                 <ComboBoxItem Content="Best (Opus 160kbps / AAC)" />
                 <ComboBoxItem Content="High (128kbps)" />
                 <ComboBoxItem Content="Medium (96kbps)" />
@@ -150,7 +150,7 @@
             </StackPanel>
             <StackPanel Spacing="8">
               <TextBlock Text="Theme" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-              <ComboBox SelectedIndex="0" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
+              <ComboBox SelectedIndex="{Binding ThemeSelectedIndex}" Width="200" Background="{StaticResource MusesWhiteOverlay14Brush}" BorderThickness="0" CornerRadius="6">
                 <ComboBoxItem Content="Dark (Muses Default)" />
                 <ComboBoxItem Content="Follow System" />
               </ComboBox>
@@ -160,22 +160,55 @@
 
           <!-- 5. YOUTUBE -->
           <StackPanel x:Name="PageYouTube" Spacing="20" IsVisible="False">
-            <TextBlock Text="YouTube Account" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SettingsYouTubeTitle}" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
             <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
               <StackPanel Spacing="10">
                 <Grid ColumnDefinitions="*,Auto">
                   <StackPanel Spacing="2">
-                    <TextBlock Text="Google Account Sign-In" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-                    <TextBlock Text="Sign in to personalize Home and sync your liked tracks and playlists."
-                               FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                    <TextBlock Text="{Binding SettingsGoogleSignInLabel}" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding SettingsGoogleSignInBody}"
+                               FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AccountDisplayName}" FontSize="12" Foreground="{StaticResource MusesAccentBrush}"
+                               IsVisible="{Binding IsAccountSignedIn}" />
+                    <TextBlock Text="{Binding AccountErrorMessage}" FontSize="12" Foreground="{StaticResource MusesAccentBrush}"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding IsAccountError}" />
                   </StackPanel>
-                  <Button Grid.Column="1" Classes="primaryActionBtn" Click="OnSignInClicked">
-                    <TextBlock Text="Sign In with Google" />
-                  </Button>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="primaryActionBtn" Command="{Binding SignInWithGoogleCommand}"
+                            IsVisible="{Binding !IsAccountSignedIn}" IsEnabled="{Binding !IsAccountSigningIn}">
+                      <TextBlock Text="{Binding SignInLabel}" />
+                    </Button>
+                    <Button Classes="actionBtn" Command="{Binding SignOutYouTubeCommand}"
+                            IsVisible="{Binding IsAccountSignedIn}">
+                      <TextBlock Text="{Binding SignOutLabel}" />
+                    </Button>
+                  </StackPanel>
                 </Grid>
               </StackPanel>
             </Border>
-            <TextBlock Text="Tokens and cookies stay on this device. No telemetry." FontSize="11" Foreground="{StaticResource MusesWhiteOverlay73Brush}" />
+            <TextBlock Text="{Binding SettingsTokensPrivacyLabel}" FontSize="11" Foreground="{StaticResource MusesWhiteOverlay73Brush}" TextWrapping="Wrap" />
+
+            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="10" Padding="16">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Web Home (opt-in)" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                    <TextBlock Text="Uses an isolated helper process with an ephemeral cookie jar deleted on exit. Off by default; requires consent. No scraping runs in the Muses UI process."
+                               FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding WebHomeStatusText}" FontSize="12" Foreground="{StaticResource MusesAccentBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="8">
+                    <Button Classes="primaryActionBtn" Command="{Binding ToggleWebHomeCommand}">
+                      <TextBlock Text="Toggle Web Home" />
+                    </Button>
+                    <Button Classes="actionBtn" Command="{Binding ProbeWebHomeCommand}">
+                      <TextBlock Text="Probe Session" />
+                    </Button>
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
           </StackPanel>
 
           <!-- 6. LYRICS -->
@@ -200,7 +233,8 @@
                   <TextBlock Text="Mini Player" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
                   <TextBlock Text="Compact floating player window with always-on-top mode." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
                 </StackPanel>
-                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenMiniPlayer">
+                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenMiniPlayer"
+                        IsEnabled="{Binding MiniPlayerEnabled}">
                   <TextBlock Text="Open Mini Player" />
                 </Button>
               </Grid>
@@ -212,7 +246,8 @@
                   <TextBlock Text="Desktop Lyrics" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
                   <TextBlock Text="Transparent, draggable desktop lyrics banner on top of other windows." FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
                 </StackPanel>
-                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenDesktopLyrics">
+                <Button Grid.Column="1" Classes="actionBtn" Click="OnOpenDesktopLyrics"
+                        IsEnabled="{Binding DesktopLyricsEnabled}">
                   <TextBlock Text="Toggle Desktop Lyrics" />
                 </Button>
               </Grid>

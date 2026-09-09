@@ -13,7 +13,8 @@
             BorderBrush="{StaticResource MusesHairlineBrush}"
             BorderThickness="1"
             CornerRadius="18"
-            Width="800"
+            MaxWidth="1000"
+            Width="900"
             Padding="24"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
@@ -23,49 +24,59 @@
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <ctrl:YouTubeMark MarkSize="18" />
-            <TextBlock Text="YouTube Video" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="TitleLabel" Text="Video" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
           </StackPanel>
           <Button Grid.Column="1" Background="Transparent" BorderThickness="0" Width="32" Height="32"
-                  Cursor="Hand" Command="{Binding CloseVideoOverlayCommand}">
+                  Cursor="Hand" Command="{Binding CloseVideoOverlayCommand}"
+                  ToolTip.Tip="Close">
             <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
                       Width="12" Height="12" Foreground="{StaticResource MusesTextSecondaryBrush}" />
           </Button>
         </Grid>
 
-        <!-- 16:9 Video Canvas -->
-        <Border CornerRadius="12" ClipToBounds="True" Height="420" Background="#000000">
+        <!-- 16:9 Video Canvas (embed or honest degraded surface) -->
+        <Border x:Name="EmbedFrame" CornerRadius="12" ClipToBounds="True" Background="#000000"
+                Height="420" MaxWidth="960">
           <Panel>
-            <ctrl:ArtworkControl SourceUrl="{Binding NowPlayingArtworkUrl}" GlyphSize="64" />
+            <!-- Live embed host slot (populated in code-behind when WebView available) -->
+            <Panel x:Name="EmbedHost" />
 
-            <!-- Dark gradient scrim over artwork -->
-            <Border Background="{StaticResource MusesBlackOverlay4DBrush}" />
-
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
-              <Button Width="64" Height="64" CornerRadius="32" Background="{StaticResource MusesAccentOverlayE6Brush}" BorderThickness="0"
-                      Cursor="Hand" Click="OnOpenInBrowserClicked" HorizontalAlignment="Center">
-                <PathIcon Data="M8,5.14V19.14L19,12.14L8,5.14Z" Width="24" Height="24" Foreground="White" Margin="2,0,0,0" />
-              </Button>
-              <TextBlock Text="{Binding NowPlayingTitle}" FontSize="16" FontWeight="SemiBold"
-                         Foreground="White" HorizontalAlignment="Center" MaxWidth="600"
-                         TextTrimming="CharacterEllipsis" />
-              <TextBlock Text="{Binding NowPlayingArtist}" FontSize="13"
-                         Foreground="{StaticResource MusesWhiteOverlayB3Brush}" HorizontalAlignment="Center" MaxWidth="600"
-                         TextTrimming="CharacterEllipsis" />
-              <Button Classes="chromeBtn" Background="{StaticResource MusesWhiteOverlay33Brush}" BorderThickness="0"
-                      CornerRadius="8" Padding="14,6" Cursor="Hand" Click="OnOpenInBrowserClicked"
-                      HorizontalAlignment="Center" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <ctrl:YouTubeMark MarkSize="14" />
-                  <TextBlock Text="Watch on YouTube" FontSize="12" FontWeight="SemiBold" Foreground="White" />
-                </StackPanel>
-              </Button>
-            </StackPanel>
+            <!-- Degraded / unavailable surface -->
+            <Panel x:Name="DegradedPanel">
+              <ctrl:ArtworkControl SourceUrl="{Binding NowPlayingArtworkUrl}" GlyphSize="64" />
+              <Border Background="{StaticResource MusesBlackOverlay4DBrush}" />
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Margin="24">
+                <ctrl:YouTubeMark MarkSize="28" HorizontalAlignment="Center" />
+                <TextBlock x:Name="DegradedMessage"
+                           Text="{Binding VideoEmbedUnavailableMessage}"
+                           FontSize="13" Foreground="White" TextWrapping="Wrap"
+                           TextAlignment="Center" MaxWidth="560" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding NowPlayingTitle}" FontSize="15" FontWeight="SemiBold"
+                           Foreground="White" HorizontalAlignment="Center" MaxWidth="600"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding NowPlayingArtist}" FontSize="12"
+                           Foreground="{StaticResource MusesWhiteOverlayB3Brush}" HorizontalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Panel>
           </Panel>
         </Border>
 
-        <!-- Footer note -->
-        <TextBlock Text="Native audio playback is suspended while the video stage is active."
-                   FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}" HorizontalAlignment="Center" />
+        <!-- Footer: secondary Open in YouTube + suspension note -->
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock x:Name="SuspensionNote"
+                     Text="Native audio playback is suspended while the video stage is active."
+                     FontSize="12" Foreground="{StaticResource MusesWhiteOverlay73Brush}"
+                     VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0" />
+          <Button Grid.Column="1" Classes="chromeBtn" Background="{StaticResource MusesWhiteOverlay33Brush}"
+                  BorderThickness="0" CornerRadius="8" Padding="14,6" Cursor="Hand"
+                  Click="OnOpenInBrowserClicked" HorizontalAlignment="Right">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <ctrl:YouTubeMark MarkSize="14" />
+              <TextBlock x:Name="OpenInYouTubeLabel" Text="Open in YouTube" FontSize="12" FontWeight="SemiBold" Foreground="White" />
+            </StackPanel>
+          </Button>
+        </Grid>
       </StackPanel>
     </Border>
   </Panel>

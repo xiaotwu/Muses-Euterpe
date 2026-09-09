@@ -63,4 +63,48 @@ public class PlaybackServiceTests
         await Task.Delay(20);
         Assert.Equal("b", engine.LastLoadedTrack?.Title);
     }
+
+    [Fact]
+    public async Task SuspendNative_pauses_and_blocks_Play_until_ResumeNative()
+    {
+        var engine = new FakePlayerEngine();
+        var playback = new PlaybackService(engine, new QueueService());
+        var track = TrackSnapshot.Test("a");
+        playback.PlayTrack(track, [track], QueueSource.Songs);
+        await Task.Delay(20);
+        Assert.True(engine.State.IsPlaying);
+
+        var token = Guid.NewGuid();
+        playback.SuspendNative(token);
+        Assert.False(engine.State.IsPlaying);
+        Assert.Equal(1, engine.PauseCallCount);
+
+        playback.Play();
+        Assert.False(engine.State.IsPlaying); // refused while suspended
+
+        playback.ResumeNative(token);
+        Assert.True(engine.State.IsPlaying);
+        Assert.Equal(1, engine.PlayCallCount);
+    }
+
+    [Fact]
+    public async Task Nested_SuspendNative_requires_all_tokens_released()
+    {
+        var engine = new FakePlayerEngine();
+        var playback = new PlaybackService(engine, new QueueService());
+        var track = TrackSnapshot.Test("a");
+        playback.PlayTrack(track, [track], QueueSource.Songs);
+        await Task.Delay(20);
+
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        playback.SuspendNative(a);
+        playback.SuspendNative(b);
+        playback.ResumeNative(a);
+        Assert.False(engine.State.IsPlaying);
+        playback.Play();
+        Assert.False(engine.State.IsPlaying);
+        playback.ResumeNative(b);
+        Assert.True(engine.State.IsPlaying);
+    }
 }

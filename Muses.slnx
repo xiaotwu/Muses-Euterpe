@@ -2,6 +2,9 @@
   <Project Path="src/Muses.Core/Muses.Core.csproj" />
   <Project Path="src/Muses.Persistence/Muses.Persistence.csproj" />
   <Project Path="src/Muses.Infrastructure/Muses.Infrastructure.csproj" />
+  <Project Path="src/Muses.Platform.Windows/Muses.Platform.Windows.csproj" />
+  <Project Path="src/Muses.WebHome/Muses.WebHome.csproj" />
+  <Project Path="src/Muses.WebHome.Helper/Muses.WebHome.Helper.csproj" />
   <Project Path="src/Muses.App/Muses.App.csproj" />
   <Project Path="tests/Muses.Tests/Muses.Tests.csproj" />
 </Solution>

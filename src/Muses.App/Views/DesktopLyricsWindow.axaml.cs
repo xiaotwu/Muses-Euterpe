@@ -13,6 +13,13 @@ public partial class DesktopLyricsWindow : Window
 
     public static void ShowOrActivate(ShellViewModel vm)
     {
+        if (!Muses.Core.Preferences.FeatureFlagDefaults.IsEnabled(vm.Preferences, Muses.Core.Preferences.PrefKey.FfDesktopLyrics))
+            return;
+        ShowOrActivateCore(vm);
+    }
+
+    private static void ShowOrActivateCore(ShellViewModel vm)
+    {
         if (_instance is not null)
         {
             _instance.Activate();

@@ -16,5 +16,7 @@
     <ProjectReference Include="..\..\src\Muses.Core\Muses.Core.csproj" />
     <ProjectReference Include="..\..\src\Muses.Persistence\Muses.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Muses.Infrastructure\Muses.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Muses.Platform.Windows\Muses.Platform.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Muses.WebHome\Muses.WebHome.csproj" />
   </ItemGroup>
 </Project>

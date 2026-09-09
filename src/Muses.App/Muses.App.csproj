@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
     <ProjectReference Include="..\Muses.Persistence\Muses.Persistence.csproj" />
     <ProjectReference Include="..\Muses.Infrastructure\Muses.Infrastructure.csproj" />
+    <ProjectReference Include="..\Muses.Platform.Windows\Muses.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />

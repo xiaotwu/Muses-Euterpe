@@ -115,11 +115,6 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private void OnSignInClicked(object? sender, RoutedEventArgs e)
-    {
-        // Google Sign-In helper invocation
-    }
-
     private void OnOpenGitHub(object? sender, RoutedEventArgs e)
     {
         try

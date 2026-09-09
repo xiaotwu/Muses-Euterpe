@@ -84,7 +84,8 @@
               CornerRadius="14"
               Padding="18,16"
               BorderBrush="{StaticResource MusesWhiteOverlay14Brush}"
-              BorderThickness="1">
+              BorderThickness="1"
+              IsVisible="{Binding ShowGuestBanner}">
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Spacing="4">
             <TextBlock Text="{Binding GuestBannerTitle}" FontWeight="SemiBold" FontSize="15" Foreground="{StaticResource MusesTextPrimaryBrush}" />

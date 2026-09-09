@@ -10,28 +10,34 @@ Muses is built from the ground up to respect your privacy and provide an uncompr
    - No crash reports or personal data are sent to any remote servers without explicit user initiation.
 
 2. **Local-First Architecture**
-   - Your listening history, playlists, queue, tracks, bookmarks, notes, equalizer presets, and automation rules reside strictly on your device in a local SQLite database (`muses.db`).
-   - All cache data (e.g. lyrics, album art thumbnails, stream cache) is kept within your local app data directory and can be wiped from Settings at any time.
+   - Your listening history, playlists, queue, tracks, bookmarks, notes, equalizer presets, and automation rules reside strictly on your device in a local SQLite database.
+   - Default database path (see `SqliteStore.DefaultPath`):
+     - Windows: `%APPDATA%\Muses\muses-youtube-native.sqlite`
+     - macOS (dev checkout): `~/Library/Application Support/MusesEuterpe/muses-youtube-native.sqlite`
+   - Cache data (lyrics, artwork, stream URL cache) stays under the same app-data root.
 
 3. **Secure Credential Storage**
-   - Account tokens (e.g., optional Google OAuth tokens) are stored in the platform's native secure storage (Windows Credential Locker / DPAPI encrypted storage).
-   - Plaintext passwords or raw session tokens are never logged or stored in plain JSON/text files.
+   - Account tokens (optional Google OAuth) are stored in the platform's native secure storage (Windows Credential Locker / DPAPI; macOS Keychain when available).
+   - Plaintext passwords or raw session tokens are never logged or stored in plain JSON/text files under app data.
 
 4. **Isolated Web Home Helper**
-   - Web Home helper runs in an isolated, sandboxed child process with its own volatile ephemeral session directory.
-   - Session cookies and authentication states required for Web Home synchronization live only in a permission-restricted jar that is deleted when the session ends or when the helper exits.
-   - The helper only handles designated playlist and personalized recommendation synchronization and does not act as a general-purpose web browser.
+   - Web Home helper runs as a separate process (`MusesWebHomeHelper`) with its own volatile ephemeral session directory under the OS temp root (`muses-web-home-helper/…`).
+   - Session cookies live only in that permission-restricted jar and are deleted when the helper exits.
+   - The Avalonia UI process does not scrape YouTube Home or hold Web Home cookies.
+   - Web Home is **off by default** and requires explicit consent (`PrefKey.WebHomeEnabled` / consent version).
 
 5. **Direct Media Resolving**
-   - Streaming URLs are resolved locally on your machine via bundled, open-source `yt-dlp` tool directly to YouTube's media servers.
-   - Stream traffic flows directly between your machine and YouTube media CDNs without any intermediary proxy or proxy service operated by Muses.
+   - Streaming URLs are resolved locally via bundled open-source `yt-dlp` directly to YouTube media servers.
+   - Stream traffic flows between your machine and YouTube CDNs without a Muses-operated proxy.
 
 6. **Automatic Updates**
-   - When enabled, update checking contacts GitHub's public API (`api.github.com/repos/xiaotwu/Muses-Euterpe/releases`) to query release tags and version metadata.
-   - No personal identifiers, machine IDs, or unique device fingerprints are sent during update checks.
+   - When the user checks for updates, Muses contacts GitHub's public API (`api.github.com/repos/xiaotwu/Muses-Euterpe/releases`) only.
+   - No personal identifiers, machine IDs, or unique device fingerprints are sent.
 
 ## Data Removal
 
-You can delete all application data at any time by clearing:
-- Windows: `%LOCALAPPDATA%\Muses`
-- Or by choosing **Settings > General > Clear Cache & Reset Data** within the application.
+Delete application data by removing the app-data folder:
+- Windows: `%APPDATA%\Muses` (and `%LOCALAPPDATA%\Muses` if present)
+- macOS (dev): `~/Library/Application Support/MusesEuterpe`
+
+There is currently **no** in-app “Clear Cache & Reset Data” action; do not expect one in Settings until it is implemented.

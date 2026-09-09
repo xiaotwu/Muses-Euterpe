@@ -1,4 +1,5 @@
 using Muses.Core.Advanced;
+using Muses.Core.Domain;
 
 namespace Muses.Infrastructure.Advanced;
 
@@ -78,6 +79,9 @@ public sealed class EQService
         PresetChanged?.Invoke(_activePresetName);
         return preset;
     }
+
+    public static IReadOnlyList<EqBand> ToEngineBands(IReadOnlyList<EQBand> bands) =>
+        bands.Select(b => new EqBand(b.Frequency, b.Gain, b.Q)).ToList();
 
     public void DeleteCustomPreset(string id)
     {

@@ -4,11 +4,15 @@ using Muses.Core.Playback;
 
 namespace Muses.Infrastructure.Platform;
 
+/// <summary>
+/// Legacy stub retained for binary compat. Prefer <c>Muses.Platform.Windows.WindowsSMTCService</c>.
+/// Still routes Raise* → PlaybackService when constructed with one.
+/// </summary>
 public sealed class PlatformSMTCService : IPlatformSMTC
 {
     private readonly PlaybackService? _playback;
 
-    public bool IsSupported => OperatingSystem.IsWindows();
+    public bool IsSupported => false;
 
     public event Action? PlayRequested;
     public event Action? PauseRequested;
@@ -29,26 +33,9 @@ public sealed class PlatformSMTCService : IPlatformSMTC
             PauseRequested += _playback.Pause;
             NextRequested += _playback.Next;
             PreviousRequested += _playback.Previous;
-
-            _playback.EventBus.EventPosted += OnPlaybackEvent;
         }
     }
 
-    private void OnPlaybackEvent(PlaybackEvent evt)
-    {
-        if (_playback is null) return;
-        UpdateTrack(_playback.State.Track, _playback.State.IsPlaying);
-        UpdatePosition(_playback.State.Position, _playback.State.Track?.DurationSeconds ?? 0);
-    }
-
-    public void UpdateTrack(TrackSnapshot? track, bool isPlaying)
-    {
-        // On Windows 10/11: updates SystemMediaTransportControls display
-        // On macOS: updates MPNowPlayingInfoCenter / MPRemoteCommandCenter
-    }
-
-    public void UpdatePosition(double positionSeconds, double durationSeconds)
-    {
-        // Updates timeline properties
-    }
+    public void UpdateTrack(TrackSnapshot? track, bool isPlaying) { }
+    public void UpdatePosition(double positionSeconds, double durationSeconds) { }
 }

@@ -18,6 +18,9 @@ public sealed class FakePlayerEngine : IPlayerEngine
     public int PlayPreparedCallCount { get; private set; }
     public bool PlayPreparedReturnValue { get; set; }
     public bool SpectrumTapInstalled { get; private set; }
+    public int SetEqCallCount { get; private set; }
+    public IReadOnlyList<EqBand>? LastEqBands { get; private set; }
+    public bool SupportsEq { get; set; } = true;
 
     public Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default)
     {
@@ -48,7 +51,13 @@ public sealed class FakePlayerEngine : IPlayerEngine
     public void Toggle() { ToggleCallCount++; State.IsPlaying = !State.IsPlaying; }
     public void Seek(double time) { SeekCallCount++; LastSeekTime = time; State.Position = time; }
     public void SetVolume(float value) => VolumeSet = value;
-    public void SetEq(IReadOnlyList<EqBand> bands) { }
+
+    public void SetEq(IReadOnlyList<EqBand> bands)
+    {
+        SetEqCallCount++;
+        LastEqBands = bands.ToList();
+    }
+
     public void InstallSpectrumTap(Action<SpectrumFrame> handler) => SpectrumTapInstalled = true;
     public void RemoveSpectrumTap() => SpectrumTapInstalled = false;
 

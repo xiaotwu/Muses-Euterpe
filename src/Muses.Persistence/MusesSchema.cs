@@ -182,6 +182,13 @@ public static class MusesSchema
                 state_raw TEXT NOT NULL,
                 payload_json TEXT
             );
+            CREATE TABLE IF NOT EXISTS preferences (
+                key TEXT PRIMARY KEY,
+                value_kind TEXT NOT NULL,
+                value_text TEXT,
+                value_num REAL,
+                value_bool INTEGER
+            );
             CREATE TABLE IF NOT EXISTS youtube_sync_batches (
                 id TEXT PRIMARY KEY,
                 import_id TEXT NOT NULL,

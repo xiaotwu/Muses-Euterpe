@@ -255,6 +255,18 @@ public sealed class QueueService
         }
     }
 
+    public bool RemoveUpNext(int index)
+    {
+        if (index < 0 || index >= UpNext.Count) return false;
+        var entry = UpNext[index];
+        UpNext.RemoveAt(index);
+        entry.HistoryState = QueueHistoryState.Removed;
+        History.Insert(0, entry);
+        if (History.Count > 200) History.RemoveAt(History.Count - 1);
+        Persist();
+        return true;
+    }
+
     public void ClearUpNext()
     {
         UpNext.Clear();

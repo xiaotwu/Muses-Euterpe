@@ -1,18 +1,23 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
-using Avalonia.Media;
 using Avalonia.Styling;
 using FluentAvalonia.Styling;
+using Muses.App.Services;
+using Muses.App.Theme;
 using Muses.App.ViewModels;
 using Muses.App.Views;
 using Muses.Core.Library;
+using Muses.Core.L10n;
 using Muses.Core.Playback;
+using Muses.Core.Preferences;
 using Muses.Core.Queue;
+using Muses.Infrastructure.Account;
 using Muses.Infrastructure.Playback;
+using Muses.Infrastructure.Platform;
 using Muses.Infrastructure.YTDlp;
 using Muses.Persistence;
-using Muses.App.Theme;
+using Muses.Platform.Windows;
 
 namespace Muses.App;
 
@@ -20,6 +25,8 @@ public partial class App : Application
 {
     private SqliteStore? _store;
     private ProcessStreamEngine? _engine;
+    private WindowsSMTCService? _smtc;
+    private TrayIconHost? _trayHost;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -36,12 +43,16 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _store = SqliteStore.Open();
+            var preferences = new SqlitePreferences(_store);
+            ApplyTheme(preferences);
+            ApplyLanguage(preferences);
+
             var queue = new QueueService { Store = _store };
             queue.Restore();
             var library = new LibraryService(_store);
             var ytdlp = new YTDlpBridge();
             _engine = new ProcessStreamEngine(ytdlp);
-            var playback = new PlaybackService(_engine, queue, library);
+            var playback = new PlaybackService(_engine, queue, library, preferences);
             var playlistService = new PlaylistService(_store);
             var youtubeImportService = new YouTubeImportService(_store, _store, ytdlp);
             var catalog = new Muses.Infrastructure.Catalog.YouTubeCatalogService(_store, _store, ytdlp);
@@ -54,6 +65,10 @@ public partial class App : Application
             var lyrics = new Muses.Infrastructure.Lyrics.LyricsService(new Muses.Infrastructure.Lyrics.LrclibLyricsProvider(), _store);
             var history = new Muses.Infrastructure.History.HistoryService(_store, library, playback);
             var eq = new Muses.Infrastructure.Advanced.EQService(_store);
+            void PushEq(System.Collections.Generic.IReadOnlyList<Muses.Core.Advanced.EQBand> bands) =>
+                playback.SetEq(Muses.Infrastructure.Advanced.EQService.ToEngineBands(bands));
+            eq.BandsChanged += PushEq;
+            PushEq(eq.ActiveBands);
             var focus = new Muses.Infrastructure.Advanced.FocusService(_store, playback);
             var notes = new Muses.Infrastructure.Advanced.NotesService(_store);
             var inbox = new Muses.Infrastructure.Advanced.InboxService(_store, playback);
@@ -76,20 +91,68 @@ public partial class App : Application
                 }
             });
 
+            // Account must never block playback composition.
+            var account = new YouTubeAccountService(PlatformCredentialStore.CreateDefault());
+            var webHomeClient = new Muses.Infrastructure.Advanced.ProcessWebHomeHelperClient();
+            var webHome = new Muses.Infrastructure.Advanced.WebHomeSessionController(
+                webHomeClient,
+                () => account.Profile?.ChannelId,
+                preferences);
+
+            _smtc = new WindowsSMTCService(playback);
+            var tray = new WindowsTrayController(
+                playback,
+                preferences,
+                showMain: () => desktop.MainWindow?.Show(),
+                exit: () => desktop.Shutdown());
+
             var shell = new ShellViewModel();
-            shell.Attach(playback, library, ytdlp, playlistService, youtubeImportService, homeDiscovery, catalog, situational, search, lyrics, history, eq, focus, notes, inbox, automation);
-            desktop.MainWindow = new MainWindow { DataContext = shell };
+            shell.Attach(
+                playback, library, ytdlp, playlistService, youtubeImportService, homeDiscovery, catalog,
+                situational, search, lyrics, history, eq, focus, notes, inbox, automation,
+                preferences, account, _smtc, tray, webHome);
+
+            var main = new MainWindow { DataContext = shell };
+            desktop.MainWindow = main;
+
+            _trayHost = new TrayIconHost(tray, preferences);
+            if (tray.ShouldEnableFromPrefs())
+                tray.SetEnabled(true);
+            _trayHost.Apply();
+
             desktop.Exit += (_, _) =>
             {
+                webHomeClient.Dispose();
                 focus.Dispose();
                 inbox.Dispose();
                 automation.Dispose();
                 queue.Persist();
+                _trayHost?.Dispose();
+                _smtc?.Dispose();
                 _engine.Dispose();
                 _store.Dispose();
             };
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void ApplyTheme(IPreferences preferences)
+    {
+        var theme = AppThemeCodec.Parse(preferences.GetString(PrefKey.Theme, "dark"));
+        if (Current is null) return;
+        Current.RequestedThemeVariant = theme switch
+        {
+            AppTheme.Light => ThemeVariant.Light,
+            AppTheme.System => ThemeVariant.Default,
+            _ => ThemeVariant.Dark
+        };
+    }
+
+    private static void ApplyLanguage(IPreferences preferences)
+    {
+        var lang = preferences.GetString(PrefKey.Language, "system");
+        if (L10n.Source is SystemLanguageSource sys)
+            sys.Preference = lang;
     }
 }

@@ -37,7 +37,7 @@
         <views:PlayerBarView HorizontalAlignment="Center"
                              VerticalAlignment="Bottom"
                              Margin="16,0,16,20"
-                             IsVisible="{Binding !IsNowPlayingOpen}"
+                             IsVisible="{Binding IsCapsuleVisible}"
                              ZIndex="10" />
       </Panel>
 

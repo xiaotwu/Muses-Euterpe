@@ -11,6 +11,8 @@ public static class PrefKey
     public const string ReplayGainEnabled = "muses.playback.replayGainEnabled";
     public const string ResumeAfterVideo = "muses.playback.resumeAfterVideo";
     public const string SidebarCollapsed = "muses.sidebarCollapsed";
+    public const string AudioQuality = "muses.audio.quality";
+    public const string CloseToTray = "muses.desktop.closeToTray";
     public const string WebHomeEnabled = "muses.webHome.enabled";
     public const string WebHomeConsentVersion = "muses.webHome.consentVersion";
     public const string FfTray = "muses.ff.tray";
@@ -36,6 +38,15 @@ public static class FeatureFlagDefaults
         ["muses.ff.situationalNew"] = true,
         [PrefKey.FfTray] = true
     };
+
+    /// <summary>Resolves a feature flag: stored value, else EnabledByDefault, else false.</summary>
+    public static bool IsEnabled(IPreferences preferences, string key)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        if (EnabledByDefault.TryGetValue(key, out var def))
+            return preferences.GetBool(key, def);
+        return preferences.GetBool(key, false);
+    }
 }
 
 public enum AppTheme
