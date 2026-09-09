@@ -15,7 +15,7 @@ Automated on Win11 (2026-09-09 PT): **171 passed**, build green.
 
 - [ ] Audible EQ with real mpv: change BassBoost while playing and confirm tonal change. — Manual audio follow-up (code: `ProcessStreamEngine.SetEq` → mpv `af` equalizer). Live mpv stream probe this session: **Pass** (yt-dlp URL → mpv process stayed alive).
 - [ ] Web Home opt-in in Settings → helper process starts; cookie dir under temp `muses-web-home-helper` disappears after helper exit. — Manual follow-up. Helper binary now copied to `Helpers/` next to the app and into MSIX publish layout. Identity may remain Unavailable — do not fake personalized Home.
-- [x] Run `scripts/package-msix.ps1` on Windows (not macOS). — Pass. Packed with `MakeAppx.exe` from `Microsoft.Windows.SDK.BuildTools`. Signed with local `CN=xiaotwu` (thumbprint `ED2C5288E6966AF073E948D1BB7C1B96E16D7776`) and trusted in `CurrentUser\TrustedPeople`. Artifact: `artifacts/msix/Muses-0.1.0.0-win-x64.msix`. `signtool verify /pa` still fails (self-signed is not a public root). Store / WinGet still unpublished. SmartScreen may still warn once.
+- [x] Run `scripts/package-msix.ps1` on Windows (not macOS). — Pass. Packed + signed `CN=xiaotwu`. After elevation, cert is in `LocalMachine\TrustedPeople`. Sideload **installed**: `xiaotwu.Muses` 0.1.0.0 (`WindowsApps\xiaotwu.Muses_0.1.0.0_x64__r58mek0329vyw`). Launch verified (window title Muses, responding) then stopped. Payload includes mpv.exe, yt-dlp.exe, Helpers\MusesWebHomeHelper.exe. Store / WinGet still unpublished.
 - [x] Confirm Store/WinGet still unpublished; do not advertise installers that do not exist. — Pass (README Not claimed section).
 
 ## Win11 implementation notes (Phase Win11)
@@ -31,4 +31,4 @@ Automated on Win11 (2026-09-09 PT): **171 passed**, build green.
 
 ## CI
 
-`.github/workflows/ci.yml` still runs `ubuntu-latest` + `windows-latest`. Do not drop ubuntu. This session did not push, so GitHub Actions status was not re-run here.
+`.github/workflows/ci.yml` still runs `ubuntu-latest` + `windows-latest`. Push `675c425`: [CI run 34414066986](https://github.com/xiaotwu/Muses-Euterpe/actions/runs/34414066986) **success** (ubuntu-latest + windows-latest).
