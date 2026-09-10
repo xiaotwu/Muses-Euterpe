@@ -60,22 +60,22 @@
   </UserControl.Styles>
 
   <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="40,32,40,96" Spacing="34" MaxWidth="1560">
+    <StackPanel Margin="40,32,40,168" Spacing="34" MaxWidth="1560">
 
       <!-- Header -->
       <StackPanel Spacing="6">
         <TextBlock Text="{Binding DiscoverLabel}"
                    FontSize="34" FontWeight="Heavy"
                    Foreground="{StaticResource MusesTextPrimaryBrush}" />
-        <TextBlock Text="Featured music and personalized discoveries"
-                   FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        <TextBlock Text="{Binding DiscoverSubtitle}"
+                   FontSize="13" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
       </StackPanel>
 
       <!-- Editorial Landscape Cards -->
       <StackPanel x:Name="EditorialSection" Spacing="13">
-        <TextBlock Text="Featured"
+        <TextBlock Text="{Binding FeaturedLabel}"
                    FontSize="22" FontWeight="Bold"
-                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                   Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
           <StackPanel x:Name="EditorialContainer" Orientation="Horizontal" Spacing="20" />
         </ScrollViewer>
@@ -83,9 +83,9 @@
 
       <!-- Best New Songs Matrix -->
       <StackPanel x:Name="BestNewSongsSection" Spacing="13">
-        <TextBlock Text="Best New Songs"
+        <TextBlock Text="{Binding BestNewSongsLabel}"
                    FontSize="22" FontWeight="Bold"
-                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                   Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <WrapPanel x:Name="BestNewSongsContainer" Orientation="Horizontal" Margin="-8,0" />
       </StackPanel>
 

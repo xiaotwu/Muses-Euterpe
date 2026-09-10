@@ -4,24 +4,24 @@
              x:Class="Muses.App.Views.InboxView"
              x:DataType="vm:ShellViewModel">
   <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="40,32,40,96" Spacing="28" MaxWidth="900" HorizontalAlignment="Left">
+    <StackPanel Margin="40,32,40,168" Spacing="28" MaxWidth="900" HorizontalAlignment="Left">
       <!-- Header -->
       <StackPanel Spacing="6">
-        <TextBlock Text="Inbox" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-        <TextBlock Text="Songs to revisit. Accept to like, reject to dismiss, snooze to defer."
-                   FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        <TextBlock Text="{Binding InboxTitle}" FontSize="34" FontWeight="Heavy" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="{Binding InboxSubtitle}"
+                   FontSize="13" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
       </StackPanel>
 
       <!-- Empty State -->
-      <Border Background="{StaticResource MusesSurfaceBrush}" CornerRadius="12" Padding="24"
+      <Border Background="{DynamicResource MusesSurfaceBrush}" CornerRadius="12" Padding="24"
               IsVisible="{Binding IsInboxEmpty}">
-        <TextBlock Text="Inbox is empty. Add songs from the PlayerBar “…” menu or a track’s context menu."
-                   FontSize="14" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+        <TextBlock Text="{Binding InboxEmptyBody}"
+                   FontSize="14" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
       </Border>
 
       <!-- Pending Section -->
       <StackPanel Spacing="12" IsVisible="{Binding HasPendingInboxItems}">
-        <TextBlock Text="Pending" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="{Binding PendingLabel}" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <ItemsControl ItemsSource="{Binding PendingInboxItems}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>
@@ -78,7 +78,7 @@
 
       <!-- Snoozed Section -->
       <StackPanel Spacing="12" IsVisible="{Binding HasSnoozedInboxItems}">
-        <TextBlock Text="Snoozed" FontSize="18" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="{Binding SnoozedLabel}" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <ItemsControl ItemsSource="{Binding SnoozedInboxItems}">
           <ItemsControl.ItemTemplate>
             <DataTemplate>

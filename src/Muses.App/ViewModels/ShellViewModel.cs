@@ -91,7 +91,10 @@ public partial class ShellViewModel : ObservableObject
     [ObservableProperty] private string? _nowPlayingTitle;
     [ObservableProperty] private string? _nowPlayingArtist;
     [ObservableProperty] private string? _nowPlayingArtworkUrl;
-    [ObservableProperty] private string? _nowPlayingYouTubeId;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNowPlayingYouTubeId))]
+    private string? _nowPlayingYouTubeId;
+    public bool HasNowPlayingYouTubeId => !string.IsNullOrEmpty(NowPlayingYouTubeId);
     [ObservableProperty] private string _nowPlayingSubtitle = "";
     [ObservableProperty] private bool _isCurrentTrackLiked;
     [ObservableProperty] private string _qualityLabel = "";
@@ -315,6 +318,23 @@ public partial class ShellViewModel : ObservableObject
     public string SignInLabel => L10n.Tr("Sign In", "登录");
     public string SignOutLabel => L10n.Tr("Sign Out", "退出登录");
     public string NewReleasesLabel => L10n.Tr("New Releases", "新发行");
+    public string TopPicksLabel => L10n.Tr("Top Picks", "精选");
+    public string HomeRetryBody => L10n.Tr("Some recommendations could not be loaded right now.", "部分推荐暂时无法加载。");
+    public string RetryLabel => L10n.Tr("Retry", "重试");
+    public string DiscoverSubtitle => L10n.Tr("Featured music and public discoveries", "精选音乐与公开发现");
+    public string FeaturedLabel => L10n.Tr("Featured", "精选");
+    public string BestNewSongsLabel => L10n.Tr("Best New Songs", "最佳新歌");
+    public string InboxTitle => L10n.Tr("Inbox", "收件箱");
+    public string InboxSubtitle => L10n.Tr("Songs to revisit. Accept to like, reject to dismiss, snooze to defer.", "待重听的歌曲。接受即喜欢，拒绝即忽略，稍后即推迟。");
+    public string InboxEmptyBody => L10n.Tr("Inbox is empty. Add songs from a track’s context menu.", "收件箱为空。可从曲目菜单添加。");
+    public string PendingLabel => L10n.Tr("Pending", "待处理");
+    public string SnoozedLabel => L10n.Tr("Snoozed", "已推迟");
+    public string LyricsTitle => L10n.Tr("Lyrics", "歌词");
+    public string LyricsLoadingLabel => L10n.Tr("Loading lyrics…", "正在加载歌词…");
+    public string LyricsEmptyLabel => L10n.Tr("No lyrics available", "暂无歌词");
+    public string LyricsOffsetLabel => L10n.Tr("Offset", "偏移");
+    public string AudioInfoTitle => L10n.Tr("Audio Info", "音频信息");
+    public string PlayLabelA11y => L10n.Tr("Play", "播放");
     public string SeeAllLabel => L10n.Tr("See All", "查看全部");
     public string PasteTitle => L10n.Tr("Paste YouTube Link", "粘贴 YouTube 链接");
     public string ImportLabel => L10n.Tr("Play", "播放");
@@ -1271,6 +1291,22 @@ public partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(GuestBannerBody));
         OnPropertyChanged(nameof(NotPlayingLabel));
         OnPropertyChanged(nameof(VideoEmbedUnavailableMessage));
+        OnPropertyChanged(nameof(TopPicksLabel));
+        OnPropertyChanged(nameof(HomeRetryBody));
+        OnPropertyChanged(nameof(RetryLabel));
+        OnPropertyChanged(nameof(DiscoverSubtitle));
+        OnPropertyChanged(nameof(FeaturedLabel));
+        OnPropertyChanged(nameof(BestNewSongsLabel));
+        OnPropertyChanged(nameof(InboxTitle));
+        OnPropertyChanged(nameof(InboxSubtitle));
+        OnPropertyChanged(nameof(InboxEmptyBody));
+        OnPropertyChanged(nameof(PendingLabel));
+        OnPropertyChanged(nameof(SnoozedLabel));
+        OnPropertyChanged(nameof(LyricsTitle));
+        OnPropertyChanged(nameof(LyricsLoadingLabel));
+        OnPropertyChanged(nameof(LyricsEmptyLabel));
+        OnPropertyChanged(nameof(LyricsOffsetLabel));
+        OnPropertyChanged(nameof(AudioInfoTitle));
         NotifySettingsLabels();
     }
 

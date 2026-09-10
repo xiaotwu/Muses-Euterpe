@@ -83,7 +83,7 @@ public sealed class YTDlpDiscoveryProvider : IHomeDiscoveryProvider
 
         plans.Add(new SectionPlan(
             "new-releases",
-            L10n.Tr("New releases", "新发行"),
+            L10n.Tr("New Releases", "新发行"),
             L10n.Tr("From YouTube Music", "来自 YouTube Music"),
             $"new music {year} official audio"));
 

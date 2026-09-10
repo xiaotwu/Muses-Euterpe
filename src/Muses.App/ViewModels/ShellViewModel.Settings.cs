@@ -189,9 +189,12 @@ public partial class ShellViewModel
     public string SettingsResetDataBody => L10n.Tr(
         "Deletes the local library database and caches, signs out, then quits Muses. Tokens are removed from Credential Manager. This cannot be undone.",
         "删除本地曲库数据库与缓存，退出登录并关闭 Muses。凭证从凭据管理器删除。此操作不可撤销。");
-    public string SettingsResetDataConfirmLabel => L10n.Tr("Confirm reset and quit", "确认重置并退出");
+    public string SettingsResetDataConfirmLabel => ResetDataArmed
+        ? L10n.Tr("Click again to erase and quit", "再点一次将清除并退出")
+        : L10n.Tr("Reset Data…", "重置数据…");
     public string SettingsCacheStatus { get; private set; } = "";
     public bool ResetOnExit { get; private set; }
+    public bool ResetDataArmed { get; private set; }
 
     [RelayCommand]
     public void ClearCache()
@@ -204,6 +207,16 @@ public partial class ShellViewModel
     [RelayCommand]
     public void ResetData()
     {
+        if (!ResetDataArmed)
+        {
+            ResetDataArmed = true;
+            SettingsCacheStatus = L10n.Tr("This cannot be undone. Click again to confirm.", "此操作不可撤销。再点一次确认。");
+            OnPropertyChanged(nameof(ResetDataArmed));
+            OnPropertyChanged(nameof(SettingsResetDataConfirmLabel));
+            OnPropertyChanged(nameof(SettingsCacheStatus));
+            return;
+        }
+
         try
         {
             ResetOnExit = true;

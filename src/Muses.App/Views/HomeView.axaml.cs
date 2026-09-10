@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -28,6 +29,7 @@ public partial class HomeView : UserControl
                 Tag = mood,
                 Content = new TextBlock { Text = mood.LocalizedTitle }
             };
+            Avalonia.Automation.AutomationProperties.SetName(btn, mood.LocalizedTitle);
             btn.Click += OnMoodChipClicked;
             MoodChipsContainer.Children.Add(btn);
         }
@@ -142,16 +144,41 @@ public partial class HomeView : UserControl
                 VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
             };
 
-            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18 };
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18, Margin = new Thickness(0, 0, 56, 0) };
             foreach (var item in section.Items)
             {
                 row.Children.Add(BuildSquareCard(item, section.Items));
             }
             scroll.Content = row;
-            panel.Children.Add(scroll);
+            panel.Children.Add(WrapHorizontalFade(scroll));
         }
 
         return panel;
+    }
+
+    private static Control WrapHorizontalFade(Control inner)
+    {
+        var host = new Panel();
+        host.Children.Add(inner);
+        var page = ThemeBrushes.Page as ISolidColorBrush;
+        var c = page?.Color ?? Color.FromRgb(0x1F, 0x1F, 0x1F);
+        host.Children.Add(new Border
+        {
+            Width = 56,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsHitTestVisible = false,
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative),
+                GradientStops =
+                {
+                    new GradientStop(Color.FromArgb(0, c.R, c.G, c.B), 0),
+                    new GradientStop(Color.FromArgb(230, c.R, c.G, c.B), 1)
+                }
+            }
+        });
+        return host;
     }
 
     private Control BuildSquareCard(DiscoveryItem item, IReadOnlyList<DiscoveryItem> siblings)

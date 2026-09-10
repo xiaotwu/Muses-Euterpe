@@ -12,7 +12,7 @@ public sealed record YouTubeHomeMood(string Id, string En, string Zh, string Sea
     [
         new("podcasts", "Podcasts", "播客", "music podcasts"),
         new("energize", "Energize", "活力", "energizing music"),
-        new("feel-good", "Feel good", "好心情", "feel good music"),
+        new("feel-good", "Feel Good", "好心情", "feel good music"),
         new("workout", "Workout", "健身", "workout music"),
         new("relax", "Relax", "放松", "relaxing music"),
         new("party", "Party", "派对", "party music"),
@@ -253,7 +253,7 @@ public sealed class HomeDiscoveryService
 
         list.Add(new HomeSection(
             "new-releases",
-            L10n.Tr("New releases", "新发行"),
+            L10n.Tr("New Releases", "新发行"),
             null,
             HomeSectionKind.YouTubeCarousel,
             Array.Empty<DiscoveryItem>(),

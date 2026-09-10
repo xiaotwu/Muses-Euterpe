@@ -10,7 +10,8 @@
           Padding="0"
           Cursor="Hand"
           HorizontalContentAlignment="Center"
-          VerticalContentAlignment="Center">
+          VerticalContentAlignment="Center"
+          AutomationProperties.Name="Play">
     <Button.Styles>
       <Style Selector="Button:pointerover /template/ ContentPresenter">
         <Setter Property="Background" Value="#FF6D7E" />

@@ -31,6 +31,9 @@
     <Style Selector="Button.chrome.active PathIcon">
       <Setter Property="Foreground" Value="{StaticResource MusesAccentBrush}" />
     </Style>
+    <Style Selector="Button.chrome:disabled">
+      <Setter Property="Opacity" Value="0.28" />
+    </Style>
 
     <!-- Play/Pause 32x32 White Circle -->
     <Style Selector="Button.playBtn">
@@ -244,7 +247,8 @@
 
           <!-- Watch YouTube Video -->
           <Button Classes="chrome" ToolTip.Tip="Watch YouTube Video" AutomationProperties.Name="Watch YouTube Video" Command="{Binding ToggleVideoOverlayCommand}"
-                  IsEnabled="{Binding NowPlayingYouTubeId, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                  IsEnabled="{Binding HasNowPlayingYouTubeId}"
+                  IsVisible="{Binding HasNowPlayingYouTubeId}">
             <ctrl:YouTubeMark MarkSize="16" />
           </Button>
         </StackPanel>

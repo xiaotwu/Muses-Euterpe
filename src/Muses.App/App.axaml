@@ -11,6 +11,7 @@
 
     <!-- Semantic Color tokens (BrandColors / AppleMusicTokens + chrome alphas) -->
     <Color x:Key="MusesAccent">#FA586A</Color>
+    <Color x:Key="MusesPageColor">#1F1F1F</Color>
     <Color x:Key="MusesPageDark">#1F1F1F</Color>
     <Color x:Key="MusesSurfaceDark">#26262B</Color>
     <Color x:Key="MusesTextPrimary">#F0F0F0</Color>
@@ -153,6 +154,7 @@
 
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Dark">
+          <Color x:Key="MusesPageColor">#1F1F1F</Color>
           <SolidColorBrush x:Key="MusesPageBrush" Color="#1F1F1F" />
           <SolidColorBrush x:Key="MusesSurfaceBrush" Color="#26262B" />
           <SolidColorBrush x:Key="MusesTextPrimaryBrush" Color="#F0F0F0" />
@@ -168,6 +170,7 @@
           <SolidColorBrush x:Key="MusesGlassDrawerBrush" Color="#F226262B" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
+          <Color x:Key="MusesPageColor">#FFFFFF</Color>
           <SolidColorBrush x:Key="MusesPageBrush" Color="#FFFFFF" />
           <SolidColorBrush x:Key="MusesSurfaceBrush" Color="#F5F5F7" />
           <SolidColorBrush x:Key="MusesTextPrimaryBrush" Color="#1D1D1F" />

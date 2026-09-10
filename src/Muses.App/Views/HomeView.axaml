@@ -56,7 +56,7 @@
   </UserControl.Styles>
 
   <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-    <StackPanel Margin="40,32,40,96" Spacing="34" MaxWidth="1560">
+    <StackPanel Margin="40,32,40,168" Spacing="34" MaxWidth="1560">
 
       <!-- Header & Source Status -->
       <StackPanel Spacing="6">
@@ -103,6 +103,7 @@
           </StackPanel>
           <Button Grid.Column="1"
                   Content="{Binding SignInLabel}"
+                  AutomationProperties.Name="{Binding SignInLabel}"
                   Background="{StaticResource MusesAccentBrush}"
                   Foreground="White"
                   BorderThickness="0"
@@ -121,9 +122,9 @@
               Padding="14,10"
               IsVisible="{Binding HomeDiscovery.LastRefreshError, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="Some recommendations could not be loaded right now."
-                     FontSize="13" Foreground="{StaticResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Content="Retry"
+          <TextBlock Text="{Binding HomeRetryBody}"
+                     FontSize="13" Foreground="{DynamicResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="{Binding RetryLabel}"
                   Background="{StaticResource MusesAccentBrush}" Foreground="White" BorderThickness="0"
                   CornerRadius="6" Padding="12,6" Cursor="Hand"
                   Click="OnRetryClicked" />
@@ -132,12 +133,22 @@
 
       <!-- Top Picks (Portrait Cards) -->
       <StackPanel x:Name="TopPicksSection" Spacing="13">
-        <TextBlock Text="Top Picks"
+        <TextBlock Text="{Binding TopPicksLabel}"
                    FontSize="22" FontWeight="Bold"
-                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
-        <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
-          <StackPanel x:Name="TopPicksContainer" Orientation="Horizontal" Spacing="18" />
-        </ScrollViewer>
+                   Foreground="{DynamicResource MusesTextPrimaryBrush}" />
+        <Panel>
+          <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="TopPicksContainer" Orientation="Horizontal" Spacing="18" Margin="0,0,56,0" />
+          </ScrollViewer>
+          <Border Width="56" HorizontalAlignment="Right" IsHitTestVisible="False">
+            <Border.Background>
+              <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                <GradientStop Offset="0" Color="#001F1F1F" />
+                <GradientStop Offset="1" Color="{DynamicResource MusesPageColor}" />
+              </LinearGradientBrush>
+            </Border.Background>
+          </Border>
+        </Panel>
       </StackPanel>
 
       <!-- Discovery Shelves Container -->
