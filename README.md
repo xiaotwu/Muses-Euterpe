@@ -5,7 +5,7 @@
 <h1 align="center">Muses</h1>
 
 <p align="center">
-  A native Windows 11 music application — the Euterpe port of <a href="https://github.com/xiaotwu/Muses">Muses</a> for macOS.
+  A native Windows 11 music application — the Euterpe port of <a href="https://github.com/xiaotwu/Muses-Polyhymnia">Muses</a> for macOS.
 </p>
 
 <p align="center">
@@ -111,3 +111,7 @@ Zero telemetry. Local SQLite + platform credential locker. Web Home cookies only
 ## License
 
 MIT License. © 2026 xiaotwu. Third-party tools (`Avalonia`, `FluentAvalonia`, `yt-dlp`, `mpv`) remain under their respective licenses.
+
+## Muses family
+
+[Project-Muses](https://github.com/xiaotwu/Project-Muses) owns the [shared website](https://xiaotwu.github.io/Project-Muses/) and unified releases. Euterpe owns Windows source, tests and packaging; its family checkout is `Project-Muses/Muses-Euterpe`. [Polyhymnia](https://github.com/xiaotwu/Muses-Polyhymnia) is the core product reference. The visual token table above describes the existing Windows implementation; the current Mac design is the target for future verified parity work. No Windows release is currently published.

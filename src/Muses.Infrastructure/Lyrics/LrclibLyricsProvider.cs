@@ -18,7 +18,7 @@ public sealed class LrclibLyricsProvider : ILyricsProvider
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
         if (!_http.DefaultRequestHeaders.Contains("User-Agent"))
         {
-            _http.DefaultRequestHeaders.Add("User-Agent", "Muses/1.0 (https://github.com/xiaotwu/Muses)");
+            _http.DefaultRequestHeaders.Add("User-Agent", "Muses/1.0 (https://github.com/xiaotwu/Project-Muses)");
         }
     }
 

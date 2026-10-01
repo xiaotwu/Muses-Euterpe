@@ -1,6 +1,6 @@
 # Muses Euterpe — Project Guidance
 
-Muses Euterpe is the Windows 11 port of [Muses](https://github.com/xiaotwu/Muses). Product law is the same: a native desktop **YouTube-native music application**. Not a local-file player, not Electron, not a WebView sound source.
+Muses Euterpe is the Windows 11 port of [Muses](https://github.com/xiaotwu/Muses-Polyhymnia). Product law is the same: a native desktop **YouTube-native music application**. Not a local-file player, not Electron, not a WebView sound source.
 
 Display name is **Muses**. The repository and solution are named Euterpe.
 
@@ -9,7 +9,7 @@ Display name is **Muses**. The repository and solution are named Euterpe.
 1. Explicit current user decisions and this file.
 2. Current C# source.
 3. Tests under `tests/Muses.Tests`.
-4. The macOS Muses source at a sibling `../Muses` checkout, when behavior is unspecified here.
+4. The macOS Muses source at a sibling `../Muses-Polyhymnia` checkout, when behavior is unspecified here.
 
 ## Architecture
 
@@ -56,3 +56,11 @@ Identifiers and comments are English. User-visible strings go through `L10n.Tr`.
 - Automation is a background engine. There is no user-facing rules editor yet.
 - Optional system-wide hotkeys (`PrefKey.FfGlobalHotkeys`, default off) use Windows `RegisterHotKey` for Ctrl+P / Ctrl+Left / Ctrl+Right. In-window chords always work when the main window is focused.
 - Microsoft Store and WinGet remain unpublished — remind the user later; do not advertise them.
+
+## Family repository
+
+The local checkout lives at `Project-Muses/Muses-Euterpe`. Project-Muses owns the shared website and aggregated releases; this repository owns Windows builds, signing and packaging. Polyhymnia is the product reference. Its current champagne-gold design supersedes the historical pink visual contract above as the target direction; existing Windows colors remain implementation status until a separately verified port update.
+
+## Shared product baseline
+
+[Project-Muses platform baseline](https://github.com/xiaotwu/Project-Muses/blob/main/docs/platform-baseline.md) records the family direction. Polyhymnia is the core product reference. Explicit user decisions and current source/runtime evidence take precedence over historical port documents. Windows may be rebuilt against that baseline; preserve library data and verify native Windows behavior before claiming parity.
