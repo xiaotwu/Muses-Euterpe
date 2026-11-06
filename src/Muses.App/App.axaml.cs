@@ -38,21 +38,23 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        // Sync MusesMotion* duration resources (and zero them under OS reduce-motion) before chrome loads.
-        MotionChrome.Apply(this);
         GlassChrome.Apply(this);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             _store = SqliteStore.Open();
             var preferences = new SqlitePreferences(_store);
+            MotionChrome.Apply(this, OperatingSystem.IsLinux()
+                ? preferences.GetBool(PrefKey.LinuxReduceMotion, false)
+                : MotionChrome.DetectPreferReducedMotion());
             ApplyTheme(preferences);
             ApplyLanguage(preferences);
 
             var queue = new QueueService { Store = _store };
             queue.Restore();
             var library = new LibraryService(_store);
-            var ytdlp = new YTDlpBridge();
+            var ytdlpRunner = new YTDlpRunner();
+            var ytdlp = new YTDlpBridge(runner: ytdlpRunner);
             var quality = ProcessStreamEngine.MapAudioQualityPref(preferences.GetString(PrefKey.AudioQuality, "best"));
             _engine = new ProcessStreamEngine(ytdlp, quality);
             _engine.SetReplayGainEnabled(preferences.GetBool(PrefKey.ReplayGainEnabled, true));
@@ -125,7 +127,7 @@ public partial class App : Application
 
             IPlatformSMTC mediaControls = OperatingSystem.IsLinux()
                 ? new LinuxMprisService(playback, action => Dispatcher.UIThread.InvokeAsync(action).GetTask(), ShowMainWindow, Quit)
-                : new WindowsSMTCService(playback);
+                : new WindowsSMTCService(playback, dispatch: action => Dispatcher.UIThread.Post(action));
             _globalHotkeys = WindowsGlobalHotkeys.Create();
             var audioProbe = WindowsAudioOutputProbe.Create();
             var tray = new WindowsTrayController(playback, preferences, ShowMainWindow, Quit);
@@ -150,6 +152,8 @@ public partial class App : Application
             async void RestorePlaybackOnOpen(object? sender, EventArgs e)
             {
                 main.Opened -= RestorePlaybackOnOpen;
+                if (mediaControls is WindowsSMTCService smtc)
+                    smtc.Start(main.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
                 if (packagePlaybackSmoke is not null)
                     desktop.Shutdown(await packagePlaybackSmoke.RunAsync(playback, library));
                 else
@@ -207,6 +211,7 @@ public partial class App : Application
                 (mediaControls as IDisposable)?.Dispose();
                 _globalHotkeys?.Dispose();
                 _engine.Dispose();
+                ytdlpRunner.Dispose();
                 var reset = _shell?.ResetOnExit == true;
                 _store.Dispose();
                 if (reset)

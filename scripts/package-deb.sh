@@ -58,7 +58,7 @@ Architecture: amd64
 Maintainer: xiaotwu <44873243+xiaotwu@users.noreply.github.com>
 Installed-Size: $installed_size
 Depends: ca-certificates, libc6, libgcc-s1, libgssapi-krb5-2, libicu74, libssl3t64, libstdc++6, tzdata, zlib1g, libx11-6, libice6, libsm6, libfontconfig1, libsecret-1-0, mpv
-Recommends: libwebkit2gtk-4.1-0
+Recommends: libwebkit2gtk-4.1-0, gstreamer1.0-libav, gstreamer1.0-plugins-bad
 Homepage: https://github.com/xiaotwu/Muses-Euterpe
 Description: Desktop music library and player for YouTube
  Muses organizes and plays your YouTube music library.

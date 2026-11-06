@@ -9,8 +9,8 @@
       <Setter Property="RenderTransform" Value="none" />
       <Setter Property="Transitions">
         <Transitions>
-          <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MusesMotionHover}" />
-          <BoxShadowsTransition Property="BoxShadow" Duration="{StaticResource MusesMotionHover}" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MusesMotionHover}" />
+          <BoxShadowsTransition Property="BoxShadow" Duration="{DynamicResource MusesMotionHover}" />
         </Transitions>
       </Setter>
     </Style>
@@ -23,7 +23,7 @@
       <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay38Brush}" />
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="Background" Duration="{StaticResource MusesMotionHover}" />
+          <BrushTransition Property="Background" Duration="{DynamicResource MusesMotionHover}" />
         </Transitions>
       </Setter>
     </Style>

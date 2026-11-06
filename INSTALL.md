@@ -88,7 +88,7 @@ In-app video uses Microsoft's WebView2 Evergreen Runtime. [WebView2 download](ht
 
 ### Ubuntu 24.04 LTS x64
 
-Build on Ubuntu 24.04 x64 with Python 3, the .NET 10 SDK and `dpkg-deb`. APT resolves the native dependencies, including mpv from Ubuntu's Universe archive. The desktop session needs X11 or XWayland. Linux system media controls use the session D-Bus, and account storage requires a desktop Secret Service provider such as GNOME Keyring. The package recommends Ubuntu's `libwebkit2gtk-4.1-0` for the IFrame video host. [Avalonia Linux desktop guide](https://docs.avaloniaui.net/docs/platform-specific-guides/linux)
+Build on Ubuntu 24.04 x64 with Python 3, the .NET 10 SDK and `dpkg-deb`. APT resolves the native dependencies, including mpv from Ubuntu's Universe archive. The desktop session needs X11 or XWayland. Linux system media controls use the session D-Bus, and account storage requires a desktop Secret Service provider such as GNOME Keyring. With default APT settings, installation also pulls in WebKitGTK 4.1 and the GStreamer libav and bad plugin sets for in-app video. [Avalonia Linux desktop guide](https://docs.avaloniaui.net/docs/platform-specific-guides/linux)
 
 ```sh
 package_dir=$(mktemp -d)

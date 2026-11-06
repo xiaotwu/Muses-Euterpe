@@ -64,6 +64,8 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
                      $"--volume={volume}"
                  })
             psi.ArgumentList.Add(a);
+        if (windows)
+            psi.ArgumentList.Add("--media-controls=no");
 
         Process process;
         try

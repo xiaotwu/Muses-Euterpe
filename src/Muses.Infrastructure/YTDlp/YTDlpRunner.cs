@@ -1,11 +1,18 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 
 namespace Muses.Infrastructure.YTDlp;
 
-public sealed class YTDlpRunner
+public sealed class YTDlpRunner : IDisposable
 {
+    private static readonly TimeSpan ProcessExitTimeout = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(2);
     private readonly SemaphoreSlim _slots;
+    private readonly object _gate = new();
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly HashSet<Task> _pending = [];
+    private bool _disposed;
 
     public YTDlpRunner(int maxConcurrent = 2)
     {
@@ -26,15 +33,58 @@ public sealed class YTDlpRunner
     private async Task<(string Stdout, string Stderr)> RunLimitedAsync(
         string executablePath, IReadOnlyList<string> args, TimeSpan timeout, CancellationToken ct, bool publicAudio)
     {
-        await _slots.WaitAsync(ct).ConfigureAwait(false);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationTokenSource cancellation;
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _shutdown.Token);
+            _pending.Add(completed.Task);
+        }
+
         try
         {
-            return await ExecuteAsync(executablePath, args, timeout, ct, publicAudio).ConfigureAwait(false);
+            await _slots.WaitAsync(cancellation.Token).ConfigureAwait(false);
+            try
+            {
+                return await ExecuteAsync(executablePath, args, timeout, cancellation.Token, publicAudio)
+                    .ConfigureAwait(false);
+            }
+            finally
+            {
+                _slots.Release();
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(ct);
         }
         finally
         {
-            _slots.Release();
+            cancellation.Dispose();
+            lock (_gate)
+            {
+                completed.TrySetResult();
+                _pending.Remove(completed.Task);
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        Task[] pending;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            pending = [.. _pending];
+        }
+
+        // Process-tree termination can still be running after cancellation is signaled.
+        _shutdown.Cancel();
+        if (!Task.WaitAll(pending, ShutdownTimeout))
+            Trace.TraceWarning("Timed out waiting for yt-dlp shutdown.");
+        _shutdown.Dispose();
     }
 
     private static async Task<(string Stdout, string Stderr)> ExecuteAsync(
@@ -58,6 +108,7 @@ public sealed class YTDlpRunner
         process.StartInfo.Environment["DENO_DIR"] = Path.Combine(LocalDataMaintenance.LocalCacheRoot(), "deno");
         process.StartInfo.Environment["DENO_NO_UPDATE_CHECK"] = "1";
 
+        ct.ThrowIfCancellationRequested();
         if (!process.Start())
             throw new YTDlpException("yt-dlp binary not found");
 
@@ -73,7 +124,7 @@ public sealed class YTDlpRunner
         }
         catch (OperationCanceledException)
         {
-            try { process.Kill(entireProcessTree: true); } catch { /* already gone */ }
+            await StopProcessAsync(process).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             throw new YTDlpException("yt-dlp timed out");
         }
@@ -86,6 +137,23 @@ public sealed class YTDlpRunner
             throw new YTDlpException("yt-dlp output exceeded limit");
 
         return (output, error);
+    }
+
+    private static async Task StopProcessAsync(Process process)
+    {
+        try { process.Kill(entireProcessTree: true); }
+        catch (Exception error) when (error is InvalidOperationException or Win32Exception or AggregateException)
+        {
+            if (!process.HasExited)
+                Trace.TraceWarning("Could not terminate yt-dlp: {0}", error.GetType().Name);
+        }
+
+        using var deadline = new CancellationTokenSource(ProcessExitTimeout);
+        try { await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            Trace.TraceWarning("Timed out waiting for yt-dlp to exit.");
+        }
     }
 
     private static async Task<(string Text, bool Truncated)> ReadBoundedAsync(StreamReader reader, int limit, CancellationToken ct)

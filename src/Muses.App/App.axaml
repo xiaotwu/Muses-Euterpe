@@ -123,7 +123,7 @@
     <SolidColorBrush x:Key="MusesBlackOverlayB3Brush" Color="{StaticResource MusesBlackOverlayB3}" />
 
     <!-- Motion durations (seconds from Muses.Core.Chrome.MusesMotion → Avalonia TimeSpan).
-         MotionChrome.Apply syncs these from constants at startup and zeros them when OS reduce-motion is on. -->
+         MotionChrome syncs these from constants and zeros them when reduced motion is enabled. -->
     <sys:TimeSpan x:Key="MusesMotionHover">0:0:0.15</sys:TimeSpan>
     <sys:TimeSpan x:Key="MusesMotionOverlay">0:0:0.20</sys:TimeSpan>
     <sys:TimeSpan x:Key="MusesMotionDrawer">0:0:0.25</sys:TimeSpan>

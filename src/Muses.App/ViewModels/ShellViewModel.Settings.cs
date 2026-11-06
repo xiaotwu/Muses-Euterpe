@@ -157,6 +157,19 @@ public partial class ShellViewModel
         }
     }
 
+    public bool IsLinuxDesktop => OperatingSystem.IsLinux();
+
+    public bool LinuxReduceMotion
+    {
+        get => Preferences.GetBool(PrefKey.LinuxReduceMotion, false);
+        set
+        {
+            if (LinuxReduceMotion == value) return;
+            Preferences.SetBool(PrefKey.LinuxReduceMotion, value);
+            OnPropertyChanged(nameof(LinuxReduceMotion));
+        }
+    }
+
     public double CrossfadeSeconds
     {
         get => Preferences.GetDouble(PrefKey.CrossfadeSeconds, 0);
@@ -436,6 +449,7 @@ public partial class ShellViewModel
     public string SettingsThemeDarkLabel => L10n.Tr("Dark (Muses Default)", "深色（Muses 默认）");
     public string SettingsThemeSystemLabel => L10n.Tr("Follow System", "跟随系统");
     public string SettingsAccentNameLabel => L10n.Tr("Muses Crimson (#FA586A)", "Muses 绯红 (#FA586A)");
+    public string SettingsReduceMotionLabel => L10n.Tr("Reduce motion", "减少动态效果");
     public string SettingsReduceMotionNote => L10n.Tr(
         "Reduce motion follows the Windows accessibility setting. There is no separate in-app override.",
         "减少动态效果跟随 Windows 辅助功能设置，应用内无单独开关。");
@@ -508,6 +522,7 @@ public partial class ShellViewModel
         OnPropertyChanged(nameof(SettingsThemeDarkLabel));
         OnPropertyChanged(nameof(SettingsThemeSystemLabel));
         OnPropertyChanged(nameof(SettingsAccentNameLabel));
+        OnPropertyChanged(nameof(SettingsReduceMotionLabel));
         OnPropertyChanged(nameof(SettingsReduceMotionNote));
         OnPropertyChanged(nameof(SettingsLyricsProviderNote));
         OnPropertyChanged(nameof(SettingsLyricsAutoScrollNote));

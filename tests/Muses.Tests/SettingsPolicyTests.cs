@@ -114,6 +114,32 @@ public class SettingsPolicyTests
     }
 
     [Fact]
+    public void SMTC_backend_dispatches_next_and_seek_to_playback()
+    {
+        var engine = new FakePlayerEngine();
+        var playback = new PlaybackService(engine, new QueueService());
+        var first = TrackSnapshot.Test("first", "first-video", 60);
+        var second = TrackSnapshot.Test("second", "second-video", 80);
+        playback.PlayTrack(first, [first, second], QueueSource.Songs);
+
+        var backend = new TestWindowsSmtcBackend();
+        var callbacks = new Queue<Action>();
+        using var smtc = new WindowsSMTCService(playback, backend, callbacks.Enqueue);
+
+        backend.RequestNext();
+        Assert.Equal(first.Id, playback.Queue.Current()?.Track.Id);
+        while (callbacks.TryDequeue(out var callback))
+            callback();
+        Assert.Equal(second.Id, playback.Queue.Current()?.Track.Id);
+
+        backend.RequestSeek(12.5);
+        Assert.Equal(0, engine.SeekCallCount);
+        while (callbacks.TryDequeue(out var callback))
+            callback();
+        Assert.Equal(12.5, engine.LastSeekTime);
+    }
+
+    [Fact]
     public void Feature_flag_defaults_match_chrome_contract()
     {
         var prefs = new MemoryPreferences();
@@ -143,5 +169,21 @@ public class SettingsPolicyTests
         if (!OperatingSystem.IsWindows())
             Assert.False(smtc.IsSupported);
         smtc.Dispose();
+    }
+
+    private sealed class TestWindowsSmtcBackend : IWindowsSmtcBackend
+    {
+        public bool IsAvailable => true;
+        public event Action? PlayPressed { add { } remove { } }
+        public event Action? PausePressed { add { } remove { } }
+        public event Action? NextPressed;
+        public event Action? PreviousPressed { add { } remove { } }
+        public event Action<double>? SeekRequested;
+
+        public void RequestNext() => NextPressed?.Invoke();
+        public void RequestSeek(double seconds) => SeekRequested?.Invoke(seconds);
+        public void UpdateDisplay(string? title, string? artist, string? artworkUrl, bool isPlaying) { }
+        public void UpdateTimeline(double positionSeconds, double durationSeconds) { }
+        public void Dispose() { }
     }
 }

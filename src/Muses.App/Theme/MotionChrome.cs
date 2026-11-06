@@ -8,7 +8,7 @@ namespace Muses.App.Theme;
 
 /// <summary>
 /// Keeps App.axaml <c>MusesMotion*</c> TimeSpan resources in sync with
-/// <see cref="MusesMotion"/> and zeros them when the OS asks for reduced motion.
+/// <see cref="MusesMotion"/> and zeros them when reduced motion is enabled.
 /// Avalonia <see cref="Avalonia.Platform.IPlatformSettings"/> does not expose
 /// PrefersReducedMotion, so we read platform accessibility settings directly.
 /// </summary>
@@ -46,21 +46,18 @@ public static class MotionChrome
         MusesMotion.DurationOrZero(MusesMotion.CollectionCardSeconds(PreferReducedMotion));
 
     /// <summary>
-    /// Call once after App.axaml resources load and before the main window is created
-    /// so StaticResource durations resolve to the reduce-motion-aware values.
+    /// Initialize the motion resources before the main window is created.
     /// </summary>
-    public static void Apply(Application app)
+    public static void Apply(Application app, bool reduced)
     {
-        PreferReducedMotion = DetectPreferReducedMotion();
+        PreferReducedMotion = reduced;
         SyncResources(app.Resources);
     }
 
-    internal static bool Refresh(Application app)
+    internal static bool Refresh(Application app, bool reduced)
     {
-        var reduced = DetectPreferReducedMotion();
         if (PreferReducedMotion == reduced) return false;
-        PreferReducedMotion = reduced;
-        SyncResources(app.Resources);
+        Apply(app, reduced);
         return true;
     }
 

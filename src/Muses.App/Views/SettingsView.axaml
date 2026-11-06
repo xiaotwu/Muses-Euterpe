@@ -134,7 +134,10 @@
             <ComboBoxItem Content="{Binding SettingsThemeSystemLabel}" />
           </ComboBox>
         </StackPanel>
-        <TextBlock Text="{Binding SettingsReduceMotionNote}" FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+        <CheckBox IsVisible="{Binding IsLinuxDesktop}" Content="{Binding SettingsReduceMotionLabel}"
+                  IsChecked="{Binding LinuxReduceMotion, Mode=TwoWay}" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
+        <TextBlock IsVisible="{Binding !IsLinuxDesktop}" Text="{Binding SettingsReduceMotionNote}"
+                   FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
       </StackPanel>
 
       <!-- 5. YOUTUBE -->
