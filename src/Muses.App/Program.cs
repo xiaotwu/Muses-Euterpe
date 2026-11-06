@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
+using Muses.App.Services;
 using Muses.Platform.Linux;
 using System;
 
@@ -8,8 +9,12 @@ namespace Muses.App;
 internal static class Program
 {
     [STAThread]
-    public static void Main(string[] args) => BuildAvaloniaApp()
-        .StartWithClassicDesktopLifetime(args);
+    public static int Main(string[] args)
+    {
+        if (args.FirstOrDefault() == PackagePlaybackSmoke.Argument && PackagePlaybackSmoke.Parse(args) is null)
+            return 2;
+        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
     public static AppBuilder BuildAvaloniaApp()
     {

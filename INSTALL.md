@@ -16,9 +16,20 @@ dotnet run --project src/Muses.App
 
 On Windows, a development checkout can also use `resources/mpv.exe` and `resources/yt-dlp.exe`. In-app video uses WebView2 on Windows and WebKitGTK 4.1 on Linux. Linux system media controls use MPRIS over the desktop session D-Bus.
 
-When yt-dlp and Deno are installed outside the desktop session's PATH, set `MUSES_YTDLP_PATH` and `MUSES_DENO_PATH` to their absolute executable paths before launching Muses. The optional Web Home helper finds yt-dlp on PATH.
+For source runs, `MUSES_YTDLP_PATH` and `MUSES_DENO_PATH` can point to absolute executable paths outside the desktop session's PATH.
 
-For isolated development runs, set `MUSES_DATA_HOME` and `MUSES_CACHE_HOME` to absolute paths dedicated to that run. These override the app's database and cache roots. An explicit data root uses session-only account credentials. Windows retains the existing default SQLite path under `%APPDATA%\Muses`. Linux uses the XDG data and cache directories and recognizes the previous development database.
+## Data and cache
+
+**Settings → General → App Data Folder** shows and opens the active data directory. It contains the SQLite library and a `cache` subdirectory.
+
+| Platform | Data folder |
+| --- | --- |
+| Windows | `%APPDATA%\Muses` |
+| Linux | `${XDG_DATA_HOME:-$HOME/.local/share}/Muses` |
+
+On Linux, the first launch after upgrading backs up an old XDG config database into the data folder when the new database is absent. Muses keeps the old database available as a backup. Use **Reset Data** to clear both the current library and its known legacy locations.
+
+For isolated development runs, set `MUSES_DATA_HOME` and, if needed, `MUSES_CACHE_HOME` to absolute paths dedicated to that run. An explicit data root uses session-only account credentials.
 
 ## Import a Mac library
 
@@ -41,11 +52,11 @@ Use the package that matches the operating system and CPU architecture.
 | Windows 11 x64 | `Muses-<version>-win-x64.msix` | Muses in Start |
 | Ubuntu 24.04 LTS x64 | `Muses-<version>-linux-x64.deb` (`amd64` in Debian metadata) | Muses in the application menu or `muses` |
 
-Both packages include the self-contained .NET application and a separately published Web Home helper. The build restores the .NET runtime and managed dependencies from the configured NuGet sources. For a stable release, use the release tag's numeric version without the leading `v` so the running app and the asset agree.
+Both packages include the self-contained .NET app, a separate Web Home helper, yt-dlp with its EJS scripts, and Deno. The Windows package includes mpv. APT installs mpv when installing the Ubuntu package. Muses uses these installed tools automatically. The build pins upstream media assets by SHA-256 and includes notices and provenance in `MediaTools`. For a stable release, use the release tag's numeric version without the leading `v` so the running app and the asset agree.
 
 ### Windows 11 x64
 
-Build on Windows with PowerShell 7, the .NET 10 SDK and the x64 Windows SDK packaging tools. You can also supply the `bin/<sdk-version>/x64` directory from `Microsoft.Windows.SDK.BuildTools` with `-SdkToolsDir`. MakeAppx builds and validates the package. SignTool signs it when you provide a code-signing certificate. Use the existing package identity `xiaotwu.Muses` and publisher `CN=xiaotwu` for in-place upgrades. [Windows SDK downloads](https://developer.microsoft.com/windows/downloads/windows-sdk/) · [Windows SDK BuildTools on NuGet](https://www.nuget.org/packages/Microsoft.Windows.SDK.BuildTools/)
+Build on Windows with PowerShell 7, Python 3, the .NET 10 SDK and the x64 Windows SDK packaging tools. Pass `-PythonExecutable` if Python is outside PATH. You can supply the `bin/<sdk-version>/x64` directory from `Microsoft.Windows.SDK.BuildTools` with `-SdkToolsDir`. MakeAppx builds and validates the package. SignTool signs it when you provide a code-signing certificate. Use the existing package identity `xiaotwu.Muses` and publisher `CN=xiaotwu` for in-place upgrades. [Windows SDK downloads](https://developer.microsoft.com/windows/downloads/windows-sdk/) · [Windows SDK BuildTools on NuGet](https://www.nuget.org/packages/Microsoft.Windows.SDK.BuildTools/)
 
 ```powershell
 $packageDir = Join-Path ([IO.Path]::GetTempPath()) ('muses-packages-' + [guid]::NewGuid())
@@ -63,11 +74,11 @@ Get-AppxPackage -Name xiaotwu.Muses | Select-Object PackageFamilyName, Version, 
 Get-AppxPackage -Name xiaotwu.Muses | Remove-AppxPackage
 ```
 
-Install an x64 mpv build, upstream `yt-dlp.exe`, and an EJS-compatible Deno runtime on the desktop user's PATH for audio. Use Microsoft's WebView2 Evergreen Runtime for in-app video. [mpv Windows builds](https://mpv.io/installation/) · [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases) · [yt-dlp EJS setup](https://github.com/yt-dlp/yt-dlp/wiki/EJS) · [WebView2 download](https://developer.microsoft.com/microsoft-edge/webview2/)
+In-app video uses Microsoft's WebView2 Evergreen Runtime. [WebView2 download](https://developer.microsoft.com/microsoft-edge/webview2/)
 
 ### Ubuntu 24.04 LTS x64
 
-Build on Ubuntu 24.04 x64 with the .NET 10 SDK and `dpkg-deb`. APT resolves the native dependencies, including mpv from Ubuntu's Universe archive. The desktop session needs X11 or XWayland. Linux system media controls use the session D-Bus, and account storage requires a desktop Secret Service provider such as GNOME Keyring. The package recommends Ubuntu's `libwebkit2gtk-4.1-0` for the IFrame video host. [Avalonia Linux desktop guide](https://docs.avaloniaui.net/docs/platform-specific-guides/linux)
+Build on Ubuntu 24.04 x64 with Python 3, the .NET 10 SDK and `dpkg-deb`. APT resolves the native dependencies, including mpv from Ubuntu's Universe archive. The desktop session needs X11 or XWayland. Linux system media controls use the session D-Bus, and account storage requires a desktop Secret Service provider such as GNOME Keyring. The package recommends Ubuntu's `libwebkit2gtk-4.1-0` for the IFrame video host. [Avalonia Linux desktop guide](https://docs.avaloniaui.net/docs/platform-specific-guides/linux)
 
 ```sh
 package_dir=$(mktemp -d)
@@ -78,12 +89,10 @@ dpkg-query -W muses
 sudo apt remove muses
 ```
 
-Use `sudo apt install /absolute/path/to/Muses-<higher-version>-linux-x64.deb` for an in-place upgrade. Package operations install files under `/usr` and leave the user's XDG directories intact. The default database lives under `${XDG_DATA_HOME:-$HOME/.local/share}/Muses`. When there is no database at the preferred location, Muses can open the legacy database in `${XDG_CONFIG_HOME:-$HOME/.config}/Muses` or `$HOME/.config/Muses` in place.
-
-For audio, install the x64 `yt-dlp_linux` release as `yt-dlp` and install Deno on the graphical session's PATH, for example in `/usr/local/bin`. Ubuntu's mpv package can pull in the archive copy of yt-dlp. Run `command -v yt-dlp` from the desktop session to check that PATH resolves the upstream standalone binary first. Verify standalone binaries against upstream release checksums. The standalone yt-dlp release includes the EJS scripts used for YouTube challenges. [yt-dlp releases and checksums](https://github.com/yt-dlp/yt-dlp/releases) · [yt-dlp EJS setup](https://github.com/yt-dlp/yt-dlp/wiki/EJS) · [Deno installation](https://docs.deno.com/runtime/getting_started/installation/)
+Use `sudo apt install /absolute/path/to/Muses-<higher-version>-linux-x64.deb` for an in-place upgrade. Package operations install files under `/usr` and preserve the user's data folder.
 
 ### Verify audio prerequisites
 
-From a checkout, run `python3 scripts/check-media-tools.py` on Ubuntu or `py -3 scripts/check-media-tools.py` on Windows in the desktop user's environment. The optional check starts mpv for its version and verifies that yt-dlp recognizes the installed Deno and local EJS. It uses no media URL, cookies, user yt-dlp configuration or remote challenge components. Pass `--mpv <absolute-path>` to inspect an mpv executable outside PATH. Real media resolution and playback are separate checks.
+From a checkout, run `python3 scripts/check-media-tools.py` on Ubuntu or `py -3 scripts/check-media-tools.py` on Windows. Pass `--media-dir <absolute-path>` to verify the tools from a package, or `--mpv <absolute-path>` to inspect an mpv executable outside PATH. The check starts mpv for its version and verifies local EJS and Deno without resolving a media URL. The package smoke tests can also exercise real playback and resume.
 
 See [release candidate verification](docs/release-verification.md) for automated package checks and the clean desktop acceptance matrix.

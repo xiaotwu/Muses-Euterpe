@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Muses.Core.Library;
+using Muses.Core.Platform;
 
 namespace Muses.Infrastructure.YTDlp;
 
@@ -129,7 +130,8 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
     private Task<(string Stdout, string Stderr)> RunAsync(string[] command, TimeSpan timeout, CancellationToken ct = default)
     {
         var binary = ResolveBinary();
-        var ignoreConfig = Path.IsPathFullyQualified(Environment.GetEnvironmentVariable("MUSES_CACHE_HOME") ?? "") ||
+        var ignoreConfig = binary == MediaToolPaths.FindPackaged("yt-dlp") ||
+                           Path.IsPathFullyQualified(Environment.GetEnvironmentVariable("MUSES_CACHE_HOME") ?? "") ||
                            Path.IsPathFullyQualified(Environment.GetEnvironmentVariable("MUSES_DATA_HOME") ?? "");
         var args = CommandOptions(binary, ignoreConfig);
         args.AddRange(command);
@@ -145,7 +147,7 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
         var name = ExecutableName("deno");
         var deno = !string.IsNullOrWhiteSpace(_javaScriptRuntimePath)
             ? Path.GetFullPath(_javaScriptRuntimePath)
-            : FindExecutable(name, Path.GetDirectoryName(binary));
+            : MediaToolPaths.FindPackaged("deno") ?? FindExecutable(name, Path.GetDirectoryName(binary));
         if (deno is not null)
         {
             if (!File.Exists(deno))
@@ -164,7 +166,7 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
                 throw new YTDlpException("Configured yt-dlp binary not found");
             return _resolvedBinary = Path.GetFullPath(_binaryPath);
         }
-        return _resolvedBinary = FindExecutable(ExecutableName("yt-dlp"))
+        return _resolvedBinary = MediaToolPaths.FindPackaged("yt-dlp") ?? FindExecutable(ExecutableName("yt-dlp"))
             ?? throw new YTDlpException("yt-dlp binary not found");
     }
 

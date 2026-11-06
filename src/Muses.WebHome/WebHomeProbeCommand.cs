@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Muses.Core.Advanced;
+using Muses.Core.Platform;
 
 namespace Muses.WebHome;
 
@@ -87,6 +88,7 @@ public static class WebHomeProbeCommand
 
     private static string? LocateYTDlp()
     {
+        if (MediaToolPaths.FindPackaged("yt-dlp") is { } packaged) return packaged;
         var name = OperatingSystem.IsWindows() ? "yt-dlp.exe" : "yt-dlp";
         var helperDir = new DirectoryInfo(AppContext.BaseDirectory);
         foreach (var dir in new[] { helperDir, helperDir.Parent })

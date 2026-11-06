@@ -35,8 +35,11 @@ dotnet publish "$repo/src/Muses.WebHome.Helper/Muses.WebHome.Helper.csproj" --co
 rm -rf -- "$app/Helpers"
 rm -f -- "$app/yt-dlp" "$app/yt-dlp.exe" "$app/mpv.exe" "$app/d3dcompiler_43.dll"
 mv -- "$work/helper" "$app/Helpers"
+python3 "$repo/scripts/stage-media-tools.py" linux-x64 "$app/MediaTools"
 test -x "$app/Muses"
 test -x "$app/Helpers/MusesWebHomeHelper"
+test -x "$app/MediaTools/yt-dlp"
+test -x "$app/MediaTools/deno"
 
 install -d -m 0755 "$package/DEBIAN" "$package/usr/bin"
 ln -s ../lib/muses/Muses "$package/usr/bin/muses"
@@ -59,7 +62,7 @@ Recommends: libwebkit2gtk-4.1-0
 Homepage: https://github.com/xiaotwu/Muses-Euterpe
 Description: Desktop music library and player for YouTube
  Muses organizes and plays your YouTube music library.
- YouTube playback uses an external yt-dlp and JavaScript runtime.
+ Includes the YouTube audio resolver and its JavaScript runtime.
 EOF
 
 asset="$output/Muses-$version-linux-x64.deb"

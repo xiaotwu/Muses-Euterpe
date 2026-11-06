@@ -192,6 +192,9 @@ public partial class ShellViewModel
         "Merge songs and playlists from a Muses for Mac SQLite backup (.sqlite). Quit Muses on your Mac before copying ~/.muses/data/muses-youtube-native.sqlite.",
         "将 Mac 版 Muses 的 SQLite 备份（.sqlite）中的歌曲和歌单合并到本机曲库。复制 ~/.muses/data/muses-youtube-native.sqlite 前，请先退出 Mac 上的 Muses。");
     public string SettingsChooseMacBackupLabel => L10n.Tr("Choose Backup…", "选择备份…");
+    public string SettingsDataFolderLabel => L10n.Tr("App Data Folder", "应用数据文件夹");
+    public string SettingsOpenDataFolderLabel => L10n.Tr("Open Data Folder", "打开数据文件夹");
+    public string SettingsDataFolderPath { get; init; } = LocalDataMaintenance.AppDataRoot();
     public string SettingsClearCacheLabel => L10n.Tr("Clear Cache", "清除缓存");
     public string SettingsClearCacheBody => L10n.Tr(
         "Clears cached artwork, Home content, and media resolver files. Playlists and history stay.",
@@ -547,6 +550,8 @@ public partial class ShellViewModel
         OnPropertyChanged(nameof(SettingsImportMacLibraryLabel));
         OnPropertyChanged(nameof(SettingsImportMacLibraryBody));
         OnPropertyChanged(nameof(SettingsChooseMacBackupLabel));
+        OnPropertyChanged(nameof(SettingsDataFolderLabel));
+        OnPropertyChanged(nameof(SettingsOpenDataFolderLabel));
         OnPropertyChanged(nameof(SettingsClearCacheLabel));
         OnPropertyChanged(nameof(SettingsClearCacheBody));
         OnPropertyChanged(nameof(SettingsResetDataLabel));

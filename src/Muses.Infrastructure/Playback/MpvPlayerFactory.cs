@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Muses.Core.Platform;
 using Muses.Infrastructure.YTDlp;
 
 namespace Muses.Infrastructure.Playback;
@@ -23,7 +24,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         ResolvedAudioStream stream, int initialVolume0to100, CancellationToken cancellationToken)
     {
         var binary = FindBinary()
-            ?? throw new FileNotFoundException("mpv binary was not found on PATH or under resources/.");
+            ?? throw new FileNotFoundException("mpv could not be found.");
 
         var volume = Math.Clamp(initialVolume0to100, 0, 100);
         var windows = OperatingSystem.IsWindows();
@@ -44,13 +45,15 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         {
             FileName = binary,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden
         };
         foreach (var a in new[]
                  {
                      "--no-config",
                      "--no-ytdl",
                      "--no-video",
+                     "--force-window=no",
                      "--no-terminal",
                      "--really-quiet",
                      "--idle=yes",
@@ -99,6 +102,11 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
 
     public static string? LocateMpvBinary()
     {
+        if (MediaToolPaths.FindPackaged("mpv") is { } packaged) return packaged;
+        if (OperatingSystem.IsLinux() && MediaToolPaths.FindPackaged("yt-dlp") is not null &&
+            File.Exists("/usr/bin/mpv"))
+            return "/usr/bin/mpv";
+
         var exe = OperatingSystem.IsWindows() ? "mpv.exe" : "mpv";
         if (FindOnPath(exe) is { } fromPath) return fromPath;
 

@@ -60,6 +60,13 @@
           <TextBlock Text="{Binding MacLibraryImportStatus}" FontSize="12" Foreground="{DynamicResource MusesAccentBrush}"
                      TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"
                      IsVisible="{Binding MacLibraryImportStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Text="{Binding SettingsDataFolderLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MusesTextPrimaryBrush}" Margin="0,8,0,0" />
+          <SelectableTextBlock Text="{Binding SettingsDataFolderPath}" FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
+          <Button Classes="actionBtn" Click="OnOpenDataFolder" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding SettingsOpenDataFolderLabel}" />
+          </Button>
+          <TextBlock x:Name="OpenDataFolderStatus" FontSize="12" Foreground="{DynamicResource MusesAccentBrush}"
+                     TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" IsVisible="False" />
           <TextBlock Text="{Binding SettingsClearCacheLabel}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource MusesTextPrimaryBrush}" Margin="0,8,0,0" />
           <TextBlock Text="{Binding SettingsClearCacheBody}" FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
           <Button Classes="actionBtn" Command="{Binding ClearCacheCommand}" HorizontalAlignment="Left">

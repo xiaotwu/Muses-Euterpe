@@ -27,6 +27,85 @@ public class SqliteStoreTests
     }
 
     [Fact]
+    public void Linux_path_migration_copies_committed_wal_and_keeps_the_existing_destination()
+    {
+        var profile = Directory.CreateTempSubdirectory("muses-data-migration-");
+        try
+        {
+            var paths = SqliteStore.LinuxDatabasePaths(profile.FullName, null, null);
+            Directory.CreateDirectory(Path.GetDirectoryName(paths[1])!);
+            using var legacy = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = paths[1],
+                Pooling = false
+            }.ToString());
+            legacy.Open();
+            MusesSchema.Ensure(legacy);
+            using var command = legacy.CreateCommand();
+            command.CommandText = """
+                PRAGMA wal_autocheckpoint = 0;
+                PRAGMA wal_checkpoint(TRUNCATE);
+                INSERT INTO preferences (key, value_kind, value_text) VALUES ('wal-only', 'string', 'preserved');
+                """;
+            command.ExecuteNonQuery();
+            Assert.True(new FileInfo(paths[1] + "-wal").Length > 0);
+
+            Assert.Equal(paths[0], SqliteStore.SelectDatabasePath(paths));
+            Assert.True(File.Exists(paths[1]));
+            using var migrated = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = paths[0],
+                Mode = SqliteOpenMode.ReadWrite,
+                Pooling = false
+            }.ToString());
+            migrated.Open();
+            using var check = migrated.CreateCommand();
+            check.CommandText = "SELECT value_text FROM preferences WHERE key = 'wal-only';";
+            Assert.Equal("preserved", check.ExecuteScalar());
+
+            command.CommandText = "UPDATE preferences SET value_text = 'legacy' WHERE key = 'wal-only';";
+            command.ExecuteNonQuery();
+            Assert.Equal(paths[0], SqliteStore.SelectDatabasePath(paths));
+            Assert.Equal("preserved", check.ExecuteScalar());
+            Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(paths[0])!, ".muses-library-*"));
+        }
+        finally
+        {
+            profile.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Linux_path_migration_uses_legacy_until_destination_is_available()
+    {
+        var profile = Directory.CreateTempSubdirectory("muses-data-migration-");
+        try
+        {
+            var paths = SqliteStore.LinuxDatabasePaths(profile.FullName, null, null);
+            var destinationDirectory = Path.GetDirectoryName(paths[0])!;
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationDirectory)!);
+            File.WriteAllText(destinationDirectory, "directory unavailable");
+            using (var store = SqliteStore.Open(paths[1]))
+            {
+                Assert.False(store.UsedInMemoryFallback, store.FailureDescription);
+                Assert.Equal(paths[1], store.DatabasePath);
+            }
+
+            Assert.Equal(paths[1], SqliteStore.SelectDatabasePath(paths));
+            Assert.False(File.Exists(paths[0]));
+
+            File.Delete(destinationDirectory);
+            Assert.Equal(paths[0], SqliteStore.SelectDatabasePath(paths));
+            Assert.True(File.Exists(paths[0]));
+            Assert.True(File.Exists(paths[1]));
+        }
+        finally
+        {
+            profile.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void Persist_then_restore_preserves_queue_state()
     {
         using var store = SqliteStore.Open(inMemory: true);

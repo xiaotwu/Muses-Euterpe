@@ -23,7 +23,7 @@ The Ubuntu 24.04 package run used Xvfb. The IFrame and Linux desktop integration
 
 Run the Release build and tests with an artifacts directory outside the checkout. Use absolute `MUSES_DATA_HOME` and `MUSES_CACHE_HOME` paths in a separate temporary directory for local app runs. The .NET suite checks the MSIX identity and artwork references, release asset selection for each platform and architecture, and SQLite and queue behavior.
 
-The [CI workflow](../.github/workflows/ci.yml) builds on Ubuntu 24.04 x64 and Windows Server 2025 x64. It checks the unsigned MSIX and uploads the two candidate packages as workflow artifacts. The Ubuntu job uses Xvfb to exercise fresh installation, launch, upgrade and removal. Its `0.1.0` baseline and `0.1.1` candidate come from the same source revision. The upgrade fixture reproduces the pre-port library and queue column layout from `6fabd52` in the previous XDG config location.
+The [CI workflow](../.github/workflows/ci.yml) builds on Ubuntu 24.04 x64 and Windows Server 2025 x64. It runs an offline check of the installed media tools and uploads both packages as workflow artifacts. The Ubuntu job uses Xvfb to exercise fresh installation, launch, upgrade and removal. Its baseline and candidate come from the same source revision. The upgrade fixture reproduces the pre-port library and queue column layout from `6fabd52` in the previous XDG config location.
 
 ### Windows package smoke test
 
@@ -38,6 +38,8 @@ powershell.exe -NoProfile -File scripts/test-msix.ps1 `
 Omit `-PreviousPackage` to check only fresh install, launch and removal. The script sets temporary data and cache roots and leaves signing trust to the test machine setup. CI's unsigned Windows artifact is for packaging checks. Run the signed lifecycle check on the Windows 11 desktop.
 
 For the historical default Roaming AppData path, add `-HistoricalRoaming` and use a signed pre-port build for `-PreviousPackage`. The script requires a profile without an existing Muses installation, data, or account entries. It seeds the pre-port schema, launches without a data-path override, verifies writes to the original database on both versions and after a cold restart, and removes its fixture.
+
+Add `-MediaSmokeVideoId <public-YouTube-video-ID>` to exercise first playback, seek, saved position and paused restoration using the actual installed package. The smoke launches with a process-local system PATH and clears media tool overrides. Use a public video longer than 20 seconds and an available audio output.
 
 ### Ubuntu package smoke test
 
@@ -54,7 +56,7 @@ xvfb-run -a dbus-run-session -- bash scripts/test-deb.sh \
   "$package_dir/Muses-0.1.0-linux-x64.deb"
 ```
 
-Omit the second package to check fresh install, launch and removal from the normal XDG data location. With an older package, the test creates the legacy XDG config database, launches both versions without Muses path overrides, and checks that the upgraded app uses that database in place. Both checks use temporary XDG directories and a private D-Bus session. Use an Ubuntu desktop session under XWayland for the separate compositor and desktop integration checks.
+Omit the second package to check fresh install, launch and removal from the normal XDG data location. With an older package, the test creates the legacy XDG config database and verifies that the upgraded app writes the migrated library in the XDG data folder while the old database stays intact. Both checks use temporary XDG directories and a private D-Bus session. Set `MUSES_SMOKE_VIDEO_ID` to a public YouTube video ID to exercise live first playback and resume with the package media tools. Use an available audio output for the live check and a separate desktop session under XWayland for compositor and desktop integration checks.
 
 The Windows isolated-path check requires a previous build that supports the `MUSES_DATA_HOME` and `MUSES_CACHE_HOME` overrides. The historical Roaming AppData mode supports the pre-port baseline.
 

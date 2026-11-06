@@ -15,20 +15,18 @@ public sealed partial class SqliteStore : IDisposable, IQueueStore, ITrackReposi
     private readonly SqliteConnection _connection;
     public bool UsedInMemoryFallback { get; }
     public string? FailureDescription { get; }
+    public string? DatabasePath { get; }
 
-    private SqliteStore(SqliteConnection connection, bool usedInMemoryFallback, string? failureDescription)
+    private SqliteStore(SqliteConnection connection, bool usedInMemoryFallback, string? failureDescription, string? databasePath = null)
     {
         _connection = connection;
         UsedInMemoryFallback = usedInMemoryFallback;
         FailureDescription = failureDescription;
+        DatabasePath = databasePath;
         MusesSchema.Ensure(_connection);
     }
 
-    public static string DefaultPath()
-    {
-        var paths = DefaultPaths();
-        return paths.FirstOrDefault(File.Exists) ?? paths[0];
-    }
+    public static string DefaultPath() => DefaultPaths()[0];
 
     /// <summary>
     /// The preferred database path followed by legacy paths that can still be opened.
@@ -59,7 +57,6 @@ public sealed partial class SqliteStore : IDisposable, IQueueStore, ITrackReposi
         var configRoot = Path.IsPathFullyQualified(configHome ?? "") ? configHome! : defaultConfig;
 
         // Older Euterpe Linux builds used .NET's ApplicationData (XDG_CONFIG_HOME).
-        // Open their database in place, including its existing SQLite sidecars.
         return new[] { dataRoot, configRoot, defaultConfig }
             .Select(root => Path.Combine(root, "Muses", DatabaseFileName))
             .Distinct(StringComparer.Ordinal)
@@ -71,18 +68,20 @@ public sealed partial class SqliteStore : IDisposable, IQueueStore, ITrackReposi
         if (inMemory)
             return new SqliteStore(OpenMemory(), false, null);
 
-        var destination = path ?? DefaultPath();
+        var destination = path ?? SelectDatabasePath(DefaultPaths());
         SqliteConnection? conn = null;
         try
         {
+            destination = Path.GetFullPath(destination);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             conn = new SqliteConnection(new SqliteConnectionStringBuilder
             {
                 DataSource = destination,
-                Mode = SqliteOpenMode.ReadWriteCreate
+                Mode = SqliteOpenMode.ReadWriteCreate,
+                Pooling = false
             }.ToString());
             conn.Open();
-            return new SqliteStore(conn, false, null);
+            return new SqliteStore(conn, false, null, destination);
         }
         catch (Exception ex)
         {

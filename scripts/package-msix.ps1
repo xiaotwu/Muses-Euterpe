@@ -8,6 +8,7 @@ param(
     [string]$Runtime = "win-x64",
     [string]$OutputDir = (Join-Path (Split-Path -Parent $PSScriptRoot) "artifacts\msix"),
     [string]$SdkToolsDir,
+    [string]$PythonExecutable = "python",
     [ValidatePattern('^[0-9A-Fa-f]{40}$')]
     [string]$CertificateThumbprint
 )
@@ -90,11 +91,21 @@ try {
         }
     }
 
-    # Checkout-local media binaries are for source runs. Installed builds resolve tools on PATH.
+    # Remove checkout-local binaries before staging the pinned media tools.
     foreach ($file in @("yt-dlp", "yt-dlp.exe", "mpv.exe", "d3dcompiler_43.dll")) {
         $mediaPath = Join-Path $publishDir $file
         if (Test-Path -LiteralPath $mediaPath) { Remove-Item -LiteralPath $mediaPath -Force }
     }
+    $mediaDir = Join-Path $publishDir "MediaTools"
+    & $PythonExecutable (Join-Path $PSScriptRoot "stage-media-tools.py") $Runtime $mediaDir | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Media tools staging failed (exit $LASTEXITCODE)." }
+    foreach ($file in @("mpv.exe", "yt-dlp.exe", "deno.exe")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $mediaDir $file) -PathType Leaf)) {
+            throw "Missing $file in the MSIX media payload."
+        }
+    }
+    & $PythonExecutable (Join-Path $PSScriptRoot "check-media-tools.py") --media-dir $mediaDir | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Packaged media tools check failed (exit $LASTEXITCODE)." }
 
     $manifest.Save((Join-Path $publishDir "AppxManifest.xml"))
     $assetsParent = Join-Path $publishDir "Assets"

@@ -44,13 +44,22 @@ def checked_version(command):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mpv", type=Path, help="Absolute mpv path when it is outside PATH.")
+    parser.add_argument("--media-dir", type=Path, help="Use the exact yt-dlp and Deno from this package directory.")
     args = parser.parse_args()
     try:
-        mpv = executable("mpv") if args.mpv is None else str(args.mpv)
-        if args.mpv is not None and (not args.mpv.is_absolute() or not args.mpv.is_file()):
+        media_dir = args.media_dir.resolve() if args.media_dir is not None else None
+        mpv_path = args.mpv
+        if mpv_path is None and media_dir is not None and os.name == "nt":
+            mpv_path = media_dir / "mpv.exe"
+        if mpv_path is not None and (not mpv_path.is_absolute() or not mpv_path.is_file()):
             raise RuntimeError("--mpv must be the absolute path of an executable.")
-        yt_dlp = executable("yt-dlp", "MUSES_YTDLP_PATH")
-        deno = executable("deno", "MUSES_DENO_PATH", beside=yt_dlp)
+        mpv = str(mpv_path) if mpv_path is not None else executable("mpv")
+        if media_dir is None:
+            yt_dlp = executable("yt-dlp", "MUSES_YTDLP_PATH")
+            deno = executable("deno", "MUSES_DENO_PATH", beside=yt_dlp)
+        else:
+            suffix = ".exe" if os.name == "nt" else ""
+            yt_dlp, deno = (str(media_dir / (name + suffix)) for name in ("yt-dlp", "deno"))
         mpv_version = checked_version([mpv, "--no-config", "--version"]).split(maxsplit=2)[:2]
 
         with tempfile.TemporaryDirectory(prefix="muses-media-check-") as cache:

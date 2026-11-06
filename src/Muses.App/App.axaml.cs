@@ -44,8 +44,7 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var libraryPath = SqliteStore.DefaultPath();
-            _store = SqliteStore.Open(libraryPath);
+            _store = SqliteStore.Open();
             var preferences = new SqlitePreferences(_store);
             ApplyTheme(preferences);
             ApplyLanguage(preferences);
@@ -133,7 +132,8 @@ public partial class App : Application
 
             var shell = new ShellViewModel
             {
-                PolyhymniaLibraryImporter = _store.UsedInMemoryFallback ? null : new PolyhymniaLibraryImporter(libraryPath),
+                SettingsDataFolderPath = Path.GetDirectoryName(_store.DatabasePath) ?? LocalDataMaintenance.AppDataRoot(),
+                PolyhymniaLibraryImporter = _store.DatabasePath is { } libraryPath ? new PolyhymniaLibraryImporter(libraryPath) : null,
                 Podcasts = new PodcastsViewModel(_store, new YouTubePodcastCatalog(), library, playback, podcastProgress)
             };
             shell.Attach(
@@ -144,12 +144,16 @@ public partial class App : Application
             shell.RequestAppExit += Quit;
 
             var main = new MainWindow { DataContext = shell };
+            var packagePlaybackSmoke = PackagePlaybackSmoke.Parse(desktop.Args);
             desktop.MainWindow = main;
             main.Opened += RestorePlaybackOnOpen;
             async void RestorePlaybackOnOpen(object? sender, EventArgs e)
             {
                 main.Opened -= RestorePlaybackOnOpen;
-                await playback.RestoreCurrentPausedAsync();
+                if (packagePlaybackSmoke is not null)
+                    desktop.Shutdown(await packagePlaybackSmoke.RunAsync(playback, library));
+                else
+                    await playback.RestoreCurrentPausedAsync();
             }
 
             var checkpointTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };

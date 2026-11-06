@@ -111,6 +111,24 @@ public partial class SettingsView : UserControl
         return file.TryGetLocalPath() ?? throw new IOException("The selected file has no local path.");
     }
 
+    private async void OnOpenDataFolder(object? sender, RoutedEventArgs e)
+    {
+        OpenDataFolderStatus.IsVisible = false;
+        try
+        {
+            if (_vm is { } vm && TopLevel.GetTopLevel(this)?.Launcher is { } launcher
+                && await launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(vm.SettingsDataFolderPath)))
+                return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // Some desktop sessions do not have a folder launcher.
+        }
+
+        OpenDataFolderStatus.Text = L10n.Tr("Could not open the app data folder.", "无法打开应用数据文件夹。");
+        OpenDataFolderStatus.IsVisible = true;
+    }
+
     private void OnOpenMiniPlayer(object? sender, RoutedEventArgs e)
     {
         if (_vm is not null)

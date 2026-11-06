@@ -11,10 +11,9 @@ public sealed class ArtworkCache
     {
         _directory = directory ?? DefaultDirectory();
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        Directory.CreateDirectory(_directory);
     }
 
-    public static string DefaultDirectory() => Path.Combine(LocalDataMaintenance.ArtworkCacheRoot(), "artwork");
+    public static string DefaultDirectory() => Path.Combine(LocalDataMaintenance.LocalCacheRoot(), "artwork");
 
     public string? GetPathForUrl(string url)
     {
@@ -51,6 +50,7 @@ public sealed class ArtworkCache
                 {
                     try
                     {
+                        Directory.CreateDirectory(_directory);
                         await File.WriteAllBytesAsync(filePath, data).ConfigureAwait(false);
                     }
                     catch

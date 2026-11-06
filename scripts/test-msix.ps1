@@ -4,6 +4,8 @@ param(
     [string]$Package,
     [string]$PreviousPackage,
     [string]$PythonExecutable = 'python.exe',
+    [ValidatePattern('^[A-Za-z0-9_-]{11}$')]
+    [string]$MediaSmokeVideoId,
     [switch]$HistoricalRoaming
 )
 
@@ -23,7 +25,7 @@ $publisher = 'CN=xiaotwu'
 $appId = 'App'
 $appExecutable = 'Muses.exe'
 
-function Read-TestPackage([string]$PackagePath) {
+function Read-TestPackage([string]$PackagePath, [switch]$RequireMedia) {
     $resolvedPath = (Resolve-Path -LiteralPath $PackagePath).ProviderPath
     if ([IO.Path]::GetExtension($resolvedPath) -ne '.msix') { throw "Expected an MSIX file: $resolvedPath" }
     $zip = [IO.Compression.ZipFile]::OpenRead($resolvedPath)
@@ -39,13 +41,20 @@ function Read-TestPackage([string]$PackagePath) {
             $application.Executable -cne $appExecutable) {
             throw "Unexpected Muses package identity or application in $resolvedPath"
         }
+        if ($RequireMedia) {
+            foreach ($file in @('mpv.exe', 'yt-dlp.exe', 'deno.exe')) {
+                if (-not $zip.GetEntry("MediaTools/$file")) {
+                    throw "Missing packaged media tool $file in $resolvedPath."
+                }
+            }
+        }
         return [pscustomobject]@{ Path = $resolvedPath; Version = [version]$identity.Version }
     } finally {
         $zip.Dispose()
     }
 }
 
-$candidate = Read-TestPackage $Package
+$candidate = Read-TestPackage $Package -RequireMedia:([bool]$MediaSmokeVideoId)
 $first = $candidate
 if ($PreviousPackage) {
     $first = Read-TestPackage $PreviousPackage
@@ -64,8 +73,10 @@ $tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
 $workDir = Join-Path $tempRoot "muses-msix-test-$([Guid]::NewGuid().ToString('N'))"
 $dataDir = Join-Path $workDir 'data'
 $cacheDir = Join-Path $workDir 'cache'
+$playbackDataDir = Join-Path $workDir 'playback-data'
 $pidFile = Join-Path $workDir 'app.pid'
 $launchError = Join-Path $workDir 'launch-error.txt'
+$exitFile = Join-Path $workDir 'app-exit.txt'
 $installStarted = $false
 $profileRoots = [Collections.Generic.List[string]]::new()
 $fixtureOwner = [Guid]::NewGuid().ToString('N')
@@ -148,13 +159,13 @@ function Install-TestPackage($Release) {
     return $installed
 }
 
-function Invoke-InstalledApp($Installed) {
+function Invoke-InstalledApp($Installed, [string]$PlaybackMode = '') {
     $executable = Join-Path $Installed.InstallLocation $appExecutable
-    foreach ($file in @($pidFile, $launchError)) {
+    foreach ($file in @($pidFile, $launchError, $exitFile, "$exitFile.tmp")) {
         if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
     }
 
-    # Start inside the registered package context with per-process data and cache roots.
+    # Start inside the registered package context with isolated playback data and no developer PATH.
     $launcher = @'
 $ErrorActionPreference = 'Stop'
 try {
@@ -162,14 +173,34 @@ try {
     $start.FileName = '<executable>'
     $start.WorkingDirectory = '<workdir>'
     $start.UseShellExecute = $false
+    $start.Arguments = '<arguments>'
     if ('<historical>' -eq 'True') {
         $start.EnvironmentVariables.Remove('MUSES_DATA_HOME')
     } else {
         $start.EnvironmentVariables['MUSES_DATA_HOME'] = '<data>'
     }
-    $start.EnvironmentVariables['MUSES_CACHE_HOME'] = '<cache>'
+    if ('<historical>' -eq 'True' -or '<playback-mode>') {
+        $start.EnvironmentVariables.Remove('MUSES_CACHE_HOME')
+    } else {
+        $start.EnvironmentVariables['MUSES_CACHE_HOME'] = '<cache>'
+    }
+    if ('<isolated-media>' -eq 'True') {
+        $start.EnvironmentVariables['PATH'] = "$env:SystemRoot\System32;$env:SystemRoot"
+        foreach ($name in @('MUSES_MPV_PATH', 'MUSES_YTDLP_PATH', 'MUSES_DENO_PATH')) {
+            $start.EnvironmentVariables.Remove($name)
+        }
+    }
     $process = [Diagnostics.Process]::Start($start)
-    [IO.File]::WriteAllText('<pid>', [string]$process.Id)
+    try {
+        [IO.File]::WriteAllText('<pid>', [string]$process.Id)
+        if ('<playback-mode>') {
+            $process.WaitForExit()
+            [IO.File]::WriteAllText('<exit>.tmp', [string]$process.ExitCode)
+            [IO.File]::Move('<exit>.tmp', '<exit>')
+        }
+    } finally {
+        $process.Dispose()
+    }
 } catch {
     [IO.File]::WriteAllText('<error>', $_.Exception.ToString())
     exit 1
@@ -178,11 +209,15 @@ try {
     $values = @{
         '<executable>' = $executable
         '<workdir>' = $workDir
-        '<data>' = $dataDir
-        '<historical>' = [string][bool]$HistoricalRoaming
+        '<data>' = $(if ($PlaybackMode) { $playbackDataDir } else { $dataDir })
+        '<historical>' = [string]([bool]$HistoricalRoaming -and -not $PlaybackMode)
         '<cache>' = $cacheDir
+        '<arguments>' = $(if ($PlaybackMode) { "--verify-package-playback $PlaybackMode $MediaSmokeVideoId" } else { '' })
+        '<playback-mode>' = $PlaybackMode
+        '<isolated-media>' = [string][bool]$MediaSmokeVideoId
         '<pid>' = $pidFile
         '<error>' = $launchError
+        '<exit>' = $exitFile
     }
     foreach ($entry in $values.GetEnumerator()) {
         $launcher = $launcher.Replace($entry.Key, $entry.Value.Replace("'", "''"))
@@ -193,15 +228,33 @@ try {
         -Command $command -Args "-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand $encoded" `
         -PreventBreakaway | Out-Null
 
-    $deadline = [DateTime]::UtcNow.AddSeconds(45)
+    $deadline = [DateTime]::UtcNow.AddSeconds($(if ($PlaybackMode) { 75 } else { 45 }))
     $app = $null
     try {
         while ([DateTime]::UtcNow -lt $deadline) {
             if (Test-Path -LiteralPath $launchError) { throw (Get-Content -LiteralPath $launchError -Raw) }
+            if ($PlaybackMode -and (Test-Path -LiteralPath $exitFile)) {
+                $exitCode = Get-Content -LiteralPath $exitFile -Raw
+                $report = Join-Path $playbackDataDir "playback-smoke-$PlaybackMode.json"
+                if (Test-Path -LiteralPath $report -PathType Leaf) {
+                    Write-Host (Get-Content -LiteralPath $report -Raw)
+                } else {
+                    throw "Packaged playback $PlaybackMode produced no report (exit $exitCode)."
+                }
+                if ($exitCode -ne '0') { throw "Packaged playback $PlaybackMode failed (exit $exitCode)." }
+                return
+            }
             if (-not $app -and (Test-Path -LiteralPath $pidFile)) {
                 $appPid = 0
                 if ([int]::TryParse((Get-Content -LiteralPath $pidFile -Raw), [ref]$appPid)) {
-                    $app = [Diagnostics.Process]::GetProcessById($appPid)
+                    try {
+                        $app = [Diagnostics.Process]::GetProcessById($appPid)
+                    } catch [ArgumentException] {
+                        if (-not $PlaybackMode) { throw }
+                        # The launcher still records the exit code when the process finishes before polling.
+                        Start-Sleep -Milliseconds 250
+                        continue
+                    }
                     if ($app.ProcessName -ne 'Muses') {
                         $app.Dispose()
                         $app = $null
@@ -211,7 +264,7 @@ try {
                     $null = $app.Handle
                 }
             }
-            if ($app) {
+            if ($app -and -not $PlaybackMode) {
                 $app.Refresh()
                 if ($app.HasExited) { throw "Muses exited before opening its window (code $($app.ExitCode))." }
                 if ($app.MainWindowHandle -ne [IntPtr]::Zero -and $app.MainWindowTitle -eq 'Muses') {
@@ -225,6 +278,7 @@ try {
             }
             Start-Sleep -Milliseconds 250
         }
+        if ($PlaybackMode) { throw "Packaged playback $PlaybackMode did not exit within 75 seconds." }
         throw 'No visible Muses window appeared within 45 seconds.'
     } finally {
         if ($app) {
@@ -275,6 +329,12 @@ try {
         $verifyAction = 'verify-historical-roaming'
     }
     Invoke-Fixture $verifyAction
+
+    if ($MediaSmokeVideoId) {
+        Invoke-InstalledApp $installed 'start'
+        Invoke-InstalledApp $installed 'resume'
+        Write-Host 'Verified packaged first playback and relaunch resume with a system-only PATH.'
+    }
 
     Remove-AppxPackage -Package $installed.PackageFullName
     if (Get-AppxPackage -Name $packageName) { throw 'Muses remains registered after uninstall.' }

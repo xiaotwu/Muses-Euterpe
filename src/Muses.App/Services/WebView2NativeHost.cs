@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Platform;
 using Microsoft.Web.WebView2.Core;
 using Muses.Core.YouTube;
+using Muses.Infrastructure;
 
 namespace Muses.App.Services;
 
@@ -108,7 +109,8 @@ public sealed class WebView2NativeHost : NativeControlHost
     {
         try
         {
-            var env = await CoreWebView2Environment.CreateAsync().ConfigureAwait(true);
+            var userDataFolder = Path.Combine(LocalDataMaintenance.LocalCacheRoot(), "webview2");
+            var env = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataFolder).ConfigureAwait(true);
             if (_destroying || _hwnd == IntPtr.Zero) return;
 
             var controller = await env.CreateCoreWebView2ControllerAsync(_hwnd).ConfigureAwait(true);

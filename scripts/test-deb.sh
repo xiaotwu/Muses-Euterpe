@@ -20,6 +20,10 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 package_name=muses
 launcher=/usr/bin/muses
 desktop_file=/usr/share/applications/muses.desktop
+media_tools=/usr/lib/muses/MediaTools
+database=muses-youtube-native.sqlite
+video_id=${MUSES_SMOKE_VIDEO_ID:-}
+[[ -z $video_id || $video_id =~ ^[A-Za-z0-9_-]{11}$ ]] || fail "MUSES_SMOKE_VIDEO_ID must be a public YouTube video ID."
 
 validate_package() {
     local package=$1
@@ -68,22 +72,20 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 # Keep the normal .NET/XDG path selection active inside an isolated home.
-unset MUSES_DATA_HOME MUSES_CACHE_HOME
+unset MUSES_DATA_HOME MUSES_CACHE_HOME MUSES_YTDLP_PATH MUSES_DENO_PATH
 export HOME="$work_dir/home"
 export XDG_CONFIG_HOME="$HOME/.config"
 export XDG_DATA_HOME="$HOME/.local/share"
 export XDG_CACHE_HOME="$HOME/.cache"
 export XDG_RUNTIME_DIR="$work_dir/runtime"
+export TMPDIR="$work_dir/tmp"
 mkdir -p -- "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME"
-mkdir -m 0700 -- "$XDG_RUNTIME_DIR"
+mkdir -m 0700 -- "$XDG_RUNTIME_DIR" "$TMPDIR"
 preferred_data="$XDG_DATA_HOME/Muses"
-fixture_data=$preferred_data
-if (( $# == 2 )); then
-    fixture_data="$XDG_CONFIG_HOME/Muses"
-fi
+legacy_data="$XDG_CONFIG_HOME/Muses"
 
 fixture() {
-    "$python" "$script_dir/package-smoke.py" "$1" "$fixture_data"
+    "$python" "$script_dir/package-smoke.py" "$1" "${2:-$preferred_data}"
 }
 
 install_package() {
@@ -106,23 +108,56 @@ launch_and_close() {
     (( result == 0 )) || fail "Muses exited with code $result."
 }
 
+verify_installed_tools() {
+    [[ -x $media_tools/yt-dlp && -x $media_tools/deno && -x /usr/bin/mpv ]] ||
+        fail "The candidate is missing a required media executable."
+    PATH=/usr/bin:/bin MUSES_YTDLP_PATH="$media_tools/yt-dlp" MUSES_DENO_PATH="$media_tools/deno" \
+        "$python" "$script_dir/check-media-tools.py" --mpv /usr/bin/mpv
+}
+
+verify_playback() {
+    [[ -n $video_id ]] || return 0
+    local phase result report
+    for phase in start resume; do
+        result=0
+        PATH=/usr/bin:/bin MUSES_DATA_HOME="$work_dir/playback" MUSES_CACHE_HOME="$work_dir/playback/cache" \
+            timeout --kill-after=5 75 "$launcher" --verify-package-playback "$phase" "$video_id" || result=$?
+        report="$work_dir/playback/playback-smoke-$phase.json"
+        if [[ -f $report ]]; then
+            cat -- "$report"
+        fi
+        (( result == 0 )) && [[ -f $report ]] ||
+            fail "Installed Muses playback check failed during $phase (exit $result)."
+    done
+}
+
 fixture prepare
 install_package "$first" "$first_version"
 launch_and_close
 
 if (( $# == 2 )); then
-    fixture seed-legacy
+    # Materialize an older XDG layout even when CI builds both versions from this checkout.
+    mkdir -p -- "$legacy_data"
+    for file in "$database" "$database-wal" "$database-shm"; do
+        if [[ -f $preferred_data/$file ]]; then
+            mv -- "$preferred_data/$file" "$legacy_data/$file"
+        fi
+    done
+    fixture seed-legacy "$legacy_data"
     install_package "$candidate" "$candidate_version"
-    fixture verify-fixture
+    fixture verify-fixture "$legacy_data"
+    legacy_checksum=$(sha256sum -- "$legacy_data/$database")
 else
     fixture seed
 fi
+verify_installed_tools
 launch_and_close
 fixture verify-restored
 if (( $# == 2 )); then
-    [[ ! -e $preferred_data/muses-youtube-native.sqlite ]] ||
-        fail "The upgraded application opened a new database instead of the legacy one."
+    [[ $(sha256sum -- "$legacy_data/$database") == "$legacy_checksum" ]] ||
+        fail "The upgraded application changed the original legacy database."
 fi
+verify_playback
 
 sudo apt-get purge -y "$package_name"
 if dpkg-query -W "$package_name" >/dev/null 2>&1 || [[ -e $launcher || -e $desktop_file ]]; then

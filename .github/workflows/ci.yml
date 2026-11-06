@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  CANDIDATE_VERSION: "0.1.1"
-  SMOKE_BASELINE_VERSION: "0.1.0"
+  CANDIDATE_VERSION: "0.1.2"
+  SMOKE_BASELINE_VERSION: "0.1.1"
 
 jobs:
   build-test:
@@ -26,6 +26,11 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+      - name: Setup packaging Python
+        if: runner.os == 'Windows'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
       - name: Build
         run: dotnet build Muses.slnx -c Release --artifacts-path "${{ runner.temp }}/muses-build"
       - name: Test
@@ -40,6 +45,8 @@ jobs:
       - name: Build Ubuntu x64 packages
         if: runner.os == 'Linux'
         shell: bash
+        env:
+          MUSES_MEDIA_BUILD_CACHE: ${{ runner.temp }}/muses-media-build
         run: |
           bash scripts/package-deb.sh "$SMOKE_BASELINE_VERSION" "$RUNNER_TEMP/muses-baseline"
           bash scripts/package-deb.sh "$CANDIDATE_VERSION" "$RUNNER_TEMP/muses-candidate"

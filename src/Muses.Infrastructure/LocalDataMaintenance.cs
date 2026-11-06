@@ -1,4 +1,3 @@
-using Muses.Infrastructure.Artwork;
 using Muses.Persistence;
 
 namespace Muses.Infrastructure;
@@ -10,59 +9,47 @@ public static class LocalDataMaintenance
 {
     public static string AppDataRoot() => Path.GetDirectoryName(SqliteStore.DefaultPath())!;
 
-    public static string LocalCacheRoot()
-    {
-        var cacheOverride = CacheRootOverride();
-        if (cacheOverride is not null)
-            return cacheOverride;
+    public static string LocalCacheRoot() => CacheRootOverride ?? Path.Combine(AppDataRoot(), "cache");
 
-        if (OperatingSystem.IsLinux())
-        {
-            var cacheHome = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
-            var rootPath = Path.IsPathFullyQualified(cacheHome ?? "")
-                ? cacheHome!
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache");
-            return Path.Combine(rootPath, "Muses");
-        }
+    private static string? CacheRootOverride => AbsoluteOverride("MUSES_CACHE_HOME");
 
-        return LegacyLocalCacheRoot();
-    }
-
-    internal static string ArtworkCacheRoot() => CacheRootOverride() ??
-        (OperatingSystem.IsLinux() ? LocalCacheRoot() : AppDataRoot());
-
-    private static string? CacheRootOverride()
-    {
-        var cacheHome = Environment.GetEnvironmentVariable("MUSES_CACHE_HOME");
-        return Path.IsPathFullyQualified(cacheHome ?? "") ? cacheHome : null;
-    }
-
-    private static string LegacyLocalCacheRoot()
-    {
-        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(root, "Muses", "Cache");
-    }
+    private static string? AbsoluteOverride(string name) =>
+        Environment.GetEnvironmentVariable(name) is { } path && Path.IsPathFullyQualified(path) ? path : null;
 
     public static int ClearCache()
     {
-        var n = 0;
-        n += DeleteTree(ArtworkCache.DefaultDirectory());
-        var cacheRoot = LocalCacheRoot();
-        n += DeleteTree(Path.Combine(cacheRoot, "home-feed"));
-        n += DeleteTree(Path.Combine(cacheRoot, "yt-dlp"));
-        n += DeleteTree(Path.Combine(cacheRoot, "deno"));
-        foreach (var databasePath in SqliteStore.DefaultPaths())
+        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        return CacheDirectories().Distinct(comparer).Sum(DeleteTree);
+    }
+
+    private static IEnumerable<string> CacheDirectories()
+    {
+        if (CacheRootOverride is { } cache)
         {
-            var dataRoot = Path.GetDirectoryName(databasePath)!;
-            n += DeleteTree(Path.Combine(dataRoot, "cache"));
-            if (OperatingSystem.IsLinux())
-                n += DeleteTree(Path.Combine(dataRoot, "artwork"));
+            foreach (var child in new[] { "artwork", "home-feed", "yt-dlp", "deno", "webview2" })
+                yield return Path.Combine(cache, child);
+            yield break;
         }
 
-        if (OperatingSystem.IsLinux() && CacheRootOverride() is null)
-            n += DeleteTree(Path.Combine(LegacyLocalCacheRoot(), "home-feed"));
+        yield return LocalCacheRoot();
+        if (AbsoluteOverride("MUSES_DATA_HOME") is not null)
+            yield break;
 
-        return n;
+        foreach (var databasePath in SqliteStore.DefaultPaths())
+        {
+            var root = Path.GetDirectoryName(databasePath)!;
+            yield return Path.Combine(root, "artwork");
+            yield return Path.Combine(root, "cache");
+        }
+
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        yield return Path.Combine(localData, "Muses", "Cache");
+        if (OperatingSystem.IsLinux())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var legacyCache = AbsoluteOverride("XDG_CACHE_HOME") ?? Path.Combine(home, ".cache");
+            yield return Path.Combine(legacyCache, "Muses");
+        }
     }
 
     /// <summary>
@@ -72,40 +59,52 @@ public static class LocalDataMaintenance
     public static void ResetDataFiles(string? sqlitePath = null)
     {
         ClearCache();
-        // Clear legacy defaults too so a reset does not reopen the previous database.
-        foreach (var db in sqlitePath is null ? SqliteStore.DefaultPaths() : [sqlitePath])
+        if (sqlitePath is not null)
         {
-            TryDeleteFile(db);
-            TryDeleteFile(db + "-wal");
-            TryDeleteFile(db + "-shm");
+            DeleteDatabase(sqlitePath);
+            return;
         }
+
+        // Remove legacy copies first. If one is locked, retain the active library
+        // so the next launch cannot resurrect that older copy.
+        var paths = SqliteStore.DefaultPaths();
+        foreach (var legacy in paths.Skip(1))
+            if (!DeleteDatabase(legacy))
+                return;
+        DeleteDatabase(paths[0]);
     }
 
     private static int DeleteTree(string path)
     {
         if (!Directory.Exists(path)) return 0;
-        var count = 0;
         try
         {
-            count = Directory.GetFiles(path, "*", SearchOption.AllDirectories).Length;
+            if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                return 0;
+            var count = Directory.EnumerateFiles(path, "*", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                AttributesToSkip = FileAttributes.ReparsePoint
+            }).Count();
             Directory.Delete(path, recursive: true);
+            return count;
         }
-        catch
-        {
-            // Best-effort.
-        }
-        return count;
+        catch (IOException) { return 0; }
+        catch (UnauthorizedAccessException) { return 0; }
     }
 
-    private static void TryDeleteFile(string path)
+    private static bool DeleteDatabase(string path)
     {
         try
         {
-            if (File.Exists(path)) File.Delete(path);
+            File.Delete(path);
+            File.Delete(path + "-wal");
+            File.Delete(path + "-shm");
+            File.Delete(path + "-journal");
+            return true;
         }
-        catch
-        {
-            // Best-effort; file may still be locked.
-        }
+        catch (DirectoryNotFoundException) { return true; }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
     }
 }

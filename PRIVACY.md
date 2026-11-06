@@ -1,6 +1,6 @@
 # Muses desktop privacy
 
-Muses keeps your library, listening history, queue, bookmarks, notes, equalizer presets and preferences in a local SQLite database. The Windows database is under `%APPDATA%\Muses`. Linux uses `$XDG_DATA_HOME/Muses` or `~/.local/share/Muses` and can continue to use an existing database under the previous XDG configuration directory. The database filename is `muses-youtube-native.sqlite`.
+Muses keeps your library, listening history, queue, bookmarks, notes, equalizer presets and preferences in a local SQLite database. The Windows data folder is `%APPDATA%\Muses`. Linux uses `$XDG_DATA_HOME/Muses` or `~/.local/share/Muses`. The data folder contains `muses-youtube-native.sqlite` and a `cache` subdirectory. On Linux, Muses copies an existing library from the previous XDG configuration directory when the new database is absent.
 
 Optional Google sign-in uses Windows Credential Manager or the Linux desktop's Secret Service. Older local credential files can be read for one-way migration. A development run with an explicit data directory uses credentials only for the current session.
 
