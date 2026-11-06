@@ -1396,6 +1396,8 @@ public partial class ShellViewModel : ObservableObject
         UpdateChecker ??= new GitHubUpdateChecker();
 
         IsCheckingForUpdates = true;
+        AvailableUpdateInfo = null;
+        HasAvailableUpdate = false;
         UpdateStatusMessage = L10n.Tr("Checking for updates...", "正在检查更新...");
 
         try
@@ -1410,16 +1412,21 @@ public partial class ShellViewModel : ObservableObject
                     L10n.Tr("Version {0} is available! (Current: {1})", "发现新版本 {0}！（当前版本：{1}）"),
                     info.LatestVersion, info.CurrentVersion);
             }
-            else
+            else if (info.LatestVersion is not null)
             {
                 UpdateStatusMessage = string.Format(
                     L10n.Tr("You're up to date (v{0})", "已是最新版本 (v{0})"),
                     info.CurrentVersion);
             }
+            else
+            {
+                UpdateStatusMessage = L10n.Tr("No compatible release is available for this device.",
+                    "目前没有适用于此设备的版本。");
+            }
         }
-        catch (Exception ex)
+        catch
         {
-            UpdateStatusMessage = string.Format(L10n.Tr("Check failed: {0}", "检查更新失败: {0}"), ex.Message);
+            UpdateStatusMessage = L10n.Tr("Could not check for updates. Try again.", "无法检查更新，请重试。");
         }
         finally
         {
@@ -1430,17 +1437,23 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     public void DownloadUpdate()
     {
-        if (AvailableUpdateInfo != null && !string.IsNullOrWhiteSpace(AvailableUpdateInfo.DownloadUrl))
+        if (AvailableUpdateInfo is not { HasUpdate: true, DownloadUrl: { } url } ||
+            !Uri.TryCreate(url, UriKind.Absolute, out var download) || download.Scheme != Uri.UriSchemeHttps ||
+            download.Host != "github.com" || !download.IsDefaultPort || download.UserInfo.Length != 0)
+            return;
+
+        try
         {
-            try
+            Process.Start(new ProcessStartInfo
             {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = AvailableUpdateInfo.DownloadUrl,
-                    UseShellExecute = true
-                });
-            }
-            catch { }
+                FileName = download.AbsoluteUri,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            UpdateStatusMessage = L10n.Tr("Could not open the update download in your browser.",
+                "无法在浏览器中打开更新下载。");
         }
     }
 }

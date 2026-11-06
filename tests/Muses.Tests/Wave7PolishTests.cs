@@ -1,6 +1,7 @@
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Xml.Linq;
 using Muses.Core.Update;
 using Muses.Infrastructure.Update;
@@ -20,6 +21,7 @@ public class Wave7PolishTests
     [InlineData("1.0.0", "1.0.0-rc1", 1)]
     [InlineData("1.0.0-rc1", "1.0.0", -1)]
     [InlineData("v1.0.1+build123", "1.0.1", 0)]
+    [InlineData("1.0.0-rc.10", "1.0.0-rc.2", 1)]
     public void CompareSemVer_WorksCorrectly(string v1, string v2, int expectedSign)
     {
         var result = GitHubUpdateChecker.CompareSemVer(v1, v2);
@@ -27,155 +29,167 @@ public class Wave7PolishTests
         Assert.Equal(expectedSign, sign);
     }
 
-    [Fact]
-    public async Task CheckForUpdates_FindsNewerReleaseWithMsix()
-    {
-        var jsonResponse = """
-        [
-          {
-            "tag_name": "v0.2.0",
-            "name": "Muses 0.2.0: Equalizer & Focus Mode",
-            "body": "### New Features\n- 32-band EQ\n- Audio Nerd overlay",
-            "draft": false,
-            "prerelease": false,
-            "published_at": "2026-09-01T12:00:00Z",
-            "html_url": "https://github.com/xiaotwu/Muses-Euterpe/releases/tag/v0.2.0",
-            "assets": [
-              {
-                "name": "Muses-0.2.0-x64.msix",
-                "browser_download_url": "https://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-x64.msix"
-              }
-            ]
-          }
-        ]
-        """;
-
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jsonResponse);
-        using var client = new HttpClient(handler);
-
-        var checker = new GitHubUpdateChecker(OSPlatform.Windows, Architecture.X64, client, currentVersion: "0.1.0");
-        var update = await checker.CheckForUpdatesAsync();
-
-        Assert.True(update.HasUpdate);
-        Assert.Equal("0.1.0", update.CurrentVersion);
-        Assert.Equal("0.2.0", update.LatestVersion);
-        Assert.Equal("Muses 0.2.0: Equalizer & Focus Mode", update.ReleaseTitle);
-        Assert.Contains("32-band EQ", update.ReleaseNotes);
-        Assert.Equal("https://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-x64.msix", update.DownloadUrl);
-    }
-
     [Theory]
     [InlineData("linux", Architecture.X64, "Muses-0.2.0-linux-x64.deb")]
-    [InlineData("linux", Architecture.Arm64, "linux-aarch64.AppImage")]
     [InlineData("windows", Architecture.X64, "Muses-0.2.0-win-x64.msix")]
-    [InlineData("windows", Architecture.Arm64, "win-arm64.msix")]
+    [InlineData("linux", Architecture.Arm64, null)]
+    [InlineData("windows", Architecture.Arm64, null)]
     [InlineData("windows", Architecture.X86, null)]
     [InlineData("linux", Architecture.X86, null)]
+    [InlineData("osx", Architecture.X64, null)]
     [InlineData("osx", Architecture.Arm64, null)]
     public async Task CheckForUpdates_SelectsCompatiblePlatformAsset(string platform, Architecture architecture, string? expected)
     {
-        var json = """
-            [{"tag_name":"v0.2.0","html_url":"release-page","assets":[
-              {"name":"Muses-win-x64.exe","browser_download_url":"win-x64.exe"},
-              {"name":"Muses-0.2.0-win-x64.msix","browser_download_url":"Muses-0.2.0-win-x64.msix"},
-              {"name":"Muses-win-arm64.msix","browser_download_url":"win-arm64.msix"},
-              {"name":"Muses-x86_64.AppImage","browser_download_url":"linux-x64.AppImage"},
-              {"name":"Muses-0.2.0-linux-x64.deb","browser_download_url":"Muses-0.2.0-linux-x64.deb"},
-              {"name":"Muses-aarch64.AppImage","browser_download_url":"linux-aarch64.AppImage"},
-              {"name":"Muses-linux-x86.zip","browser_download_url":"linux-x86.zip"},
-              {"name":"Muses-macOS-arm64.zip","browser_download_url":"macos-arm64.zip"}
-            ]}]
-            """;
-
-        using var client = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, json));
-        var checker = new GitHubUpdateChecker(OSPlatform.Create(platform.ToUpperInvariant()), architecture, client, currentVersion: "0.1.0");
-
-        var update = await checker.CheckForUpdatesAsync();
+        const string tag = "v0.2.0";
+        var update = await CheckReleases(OSPlatform.Create(platform.ToUpperInvariant()), architecture,
+        [
+            Release(tag,
+            [
+                Asset(tag, "Muses-0.2.0-win-x64.msix"),
+                Asset(tag, "Muses-0.2.0-win-arm64.msix"),
+                Asset(tag, "Muses-0.2.0-linux-x64.deb"),
+                Asset(tag, "Muses-0.2.0-linux-arm64.deb"),
+                Asset(tag, "Muses-0.2.0-macos-arm64.dmg"),
+                Asset(tag, "Muses-0.2.0-win-x64.exe")
+            ])
+        ]);
 
         Assert.Equal(expected is not null, update.HasUpdate);
-        Assert.Equal(expected ?? "https://github.com/xiaotwu/Muses-Euterpe/releases", update.DownloadUrl);
+        Assert.Equal(expected is null ? null : AssetUrl(tag, expected), update.DownloadUrl);
+        if (expected is not null)
+        {
+            Assert.Equal("0.1.0", update.CurrentVersion);
+            Assert.Equal("0.2.0", update.LatestVersion);
+            Assert.Equal("Muses v0.2.0", update.ReleaseTitle);
+            Assert.Equal("Test release notes.", update.ReleaseNotes);
+            Assert.Equal(new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero), update.PublishedAt);
+        }
     }
 
     [Fact]
     public async Task CheckForUpdates_SkipsForeignReleasesAndSelectsNewestUsablePackage()
     {
-        var json = """
-            [
-              {"tag_name":"v0.5.0","assets":[{"name":"Muses-win-x64.msix","browser_download_url":"windows"}]},
-              {"tag_name":"v0.2.0","assets":[{"name":"muses_0.2.0_amd64.deb","browser_download_url":"older-linux"}]},
-              {"tag_name":"v0.4.0","assets":[{"name":"muses_0.4.0_amd64.deb","browser_download_url":42}]},
-              {"tag_name":"v0.3.0","assets":[null, 42, {"name":false},
-                {"name":"muses_0.3.0_amd64.deb","browser_download_url":"newer-linux"}]}
-            ]
-            """;
-        using var client = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, json));
-        var checker = new GitHubUpdateChecker(OSPlatform.Linux, Architecture.X64, client, currentVersion: "0.1.0");
-
-        var update = await checker.CheckForUpdatesAsync();
+        var update = await CheckReleases(OSPlatform.Linux, Architecture.X64,
+        [
+            Release("v0.9.0", [Asset("v0.9.0", "Muses-0.9.0-win-x64.msix")]),
+            Release("v0.8.0", [Asset("v0.8.0", "Muses-0.8.0-linux-x64.deb")], draft: true),
+            Release("v0.7.0", [Asset("v0.7.0", "Muses-0.7.0-linux-x64.deb")], publishedAt: null),
+            Release("v0.6.0", []),
+            Release("v0.5.0", [Asset("v0.5.0", "Muses-0.5.0.deb")]),
+            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-linux-x64.deb")]),
+            Release("v0.4.0", [Asset("v0.4.0", "Muses-0.4.0-linux-x64.deb", state: "starter")]),
+            Release("v0.3.0", [null, 42, new { name = false }, Asset("v0.3.0", "Muses-0.3.0-linux-x64.deb")])
+        ]);
 
         Assert.True(update.HasUpdate);
         Assert.Equal("0.3.0", update.LatestVersion);
-        Assert.Equal("newer-linux", update.DownloadUrl);
+        Assert.Equal(AssetUrl("v0.3.0", "Muses-0.3.0-linux-x64.deb"), update.DownloadUrl);
     }
 
-    [Fact]
-    public async Task CheckForUpdates_ReportsNoUpdateWhenCurrentIsEqualOrNewer()
+    [Theory]
+    [InlineData("https://other.example/download/Muses-0.2.0-win-x64.msix")]
+    [InlineData("https://github.com/other/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-win-x64.msix")]
+    [InlineData("http://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-win-x64.msix")]
+    [InlineData("https://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.1.0/Muses-0.2.0-win-x64.msix")]
+    [InlineData("https://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-win-arm64.msix")]
+    [InlineData("https://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-win-x64.msix?redirect=1")]
+    [InlineData("Muses-0.2.0-win-x64.msix")]
+    public async Task CheckForUpdates_RejectsNoncanonicalDownloadUrl(string url)
     {
-        var jsonResponse = """
-        [
-          {
-            "tag_name": "v0.1.0",
-            "name": "Muses 0.1.0 Initial Release",
-            "draft": false,
-            "prerelease": false,
-            "html_url": "https://github.com/xiaotwu/Muses-Euterpe/releases/tag/v0.1.0"
-          }
-        ]
-        """;
+        var update = await CheckReleases(OSPlatform.Windows, Architecture.X64,
+            [Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-win-x64.msix", url)])]);
+        Assert.False(update.HasUpdate);
+        Assert.Null(update.LatestVersion);
+        Assert.Null(update.DownloadUrl);
+    }
 
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jsonResponse);
-        using var client = new HttpClient(handler);
-
-        var checker = new GitHubUpdateChecker(client, currentVersion: "0.1.0");
-        var update = await checker.CheckForUpdatesAsync();
-
+    [Theory]
+    [InlineData("0.1.0")]
+    [InlineData("0.1.1")]
+    public async Task CheckForUpdates_ReportsNoUpdateWhenCurrentIsEqualOrNewer(string installed)
+    {
+        var update = await CheckReleases(OSPlatform.Windows, Architecture.X64,
+            [Release("v0.1.0", [Asset("v0.1.0", "Muses-0.1.0-win-x64.msix")])], currentVersion: installed);
         Assert.False(update.HasUpdate);
         Assert.Equal("0.1.0", update.LatestVersion);
+        Assert.Null(update.DownloadUrl);
     }
 
     [Fact]
     public async Task CheckForUpdates_IgnoresPrereleasesWhenNotRequested()
     {
-        var jsonResponse = """
+        object[] releases =
         [
-          {
-            "tag_name": "v0.3.0-preview",
-            "name": "Muses 0.3.0 Preview",
-            "draft": false,
-            "prerelease": true
-          },
-          {
-            "tag_name": "v0.1.0",
-            "name": "Muses 0.1.0 Stable",
-            "draft": false,
-            "prerelease": false
-          }
-        ]
-        """;
+            Release("v0.3.0-preview", [Asset("v0.3.0-preview", "Muses-0.3.0-preview-linux-x64.deb")]),
+            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-linux-x64.deb")], prerelease: true),
+            Release("v0.1.0", [Asset("v0.1.0", "Muses-0.1.0-linux-x64.deb")])
+        ];
 
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jsonResponse);
-        using var client = new HttpClient(handler);
-
-        var checker = new GitHubUpdateChecker(client, currentVersion: "0.1.0");
-        var update = await checker.CheckForUpdatesAsync(includePrereleases: false);
-
+        var update = await CheckReleases(OSPlatform.Linux, Architecture.X64, releases);
         Assert.False(update.HasUpdate);
         Assert.Equal("0.1.0", update.LatestVersion);
 
-        var preUpdate = await checker.CheckForUpdatesAsync(includePrereleases: true);
+        var preUpdate = await CheckReleases(OSPlatform.Linux, Architecture.X64, releases, includePrereleases: true);
         Assert.True(preUpdate.HasUpdate);
         Assert.Equal("0.3.0-preview", preUpdate.LatestVersion);
     }
+
+    [Fact]
+    public async Task CheckForUpdates_SkipsMalformedVersionOrEmptyPackage()
+    {
+        var update = await CheckReleases(OSPlatform.Windows, Architecture.X64,
+        [
+            Release("0.4.0", [Asset("0.4.0", "Muses-0.4.0-win-x64.msix")]),
+            Release("v65536.0.0", [Asset("v65536.0.0", "Muses-65536.0.0-win-x64.msix")]),
+            Release("v0.3.invalid", [Asset("v0.3.invalid", "Muses-0.3.invalid-win-x64.msix")]),
+            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-win-x64.msix", size: 0)]),
+            Release("v0.1.1", [Asset("v0.1.1", "Muses-0.1.0-win-x64.msix")])
+        ]);
+        Assert.False(update.HasUpdate);
+        Assert.Null(update.LatestVersion);
+        Assert.Null(update.DownloadUrl);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_ReportsHttpAndJsonFailures()
+    {
+        using var unavailable = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.ServiceUnavailable, "[]"));
+        var offline = new GitHubUpdateChecker(OSPlatform.Windows, Architecture.X64, unavailable);
+        await Assert.ThrowsAsync<HttpRequestException>(() => offline.CheckForUpdatesAsync());
+
+        using var invalid = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, """{"invalid":true}"""));
+        var invalidResponse = new GitHubUpdateChecker(OSPlatform.Windows, Architecture.X64, invalid);
+        await Assert.ThrowsAsync<JsonException>(() => invalidResponse.CheckForUpdatesAsync());
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            invalidResponse.CheckForUpdatesAsync(ct: new CancellationToken(canceled: true)));
+    }
+
+    private static async Task<AppUpdateInfo> CheckReleases(OSPlatform platform, Architecture architecture,
+        object[] releases, string currentVersion = "0.1.0", bool includePrereleases = false)
+    {
+        using var client = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, JsonSerializer.Serialize(releases)));
+        var checker = new GitHubUpdateChecker(platform, architecture, client, currentVersion: currentVersion);
+        return await checker.CheckForUpdatesAsync(includePrereleases);
+    }
+
+    private static object Release(string tag, object?[] assets, bool draft = false, bool prerelease = false,
+        string? publishedAt = "2026-09-01T12:00:00Z") => new
+    {
+        tag_name = tag,
+        name = $"Muses {tag}",
+        body = "Test release notes.",
+        draft,
+        prerelease,
+        published_at = publishedAt,
+        html_url = $"https://github.com/xiaotwu/Muses-Euterpe/releases/tag/{tag}",
+        assets
+    };
+
+    private static object Asset(string tag, string name, string? url = null, string state = "uploaded",
+        long size = 1024) => new { name, state, size, browser_download_url = url ?? AssetUrl(tag, name) };
+
+    private static string AssetUrl(string tag, string name) =>
+        $"https://github.com/xiaotwu/Muses-Euterpe/releases/download/{tag}/{name}";
 
     [Fact]
     public void AppxManifest_PreservesIdentityForX64Upgrades()
@@ -217,6 +231,7 @@ public class Wave7PolishTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            Assert.Equal("https://api.github.com/repos/xiaotwu/Muses-Euterpe/releases", request.RequestUri?.AbsoluteUri);
             var response = new HttpResponseMessage(statusCode)
             {
                 Content = new StringContent(content, Encoding.UTF8, "application/json")

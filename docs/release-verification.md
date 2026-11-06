@@ -25,9 +25,25 @@ Run the Release build and tests with an artifacts directory outside the checkout
 
 The [CI workflow](../.github/workflows/ci.yml) builds on Ubuntu 24.04 x64 and Windows Server 2025 x64. It runs an offline check of the installed media tools and uploads both packages as workflow artifacts. The Ubuntu job uses Xvfb to exercise fresh installation, launch, upgrade and removal. Its baseline and candidate come from the same source revision. The upgrade fixture reproduces the pre-port library and queue column layout from `6fabd52` in the previous XDG config location.
 
+### Download and update rehearsal
+
+Each CI package artifact contains its installer, `SHA256SUMS`, and `release-asset-plan.json`. The asset plan records the intended GitHub Release URL, version, architecture and SHA-256. An unsigned Windows CI package is for inspection. A production Windows package goes through the separate timestamped signing and trust verification in [Building Muses](../INSTALL.md#windows-11-x64).
+
+On Linux or WSL, combine both exact package files into a checksum and download plan. Use the expected certificate subject for `$publisher` and the version of both files for `$version`.
+
+```sh
+python3 scripts/prepare-release-assets.py "$version" \
+  --windows "$windows_msix" --linux "$linux_deb" --publisher "$publisher" \
+  --output "$output_dir"
+```
+
+The app's stable update check looks for a published `vX.Y.Z` GitHub release and its matching x64 package. For a distribution rehearsal, download the staged assets, verify their SHA-256 values, install the older package, and install the newer package over it. Confirm the application version and retained library and queue. GitHub release publication and the Project-Muses website download links are separate release actions.
+
 ### Windows package smoke test
 
 On a Windows 11 x64 desktop test account, start with no installed `xiaotwu.Muses` package. Use Windows PowerShell and Python 3 with `sqlite3`. Build or obtain the signed packages and trust the signer as described in [Building Muses](../INSTALL.md). Both packages must use the same identity and the candidate must have a higher version.
+
+For an independent clean system, stage the signed candidate and authentic pre-port package using the [Windows 11 guest verification steps](windows11-clean-verification.md). The Sandbox runner checks first playback and resume separately from historical AppData upgrade, with only the test transcript written back to the host.
 
 ```powershell
 powershell.exe -NoProfile -File scripts/test-msix.ps1 `

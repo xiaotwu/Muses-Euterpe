@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  CANDIDATE_VERSION: "0.1.2"
-  SMOKE_BASELINE_VERSION: "0.1.1"
+  CANDIDATE_VERSION: "0.1.3"
+  SMOKE_BASELINE_VERSION: "0.1.2"
 
 jobs:
   build-test:
@@ -42,6 +42,14 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/package-msix.ps1 -Version $env:CANDIDATE_VERSION -OutputDir (Join-Path $env:RUNNER_TEMP 'muses-candidate')
+      - name: Verify Windows release asset metadata
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $candidate = Join-Path $env:RUNNER_TEMP 'muses-candidate'
+          python scripts/prepare-release-assets.py $env:CANDIDATE_VERSION `
+            --windows (Join-Path $candidate "Muses-$env:CANDIDATE_VERSION-win-x64.msix") `
+            --allow-unsigned-msix --output $candidate
       - name: Build Ubuntu x64 packages
         if: runner.os == 'Linux'
         shell: bash
@@ -61,12 +69,22 @@ jobs:
           xvfb-run -a dbus-run-session -- bash scripts/test-deb.sh \
             "$RUNNER_TEMP/muses-candidate/Muses-$CANDIDATE_VERSION-linux-x64.deb" \
             "$RUNNER_TEMP/muses-baseline/Muses-$SMOKE_BASELINE_VERSION-linux-x64.deb"
+      - name: Verify Linux release asset metadata
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python3 scripts/prepare-release-assets.py "$CANDIDATE_VERSION" \
+            --linux "$RUNNER_TEMP/muses-candidate/Muses-$CANDIDATE_VERSION-linux-x64.deb" \
+            --output "$RUNNER_TEMP/muses-candidate"
       - name: Upload unsigned MSIX candidate
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v7
         with:
           name: muses-win-x64-unsigned-ci
-          path: ${{ runner.temp }}/muses-candidate/Muses-${{ env.CANDIDATE_VERSION }}-win-x64.msix
+          path: |
+            ${{ runner.temp }}/muses-candidate/Muses-${{ env.CANDIDATE_VERSION }}-win-x64.msix
+            ${{ runner.temp }}/muses-candidate/SHA256SUMS
+            ${{ runner.temp }}/muses-candidate/release-asset-plan.json
           if-no-files-found: error
           compression-level: 0
       - name: Upload Debian candidate
@@ -74,6 +92,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: muses-ubuntu-24.04-x64-ci
-          path: ${{ runner.temp }}/muses-candidate/Muses-${{ env.CANDIDATE_VERSION }}-linux-x64.deb
+          path: |
+            ${{ runner.temp }}/muses-candidate/Muses-${{ env.CANDIDATE_VERSION }}-linux-x64.deb
+            ${{ runner.temp }}/muses-candidate/SHA256SUMS
+            ${{ runner.temp }}/muses-candidate/release-asset-plan.json
           if-no-files-found: error
           compression-level: 0

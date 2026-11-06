@@ -2,11 +2,11 @@ namespace Muses.Core.Update;
 
 public sealed record AppUpdateInfo(
     string CurrentVersion,
-    string LatestVersion,
+    string? LatestVersion,
     bool HasUpdate,
     string ReleaseTitle,
     string ReleaseNotes,
-    string DownloadUrl,
+    string? DownloadUrl,
     DateTimeOffset? PublishedAt);
 
 public interface IUpdateChecker

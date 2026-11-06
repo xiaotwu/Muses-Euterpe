@@ -1,4 +1,4 @@
-# Package Muses for Windows 11 x64. Without a signing certificate, the output is for inspection.
+# Package Muses for Windows 11 x64. Production signing is an explicit opt-in.
 [CmdletBinding()]
 param(
     [string]$Configuration = "Release",
@@ -10,12 +10,47 @@ param(
     [string]$SdkToolsDir,
     [string]$PythonExecutable = "python",
     [ValidatePattern('^[0-9A-Fa-f]{40}$')]
-    [string]$CertificateThumbprint
+    [string]$CertificateThumbprint,
+    [switch]$ProductionSigning,
+    [string]$Publisher,
+    [uri]$TimestampUrl,
+    [ValidatePattern('^[0-9A-Fa-f]{64}$')]
+    [string]$TrustedRootSha256,
+    [string]$SigningDlib,
+    [string]$SigningMetadata
 )
 
 $ErrorActionPreference = "Stop"
 if ($env:OS -ne "Windows_NT") {
     throw "Run MSIX packaging on Windows with the Windows SDK tools."
+}
+
+$useSigningProvider = $SigningDlib -or $SigningMetadata
+if ($ProductionSigning) {
+    if ($Configuration -ne "Release") {
+        throw "Production signing requires a Release build."
+    }
+    if ([string]::IsNullOrWhiteSpace($Publisher) -or -not $TimestampUrl -or -not $TrustedRootSha256) {
+        throw "Production signing requires -Publisher, -TimestampUrl and -TrustedRootSha256."
+    }
+    if (-not $TimestampUrl.IsAbsoluteUri -or $TimestampUrl.Scheme -ne "https" -or $TimestampUrl.UserInfo) {
+        throw "Production signing requires an HTTPS timestamp URL without embedded credentials."
+    }
+    if ($useSigningProvider) {
+        if ($CertificateThumbprint -or -not $SigningDlib -or -not $SigningMetadata) {
+            throw "Use either -CertificateThumbprint or both -SigningDlib and -SigningMetadata."
+        }
+        $dlibFile = Get-Item -LiteralPath $SigningDlib
+        $metadataFile = Get-Item -LiteralPath $SigningMetadata
+        if ($dlibFile.PSIsContainer -or $metadataFile.PSIsContainer) {
+            throw "The signing provider DLL and metadata must be files."
+        }
+        $signingArguments = @("/dlib", $dlibFile.FullName, "/dmdf", $metadataFile.FullName)
+    } elseif (-not $CertificateThumbprint) {
+        throw "Production signing requires a certificate thumbprint or a signing provider."
+    }
+} elseif ($Publisher -or $TimestampUrl -or $TrustedRootSha256 -or $useSigningProvider) {
+    throw "Publisher, timestamp, trusted-root and signing-provider overrides require -ProductionSigning."
 }
 
 $appVersion = [version]$Version
@@ -49,20 +84,61 @@ function Find-SdkTool([string]$Name) {
     throw "Cannot find $Name. Install the Windows SDK or restore Microsoft.Windows.SDK.BuildTools and set -SdkToolsDir."
 }
 
+function Assert-ProductionSignature([string]$Package, [string]$SignTool) {
+    & $SignTool verify /pa /all /tw /v $Package | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "SignTool signature verification failed (exit $LASTEXITCODE)." }
+
+    $signature = Get-AuthenticodeSignature -LiteralPath $Package
+    if ($signature.Status -ne "Valid" -or -not $signature.SignerCertificate -or
+        $signature.SignerCertificate.Subject -cne $Publisher -or -not $signature.TimeStamperCertificate) {
+        throw "Expected a valid timestamped package signature from publisher $Publisher."
+    }
+
+    $chain = [Security.Cryptography.X509Certificates.X509Chain]::new()
+    try {
+        $chain.ChainPolicy.ApplicationPolicy.Add([Security.Cryptography.Oid]::new("1.3.6.1.5.5.7.3.3")) | Out-Null
+        $chain.ChainPolicy.RevocationMode = "Online"
+        $chain.ChainPolicy.UrlRetrievalTimeout = [TimeSpan]::FromSeconds(15)
+        if (-not $chain.Build($signature.SignerCertificate) -or $chain.ChainElements.Count -lt 2) {
+            $status = ($chain.ChainStatus | ForEach-Object { $_.Status }) -join ", "
+            throw "Production signing requires a trusted issuing certificate chain. Chain status: $status."
+        }
+        $root = $chain.ChainElements[$chain.ChainElements.Count - 1].Certificate
+        $rootSha256 = $root.GetCertHashString([Security.Cryptography.HashAlgorithmName]::SHA256)
+        if ($rootSha256 -ine $TrustedRootSha256) {
+            throw "The production signing chain root SHA-256 does not match the expected root."
+        }
+    } finally {
+        $chain.Dispose()
+    }
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $appDir = Join-Path $repoRoot "src\Muses.App"
 $appProject = Join-Path $appDir "Muses.App.csproj"
 $helperProject = Join-Path $repoRoot "src\Muses.WebHome.Helper\Muses.WebHome.Helper.csproj"
 [xml]$manifest = Get-Content -LiteralPath (Join-Path $appDir "Package.appxmanifest") -Raw
 $manifest.Package.Identity.SetAttribute("Version", $manifestVersion)
+if ($ProductionSigning) {
+    if ($Publisher -cne $manifest.Package.Identity.Publisher) {
+        Write-Warning "The production publisher changes the package family. This package cannot update an installation from the development family."
+    }
+    $manifest.Package.Identity.SetAttribute("Publisher", $Publisher)
+}
 $makeAppx = Find-SdkTool "makeappx.exe"
 
-if ($CertificateThumbprint) {
+if ($CertificateThumbprint -or $ProductionSigning) {
     $signTool = Find-SdkTool "signtool.exe"
+}
+if ($CertificateThumbprint) {
     $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$CertificateThumbprint"
     if (-not $certificate.HasPrivateKey -or $certificate.Subject -cne $manifest.Package.Identity.Publisher) {
         throw "Use a signing certificate with a private key and subject $($manifest.Package.Identity.Publisher)."
     }
+    if ($ProductionSigning -and $certificate.Subject -ceq $certificate.Issuer) {
+        throw "Production signing requires an issuing certificate chain."
+    }
+    $signingArguments = @("/sha1", $certificate.Thumbprint)
 }
 
 $tempRoot = [IO.Path]::TrimEndingDirectorySeparator(
@@ -119,15 +195,19 @@ try {
         throw "MakeAppx pack failed (exit $LASTEXITCODE)."
     }
 
-    if ($CertificateThumbprint) {
-        & $signTool sign /fd SHA256 /sha1 $certificate.Thumbprint $stagedPackage | Out-Host
+    if ($ProductionSigning -or $CertificateThumbprint) {
+        if ($ProductionSigning) {
+            $signingArguments += @("/tr", $TimestampUrl.AbsoluteUri, "/td", "SHA256")
+        }
+        & $signTool sign /fd SHA256 @signingArguments $stagedPackage | Out-Host
         if ($LASTEXITCODE -ne 0) { throw "SignTool failed (exit $LASTEXITCODE)." }
+        if ($ProductionSigning) { Assert-ProductionSignature $stagedPackage $signTool }
     }
 
     [IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($OutputDir)) | Out-Null
     $packagePath = Join-Path $OutputDir $packageName
     Copy-Item -LiteralPath $stagedPackage -Destination $packagePath -Force
-    if (-not $CertificateThumbprint) {
+    if (-not $CertificateThumbprint -and -not $ProductionSigning) {
         Write-Warning "This unsigned package is for structural verification. Sign with the manifest publisher's certificate for installation."
     }
     Write-Output (Get-Item -LiteralPath $packagePath).FullName

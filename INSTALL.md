@@ -65,6 +65,16 @@ pwsh -NoProfile -File scripts/package-msix.ps1 -Version 0.1.1 -OutputDir $packag
 
 The default build produces an unsigned package for structure checks. To produce an installable test candidate, rerun with `-CertificateThumbprint <thumbprint>` for a matching certificate with a private key in `Cert:\CurrentUser\My`. For self-signed testing, export the public `.cer` and import it into `Cert:\LocalMachine\TrustedPeople` from an elevated PowerShell session on the test machine. A trusted signing chain is required for install. [Microsoft MSIX signing guide](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)
 
+For production, supply the exact signing certificate subject as `-Publisher`, an HTTPS RFC 3161 timestamp URL, and the expected SHA-256 fingerprint of the trusted issuing root. The packaging script verifies the timestamped signature, publisher, and chain before copying the package to the output folder.
+
+```powershell
+pwsh -NoProfile -File scripts/package-msix.ps1 -Version 0.1.3 -OutputDir $packageDir `
+  -ProductionSigning -Publisher $publisher -TimestampUrl $timestampUrl `
+  -TrustedRootSha256 $rootFingerprint -CertificateThumbprint $leafThumbprint
+```
+
+For a SignTool signing provider such as Azure Artifact Signing, supply `-SigningDlib` and `-SigningMetadata` in place of `-CertificateThumbprint`. Use a verified public-trust signing profile and keep provider credentials in its authentication environment. Choose the production publisher before distributing the first stable package. A different publisher creates a different MSIX package family. Upgrade acceptance uses two signed versions with the same production identity. [Artifact Signing integrations](https://learn.microsoft.com/en-us/azure/artifact-signing/how-to-signing-integrations)
+
 From Windows PowerShell on the test machine, run the following with the signed package. Use the same command with a higher version signed for the same publisher to upgrade. `Remove-AppxPackage` removes the package for the current user. Windows may remove package-private data on uninstall.
 
 ```powershell

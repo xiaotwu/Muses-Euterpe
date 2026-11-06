@@ -6,7 +6,12 @@ param(
     [string]$PythonExecutable = 'python.exe',
     [ValidatePattern('^[A-Za-z0-9_-]{11}$')]
     [string]$MediaSmokeVideoId,
-    [switch]$HistoricalRoaming
+    [switch]$HistoricalRoaming,
+    [string]$HistoricalFixture,
+    [ValidateNotNullOrEmpty()]
+    [string]$ExpectedPublisher = 'CN=xiaotwu',
+    [ValidatePattern('^xiaotwu\.Muses_[a-z0-9]{13}$')]
+    [string]$ExpectedPackageFamilyName = 'xiaotwu.Muses_r58mek0329vyw'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,9 +24,16 @@ if (-not [Environment]::UserInteractive -or [Environment]::OSVersion.Version.Bui
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+if ($PSBoundParameters.ContainsKey('ExpectedPublisher') -ne $PSBoundParameters.ContainsKey('ExpectedPackageFamilyName')) {
+    throw 'Pass -ExpectedPublisher and -ExpectedPackageFamilyName together.'
+}
+if ($HistoricalRoaming -and
+    ($ExpectedPublisher -cne 'CN=xiaotwu' -or $ExpectedPackageFamilyName -cne 'xiaotwu.Muses_r58mek0329vyw')) {
+    throw 'Historical Roaming verification requires the original test publisher and package family.'
+}
 $packageName = 'xiaotwu.Muses'
-$packageFamily = 'xiaotwu.Muses_r58mek0329vyw'
-$publisher = 'CN=xiaotwu'
+$packageFamily = $ExpectedPackageFamilyName
+$publisher = $ExpectedPublisher
 $appId = 'App'
 $appExecutable = 'Muses.exe'
 
@@ -65,6 +77,14 @@ if ((Get-AppxPackage -Name $packageName) -or (Get-Process -Name Muses -ErrorActi
 }
 if ($HistoricalRoaming -and -not $PreviousPackage) {
     throw 'Historical Roaming verification requires the previous signed 6fabd52 package.'
+}
+if ($HistoricalFixture) {
+    if (-not $HistoricalRoaming) { throw '-HistoricalFixture requires -HistoricalRoaming.' }
+    $HistoricalFixture = (Resolve-Path -LiteralPath $HistoricalFixture).ProviderPath
+    if (-not (Test-Path -LiteralPath $HistoricalFixture -PathType Leaf) -or
+        (Test-Path -LiteralPath "$HistoricalFixture-wal") -or (Test-Path -LiteralPath "$HistoricalFixture-shm")) {
+        throw 'Provide a standalone historical SQLite fixture without journal sidecars.'
+    }
 }
 & $PythonExecutable -c 'import sqlite3'
 if ($LASTEXITCODE -ne 0) { throw 'A Python 3 interpreter with sqlite3 is required. Pass -PythonExecutable if needed.' }
@@ -299,7 +319,11 @@ try {
     if ($HistoricalRoaming) {
         New-ProfileFixture $roamingFixture
         New-ProfileFixture $localFixture
-        Invoke-Fixture 'prepare-historical-roaming'
+        if ($HistoricalFixture) {
+            Copy-Item -LiteralPath $HistoricalFixture -Destination (Join-Path $dataDir 'muses-youtube-native.sqlite')
+        } else {
+            Invoke-Fixture 'prepare-historical-roaming'
+        }
     } else {
         Invoke-Fixture 'prepare'
     }
