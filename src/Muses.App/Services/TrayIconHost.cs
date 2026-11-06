@@ -1,32 +1,43 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
-using Muses.Core.Preferences;
+using Avalonia.Threading;
+using Muses.Platform.Linux.Tray;
 using Muses.Platform.Windows;
 
 namespace Muses.App.Services;
 
 /// <summary>
-/// Owns the Avalonia TrayIcon. When PrefKey.FfTray is off, or the platform helper is missing, stays idle.
-/// Does not force tray creation on macOS when the native helper cannot provide an icon.
+/// Owns the Avalonia tray icon and tracks whether it can restore a hidden window.
 /// </summary>
 public sealed class TrayIconHost : IDisposable
 {
     private readonly WindowsTrayController _tray;
-    private readonly IPreferences _preferences;
+    private readonly TrayIcons _icons;
+    private readonly DispatcherTimer? _availabilityTimer;
     private TrayIcon? _icon;
+    private bool _checkingAvailability;
     private bool _disposed;
 
-    public TrayIconHost(WindowsTrayController tray, IPreferences preferences)
+    public bool CanRestoreWindow { get; private set; }
+    public event Action? AvailabilityChanged;
+
+    public TrayIconHost(Application application, WindowsTrayController tray)
     {
         _tray = tray;
-        _preferences = preferences;
+        _icons = TrayIcon.GetIcons(application) ?? new TrayIcons();
+        TrayIcon.SetIcons(application, _icons);
         _tray.Changed += OnTrayChanged;
+        if (OperatingSystem.IsLinux())
+        {
+            _availabilityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _availabilityTimer.Tick += CheckAvailability;
+        }
     }
 
     public void Apply()
     {
-        if (!_tray.IsEnabled)
+        if (_disposed || !_tray.IsEnabled)
         {
             DisposeIcon();
             return;
@@ -43,6 +54,17 @@ public sealed class TrayIconHost : IDisposable
                     Menu = BuildMenu()
                 };
                 TrySetIcon(_icon);
+                _icon.Clicked += (_, _) => Dispatcher.UIThread.Post(_tray.RequestShow);
+                _icons.Add(_icon);
+                if (_availabilityTimer is not null)
+                {
+                    _availabilityTimer.Start();
+                    CheckAvailability(this, EventArgs.Empty);
+                }
+                else
+                {
+                    SetAvailability(OperatingSystem.IsWindows());
+                }
             }
             else
             {
@@ -53,12 +75,42 @@ public sealed class TrayIconHost : IDisposable
         }
         catch
         {
-            // macOS / headless: helper may be missing — do not force tray.
             DisposeIcon();
         }
     }
 
-    private void OnTrayChanged() => Apply();
+    private void OnTrayChanged()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+            Apply();
+        else
+            Dispatcher.UIThread.Post(Apply);
+    }
+
+    private async void CheckAvailability(object? sender, EventArgs e)
+    {
+        var icon = _icon;
+        if (_checkingAvailability || icon is null)
+            return;
+
+        _checkingAvailability = true;
+        var available = await LinuxTrayAvailability.IsRegisteredAsync().ConfigureAwait(false);
+        Dispatcher.UIThread.Post(() =>
+        {
+            _checkingAvailability = false;
+            if (ReferenceEquals(icon, _icon))
+                SetAvailability(available);
+        });
+    }
+
+    private void SetAvailability(bool available)
+    {
+        if (CanRestoreWindow == available)
+            return;
+
+        CanRestoreWindow = available;
+        AvailabilityChanged?.Invoke();
+    }
 
     private NativeMenu BuildMenu()
     {
@@ -104,8 +156,11 @@ public sealed class TrayIconHost : IDisposable
 
     private void DisposeIcon()
     {
+        _availabilityTimer?.Stop();
+        SetAvailability(false);
         if (_icon is null) return;
         _icon.IsVisible = false;
+        _icons.Remove(_icon);
         _icon.Dispose();
         _icon = null;
     }

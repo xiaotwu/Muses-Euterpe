@@ -1,3 +1,5 @@
+using Muses.Infrastructure.YTDlp;
+
 namespace Muses.Infrastructure.Playback;
 
 /// <summary>
@@ -11,6 +13,7 @@ public interface IMpvPlayerSession : IDisposable
 
     /// <summary>Last known media time in seconds (may be updated by the session itself).</summary>
     double TimePos { get; }
+    double? Duration => null;
 
     void SetPause(bool paused);
     void SeekAbsolute(double seconds);
@@ -39,7 +42,8 @@ public interface IMpvPlayerFactory
     string? FindBinary();
 
     /// <summary>
-    /// Start mpv for <paramref name="url"/>. Throws if the binary is missing or the process fails to start.
+    /// Open the resolved stream and wait for mpv to load it in a paused session.
     /// </summary>
-    IMpvPlayerSession Start(Uri url, int initialVolume0to100);
+    Task<IMpvPlayerSession> StartAsync(
+        ResolvedAudioStream stream, int initialVolume0to100, CancellationToken cancellationToken);
 }

@@ -3,8 +3,8 @@
              xmlns:vm="using:Muses.App.ViewModels"
              x:Class="Muses.App.Views.EQView"
              x:DataType="vm:ShellViewModel">
-  <Border Background="{StaticResource MusesSurfaceChromeBrush}"
-          BorderBrush="{StaticResource MusesHairlineBrush}"
+  <Border Background="{DynamicResource MusesSurfaceChromeBrush}"
+          BorderBrush="{DynamicResource MusesHairlineBrush}"
           BorderThickness="1"
           CornerRadius="16"
           Padding="20"
@@ -14,28 +14,28 @@
     <DockPanel>
       <!-- Header -->
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
-        <TextBlock Text="Equalizer" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
+        <TextBlock Text="Equalizer" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
         <Button Grid.Column="1" Content="Reset"
-                Background="{StaticResource MusesSurfaceBrush}" Foreground="{StaticResource MusesAccentBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1"
+                Background="{DynamicResource MusesSurfaceBrush}" Foreground="{DynamicResource MusesAccentBrush}" BorderBrush="{DynamicResource MusesHairlineBrush}" BorderThickness="1"
                 CornerRadius="8" Padding="12,6" Margin="0,0,8,0"
                 Command="{Binding ResetEQCommand}" Cursor="Hand" />
         <Button Grid.Column="2" Content="✕" Background="Transparent" BorderThickness="0"
-                Foreground="{StaticResource MusesTextSecondaryBrush}" Cursor="Hand"
+                Foreground="{DynamicResource MusesTextSecondaryBrush}" Cursor="Hand"
                 Command="{Binding CloseEQCommand}" />
       </Grid>
 
 
-      <Border DockPanel.Dock="Top" IsVisible="{Binding !IsEqAvailable}" Background="{StaticResource MusesWhiteOverlay14Brush}"
+      <Border DockPanel.Dock="Top" IsVisible="{Binding !IsEqAvailable}" Background="{DynamicResource MusesWhiteOverlay14Brush}"
               CornerRadius="8" Padding="12" Margin="0,0,0,12">
         <TextBlock Text="{Binding EqUnavailableReason}" FontSize="12" TextWrapping="Wrap"
-                   Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                   Foreground="{DynamicResource MusesTextSecondaryBrush}" />
       </Border>
       <!-- Bottom Presets Bar -->
       <StackPanel DockPanel.Dock="Bottom" Spacing="10" Margin="0,16,0,0">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Text="Presets" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="Presets" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource MusesTextPrimaryBrush}" VerticalAlignment="Center" />
           <Button Grid.Column="1" Content="+ Save As"
-                  Background="{StaticResource MusesSurfaceBrush}" Foreground="{StaticResource MusesAccentBrush}" BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1"
+                  Background="{DynamicResource MusesSurfaceBrush}" Foreground="{DynamicResource MusesAccentBrush}" BorderBrush="{DynamicResource MusesHairlineBrush}" BorderThickness="1"
                   CornerRadius="8" Padding="10,4" FontSize="12"
                   Command="{Binding OpenSaveEQPresetCommand}" Cursor="Hand" />
         </Grid>
@@ -69,7 +69,7 @@
       <!-- Center: Frequency Response Visualizer Curve & Sliders -->
       <DockPanel>
         <!-- Curve Visualizer -->
-        <Border DockPanel.Dock="Top" Height="100" Background="{StaticResource MusesPageBrush}" CornerRadius="8" Margin="0,0,0,12" ClipToBounds="True">
+        <Border DockPanel.Dock="Top" Height="100" Background="{DynamicResource MusesPageBrush}" CornerRadius="8" Margin="0,0,0,12" ClipToBounds="True">
           <Canvas x:Name="CurveCanvas" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
         </Border>
 
@@ -84,11 +84,11 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate>
                 <StackPanel Width="28" Spacing="4" HorizontalAlignment="Center">
-                  <TextBlock Text="{Binding GainReadout}" FontSize="9" Foreground="{StaticResource MusesTextSecondaryBrush}"
+                  <TextBlock Text="{Binding GainReadout}" FontSize="9" Foreground="{DynamicResource MusesTextSecondaryBrush}"
                              HorizontalAlignment="Center" />
                   <Slider Minimum="-24" Maximum="24" Value="{Binding Gain, Mode=TwoWay}"
                           Orientation="Vertical" Height="110" HorizontalAlignment="Center"
-                          Foreground="{StaticResource MusesAccentBrush}" />
+                          Foreground="{DynamicResource MusesAccentBrush}" />
                   <TextBlock Text="{Binding Label}" FontSize="8" Foreground="{StaticResource MusesWhiteOverlay73Brush}"
                              HorizontalAlignment="Center" />
                 </StackPanel>

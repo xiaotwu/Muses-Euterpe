@@ -10,6 +10,7 @@ public interface IYouTubeIFrameClient
 {
     bool IsAvailable { get; }
     bool IsLoaded { get; }
+    Uri? PageOrigin => null;
     void Load(string videoId, string pageHtml);
     void TearDown();
 }
@@ -95,7 +96,7 @@ public sealed class YouTubeVideoOverlaySession
         _suspensionToken = token;
 
         if (_iframe.IsAvailable)
-            _iframe.Load(videoId, YouTubeEmbed.PageHtml(videoId));
+            _iframe.Load(videoId, YouTubeEmbed.PageHtml(videoId, _iframe.PageOrigin));
 
         _isOpen = true;
         return true;

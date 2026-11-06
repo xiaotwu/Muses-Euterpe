@@ -26,7 +26,7 @@
       <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay0ABrush}" />
     </Style>
     <Style Selector="Button.offsetBtn">
-      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+      <Setter Property="Background" Value="{DynamicResource MusesWhiteOverlay14Brush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="8,4" />
@@ -34,27 +34,27 @@
     </Style>
   </UserControl.Styles>
 
-  <Border BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1,0,0,0">
+  <Border BorderBrush="{DynamicResource MusesHairlineBrush}" BorderThickness="1,0,0,0">
     <DockPanel Margin="20,24,20,96">
       <!-- Header -->
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
         <StackPanel Spacing="2">
           <TextBlock Text="{Binding LyricsTitle}" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
-          <TextBlock Text="{Binding NowPlayingTitle}" FontSize="12" Foreground="{StaticResource MusesTextSecondaryBrush}"
+          <TextBlock Text="{Binding NowPlayingTitle}" FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}"
                      MaxWidth="260" TextTrimming="CharacterEllipsis" />
         </StackPanel>
         <Button Grid.Column="1" Classes="closeBtn" Command="{Binding CloseLyricsDrawerCommand}" ToolTip.Tip="Close">
           <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-                    Width="16" Height="16" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                    Width="16" Height="16" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
         </Button>
       </Grid>
 
       <!-- Offset Fine-Tuner -->
-      <Border DockPanel.Dock="Bottom" Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="10,6" Margin="0,12,0,0">
+      <Border DockPanel.Dock="Bottom" Background="{DynamicResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="10,6" Margin="0,12,0,0">
         <Grid ColumnDefinitions="Auto,*,Auto,Auto">
           <TextBlock Text="{Binding LyricsOffsetLabel}" FontSize="11" Foreground="{DynamicResource MusesTextSecondaryBrush}" VerticalAlignment="Center" />
           <TextBlock Grid.Column="1" x:Name="OffsetLabel" Text="0.0s" FontSize="11" FontWeight="SemiBold"
-                     Foreground="{StaticResource MusesTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                     Foreground="{DynamicResource MusesTextPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
           <Button Grid.Column="2" Classes="offsetBtn" Content="-0.5s" Click="OnMinusOffset" Margin="0,0,4,0" />
           <Button Grid.Column="3" Classes="offsetBtn" Content="+0.5s" Click="OnPlusOffset" />
         </Grid>

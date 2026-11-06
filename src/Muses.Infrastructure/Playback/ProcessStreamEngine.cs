@@ -12,6 +12,7 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
 {
     private readonly IYTDlpBridge _bridge;
     private readonly IMpvPlayerFactory _mpv;
+    private readonly SynchronizationContext? _ownerContext = SynchronizationContext.Current;
     private string _quality;
     private bool _replayGainEnabled = true;
     private double? _replayGainDb;
@@ -20,11 +21,11 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
     private CancellationTokenSource? _loadCts;
     private IMpvPlayerSession? _session;
     private Timer? _positionTimer;
+    private int _seekGeneration;
     private float _volume = 0.8f;
     private IReadOnlyList<EqBand> _eqBands = Array.Empty<EqBand>();
     private double _crossfadeSeconds;
     private IMpvPlayerSession? _outgoing;
-    private bool _suppressCompletion;
     private int _completionRaised;
     private int _disposed;
 
@@ -74,9 +75,11 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
 
     private async Task ReloadForQualityAsync(TrackSnapshot track)
     {
+        var position = State.Position;
+        var paused = !State.IsPlaying;
         try
         {
-            await LoadAsync(track).ConfigureAwait(false);
+            await LoadCoreAsync(track, paused, CancellationToken.None, position).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -97,26 +100,31 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
         }
     }
 
-    public async Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default)
+    public Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default) =>
+        LoadCoreAsync(track, startPaused: false, cancellationToken);
+
+    public Task LoadPausedAsync(TrackSnapshot track, CancellationToken cancellationToken = default) =>
+        LoadCoreAsync(track, startPaused: true, cancellationToken);
+
+    private async Task LoadCoreAsync(
+        TrackSnapshot track, bool startPaused, CancellationToken cancellationToken, double? startPosition = null)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
-
         CancellationTokenSource loadCts;
+        CancellationToken ct;
         string quality;
         lock (_gate)
         {
             _loadCts?.Cancel();
             _loadCts?.Dispose();
             loadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            ct = loadCts.Token;
             _loadCts = loadCts;
-            if (_crossfadeSeconds >= 0.05 && _session is { IsAlive: true })
-            {
+            if (_crossfadeSeconds >= 0.05 && State.IsPlaying && _session is { IsAlive: true })
                 DetachOutgoing_NoLock();
-            }
             else
-            {
-                StopSession_NoLock(suppressCompletion: true);
-            }
+                StopSession_NoLock();
+
             _completionRaised = 0;
             State.Track = track;
             _replayGainDb = track.ReplayGain;
@@ -128,81 +136,70 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             quality = _quality;
         }
 
-        var ct = loadCts.Token;
+        var errorKind = PlayerErrorKind.EngineStartFailed;
+        ResolvedAudioStream? stream = null;
+        IMpvPlayerSession? session = null;
         try
         {
-            var url = await _bridge.ResolveStreamUrlAsync(track.YouTubeId, quality, TimeSpan.FromSeconds(25), ct)
+            if (_mpv.FindBinary() is null)
+                throw new InvalidOperationException("mpv binary not found on PATH or under resources/.");
+
+            errorKind = PlayerErrorKind.NetworkError;
+            stream = await _bridge.ResolveAudioStreamAsync(track.YouTubeId, quality, TimeSpan.FromSeconds(25), ct)
                 .ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
 
-            if (_mpv.FindBinary() is null)
-            {
-                lock (_gate)
-                {
-                    State.Buffering = false;
-                    State.IsPlaying = false;
-                    State.Error = new PlayerError(PlayerErrorKind.EngineStartFailed, "mpv binary not found");
-                }
-                throw new InvalidOperationException("mpv binary not found on PATH or under resources/.");
-            }
-
-            IMpvPlayerSession session;
-            try
-            {
-                session = _mpv.Start(url, VolumeToMpv(_volume));
-            }
-            catch (Exception ex)
-            {
-                lock (_gate)
-                {
-                    State.Buffering = false;
-                    State.IsPlaying = false;
-                    State.Error = new PlayerError(PlayerErrorKind.EngineStartFailed, ex.Message);
-                }
-                throw;
-            }
-
-            ct.ThrowIfCancellationRequested();
-
+            errorKind = PlayerErrorKind.EngineStartFailed;
+            session = await _mpv.StartAsync(stream, VolumeToMpv(_volume), ct).ConfigureAwait(false);
             lock (_gate)
             {
-                // A newer LoadAsync cancelled us after Start — drop the orphan session.
-                if (ct.IsCancellationRequested || !ReferenceEquals(_loadCts, loadCts))
-                {
-                    session.Dispose();
-                    State.Buffering = false;
-                    return;
-                }
+                ct.ThrowIfCancellationRequested();
+                if (!session.IsAlive)
+                    throw new MpvSourceException("mpv stopped while loading the audio stream.");
 
-                AttachSession_NoLock(session);
-                if (_outgoing is not null)
-                    session.SetVolume(0);
+                AttachSession_NoLock(session, track, quality, stream);
+                if (session.Duration is { } duration && double.IsFinite(duration) && duration > 0)
+                    State.Duration = duration;
+                session = null; // Ownership transferred to the engine.
                 State.Buffering = false;
-                State.IsPlaying = true;
-                StartPositionTimer_NoLock();
-                if (_outgoing is not null)
-                    BeginCrossfade_NoLock();
+                if (startPosition is { } position) Seek(position);
+                if (!startPaused) Play();
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             lock (_gate)
             {
                 if (ReferenceEquals(_loadCts, loadCts))
+                {
                     State.Buffering = false;
+                    StopOutgoing_NoLock();
+                }
             }
+            throw;
         }
-        catch (Exception ex) when (State.Error is null)
+        catch (Exception ex)
         {
             lock (_gate)
             {
-                if (!ReferenceEquals(_loadCts, loadCts))
-                    return;
-                State.Buffering = false;
-                State.IsPlaying = false;
-                State.Error = new PlayerError(PlayerErrorKind.NetworkError, ex.Message);
+                if (ReferenceEquals(_loadCts, loadCts))
+                {
+                    StopSession_NoLock();
+                    State.Buffering = false;
+                    State.IsPlaying = false;
+                    if (ex is MpvSourceException && stream is not null)
+                    {
+                        _bridge.InvalidateAudioStream(track.YouTubeId, quality, stream);
+                        errorKind = PlayerErrorKind.SourceUnavailable;
+                    }
+                    State.Error = new PlayerError(errorKind, ex.Message);
+                }
             }
             throw;
+        }
+        finally
+        {
+            session?.Dispose();
         }
     }
 
@@ -214,10 +211,12 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
         lock (_gate)
         {
             if (State.Track is null) return;
-            if (_session is null || !_session.IsAlive) return;
+            if (_session is null || !_session.IsAlive || _completionRaised != 0) return;
+            if (State.IsPlaying) return;
             _session.SetPause(false);
             State.IsPlaying = true;
             StartPositionTimer_NoLock();
+            if (_outgoing is not null) BeginCrossfade_NoLock();
         }
     }
 
@@ -228,6 +227,11 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             State.IsPlaying = false;
             StopPositionTimer_NoLock();
             _session?.SetPause(true);
+            if (_outgoing is not null)
+            {
+                StopOutgoing_NoLock();
+                _session?.SetVolume(VolumeToMpv(_volume));
+            }
             // Intentionally keep the session alive so Resume does not re-resolve yt-dlp.
         }
     }
@@ -240,9 +244,11 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
 
     public void Seek(double time)
     {
+        if (!double.IsFinite(time)) return;
         lock (_gate)
         {
-            var clamped = Math.Clamp(time, 0, Math.Max(State.Duration, 0));
+            var clamped = Math.Clamp(time, 0, State.Duration > 0 ? State.Duration : double.MaxValue);
+            _seekGeneration++;
             State.Position = clamped;
             _session?.SeekAbsolute(clamped);
         }
@@ -333,19 +339,15 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             _loadCts?.Dispose();
             _loadCts = null;
             StopPositionTimer_NoLock();
-            StopSession_NoLock(suppressCompletion: true);
-            try { _outgoing?.Dispose(); } catch { /* ignore */ }
-            _outgoing = null;
+            StopSession_NoLock();
         }
     }
 
     private void DetachOutgoing_NoLock()
     {
-        try { _outgoing?.Dispose(); } catch { /* ignore */ }
-        _outgoing = null;
+        StopPositionTimer_NoLock();
+        StopOutgoing_NoLock();
         if (_session is null) return;
-        _session.EndOfFile -= HandleEndOfFile;
-        _session.Exited -= HandleExited;
         _outgoing = _session;
         _session = null;
     }
@@ -365,76 +367,79 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
             {
                 await Task.Delay(slice).ConfigureAwait(false);
                 var t = i / (double)steps;
-                try { outgoing.SetVolume((int)Math.Round(target * (1 - t))); } catch { /* ignore */ }
-                try { incoming.SetVolume((int)Math.Round(target * t)); } catch { /* ignore */ }
+                lock (_gate)
+                {
+                    if (!ReferenceEquals(_outgoing, outgoing) || !ReferenceEquals(_session, incoming)) return;
+                    outgoing.SetVolume((int)Math.Round(target * (1 - t)));
+                    incoming.SetVolume((int)Math.Round(target * t));
+                }
             }
-            try { outgoing.Dispose(); } catch { /* ignore */ }
             lock (_gate)
             {
                 if (ReferenceEquals(_outgoing, outgoing))
-                    _outgoing = null;
+                    StopOutgoing_NoLock();
             }
         });
     }
 
-    private void AttachSession_NoLock(IMpvPlayerSession session)
+    private void AttachSession_NoLock(
+        IMpvPlayerSession session, TrackSnapshot track, string quality, ResolvedAudioStream stream)
     {
-        _suppressCompletion = false;
         _session = session;
-        session.EndOfFile += HandleEndOfFile;
-        session.Exited += HandleExited;
+        session.EndOfFile += () => HandleEndOfFile(session);
+        session.Exited += () => HandleExited(session, track, quality, stream);
+        session.SetVolume(_outgoing is null ? VolumeToMpv(_volume) : 0);
         ApplyEq_NoLock();
     }
 
-    private void StopSession_NoLock(bool suppressCompletion)
+    private void StopSession_NoLock()
     {
-        _suppressCompletion = suppressCompletion;
         StopPositionTimer_NoLock();
         var session = _session;
         _session = null;
+        StopOutgoing_NoLock();
+        session?.Dispose();
+    }
+
+    private void StopOutgoing_NoLock()
+    {
         var outgoing = _outgoing;
         _outgoing = null;
-        if (outgoing is not null)
-        {
-            try { outgoing.Dispose(); } catch { /* ignore */ }
-        }
-        if (session is null) return;
-        session.EndOfFile -= HandleEndOfFile;
-        session.Exited -= HandleExited;
-        try { session.Dispose(); } catch { /* ignore */ }
+        outgoing?.Dispose();
     }
 
-    private void HandleEndOfFile()
+    private void HandleEndOfFile(IMpvPlayerSession session)
     {
-        RaiseCompletionOnce();
+        if (_ownerContext is { } owner && !ReferenceEquals(SynchronizationContext.Current, owner))
+            owner.Post(_ => CompleteCurrentSession(session), null);
+        else
+            CompleteCurrentSession(session);
     }
 
-    private void HandleExited()
+    private void CompleteCurrentSession(IMpvPlayerSession session)
     {
-        // Exit without a prior eof (crash / kill) must not auto-advance the queue
-        // unless we already observed eof. Intentional StopSession suppresses both.
-        if (_suppressCompletion) return;
-        // If mpv exits cleanly after eof, EndOfFile already fired. If it exits
-        // while still "playing" without eof, treat as unexpected stop — no completion.
         lock (_gate)
         {
-            State.IsPlaying = false;
-            StopPositionTimer_NoLock();
-        }
-    }
-
-    private void RaiseCompletionOnce()
-    {
-        if (_suppressCompletion) return;
-        if (Interlocked.Exchange(ref _completionRaised, 1) != 0) return;
-        lock (_gate)
-        {
+            if (!ReferenceEquals(_session, session) || _completionRaised != 0) return;
+            _completionRaised = 1;
             State.IsPlaying = false;
             if (State.Duration > 0)
                 State.Position = State.Duration;
             StopPositionTimer_NoLock();
         }
         try { OnCompletion?.Invoke(); } catch { /* ignore listener failures */ }
+    }
+
+    private void HandleExited(IMpvPlayerSession session, TrackSnapshot track, string quality, ResolvedAudioStream stream)
+    {
+        lock (_gate)
+        {
+            if (!ReferenceEquals(_session, session) || _completionRaised != 0) return;
+            StopSession_NoLock();
+            _bridge.InvalidateAudioStream(track.YouTubeId, quality, stream);
+            State.IsPlaying = false;
+            State.Error = new PlayerError(PlayerErrorKind.SourceUnavailable);
+        }
     }
 
     private void StartPositionTimer_NoLock()
@@ -449,33 +454,36 @@ public sealed class ProcessStreamEngine : IPlayerEngine, IDisposable
         _positionTimer = null;
     }
 
-    private void PollPosition()
+    internal void PollPosition()
     {
         IMpvPlayerSession? session;
+        int seekGeneration;
         lock (_gate)
         {
             if (!State.IsPlaying) return;
             session = _session;
+            seekGeneration = _seekGeneration;
         }
         if (session is null || !session.IsAlive) return;
 
-        // Prefer a live IPC read; fall back to the session's last known time-pos.
+        // Keep the displayed position when the player cannot supply a fresh sample.
         double? pos = null;
         try
         {
-            pos = session.GetTimePosAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+            pos = session.GetTimePosAsync(timeout.Token).ConfigureAwait(false).GetAwaiter().GetResult();
         }
         catch
         {
             pos = null;
         }
 
-        pos ??= session.TimePos;
+        if (pos is not { } seconds) return;
 
         lock (_gate)
         {
-            if (!State.IsPlaying || !ReferenceEquals(_session, session)) return;
-            State.Position = Math.Max(0, pos.Value);
+            if (!State.IsPlaying || !ReferenceEquals(_session, session) || seekGeneration != _seekGeneration) return;
+            State.Position = Math.Max(0, seconds);
             // Never use wall-clock to decide completion while the player is running.
             // EOF is signaled by mpv end-file.
         }

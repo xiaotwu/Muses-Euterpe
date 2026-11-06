@@ -1,5 +1,7 @@
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Xml.Linq;
 using Muses.Core.Update;
 using Muses.Infrastructure.Update;
 using Xunit;
@@ -51,7 +53,7 @@ public class Wave7PolishTests
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jsonResponse);
         using var client = new HttpClient(handler);
 
-        var checker = new GitHubUpdateChecker(client, currentVersion: "0.1.0");
+        var checker = new GitHubUpdateChecker(OSPlatform.Windows, Architecture.X64, client, currentVersion: "0.1.0");
         var update = await checker.CheckForUpdatesAsync();
 
         Assert.True(update.HasUpdate);
@@ -60,6 +62,60 @@ public class Wave7PolishTests
         Assert.Equal("Muses 0.2.0: Equalizer & Focus Mode", update.ReleaseTitle);
         Assert.Contains("32-band EQ", update.ReleaseNotes);
         Assert.Equal("https://github.com/xiaotwu/Muses-Euterpe/releases/download/v0.2.0/Muses-0.2.0-x64.msix", update.DownloadUrl);
+    }
+
+    [Theory]
+    [InlineData("linux", Architecture.X64, "Muses-0.2.0-linux-x64.deb")]
+    [InlineData("linux", Architecture.Arm64, "linux-aarch64.AppImage")]
+    [InlineData("windows", Architecture.X64, "Muses-0.2.0-win-x64.msix")]
+    [InlineData("windows", Architecture.Arm64, "win-arm64.msix")]
+    [InlineData("windows", Architecture.X86, null)]
+    [InlineData("linux", Architecture.X86, null)]
+    [InlineData("osx", Architecture.Arm64, null)]
+    public async Task CheckForUpdates_SelectsCompatiblePlatformAsset(string platform, Architecture architecture, string? expected)
+    {
+        var json = """
+            [{"tag_name":"v0.2.0","html_url":"release-page","assets":[
+              {"name":"Muses-win-x64.exe","browser_download_url":"win-x64.exe"},
+              {"name":"Muses-0.2.0-win-x64.msix","browser_download_url":"Muses-0.2.0-win-x64.msix"},
+              {"name":"Muses-win-arm64.msix","browser_download_url":"win-arm64.msix"},
+              {"name":"Muses-x86_64.AppImage","browser_download_url":"linux-x64.AppImage"},
+              {"name":"Muses-0.2.0-linux-x64.deb","browser_download_url":"Muses-0.2.0-linux-x64.deb"},
+              {"name":"Muses-aarch64.AppImage","browser_download_url":"linux-aarch64.AppImage"},
+              {"name":"Muses-linux-x86.zip","browser_download_url":"linux-x86.zip"},
+              {"name":"Muses-macOS-arm64.zip","browser_download_url":"macos-arm64.zip"}
+            ]}]
+            """;
+
+        using var client = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, json));
+        var checker = new GitHubUpdateChecker(OSPlatform.Create(platform.ToUpperInvariant()), architecture, client, currentVersion: "0.1.0");
+
+        var update = await checker.CheckForUpdatesAsync();
+
+        Assert.Equal(expected is not null, update.HasUpdate);
+        Assert.Equal(expected ?? "https://github.com/xiaotwu/Muses-Euterpe/releases", update.DownloadUrl);
+    }
+
+    [Fact]
+    public async Task CheckForUpdates_SkipsForeignReleasesAndSelectsNewestUsablePackage()
+    {
+        var json = """
+            [
+              {"tag_name":"v0.5.0","assets":[{"name":"Muses-win-x64.msix","browser_download_url":"windows"}]},
+              {"tag_name":"v0.2.0","assets":[{"name":"muses_0.2.0_amd64.deb","browser_download_url":"older-linux"}]},
+              {"tag_name":"v0.4.0","assets":[{"name":"muses_0.4.0_amd64.deb","browser_download_url":42}]},
+              {"tag_name":"v0.3.0","assets":[null, 42, {"name":false},
+                {"name":"muses_0.3.0_amd64.deb","browser_download_url":"newer-linux"}]}
+            ]
+            """;
+        using var client = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, json));
+        var checker = new GitHubUpdateChecker(OSPlatform.Linux, Architecture.X64, client, currentVersion: "0.1.0");
+
+        var update = await checker.CheckForUpdatesAsync();
+
+        Assert.True(update.HasUpdate);
+        Assert.Equal("0.3.0", update.LatestVersion);
+        Assert.Equal("newer-linux", update.DownloadUrl);
     }
 
     [Fact]
@@ -122,68 +178,40 @@ public class Wave7PolishTests
     }
 
     [Fact]
-    public void AppxManifest_ExistsAndContainsRequiredElements()
+    public void AppxManifest_PreservesIdentityForX64Upgrades()
     {
-        // Locate Package.appxmanifest
-        var baseDir = AppContext.BaseDirectory;
-        // Search up until repo root is found
-        var dir = new DirectoryInfo(baseDir);
-        string? manifestPath = null;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(dir.FullName, "src", "Muses.App", "Package.appxmanifest");
-            if (File.Exists(candidate))
-            {
-                manifestPath = candidate;
-                break;
-            }
-            dir = dir.Parent;
-        }
-
-        Assert.NotNull(manifestPath);
-        var xml = File.ReadAllText(manifestPath);
-        Assert.Contains("xiaotwu.Muses", xml);
-        Assert.Contains("muses", xml);
-        Assert.Contains("Square150x150Logo.png", xml);
-        Assert.Contains("Square44x44Logo.png", xml);
-        Assert.Contains("Windows.Desktop", xml);
+        var root = LoadPackageManifest();
+        var ns = root.Name.Namespace;
+        var identity = Assert.Single(root.Elements(ns + "Identity"));
+        Assert.Equal("xiaotwu.Muses", (string?)identity.Attribute("Name"));
+        Assert.Equal("CN=xiaotwu", (string?)identity.Attribute("Publisher"));
+        Assert.Equal("x64", (string?)identity.Attribute("ProcessorArchitecture"));
+        var application = Assert.Single(root.Descendants(ns + "Application"));
+        Assert.Equal("App", (string?)application.Attribute("Id"));
+        Assert.Equal("Muses.exe", (string?)application.Attribute("Executable"));
+        var target = Assert.Single(root.Descendants(ns + "TargetDeviceFamily"));
+        Assert.Equal("Windows.Desktop", (string?)target.Attribute("Name"));
     }
 
     [Fact]
-    public void PackagingAssets_ExistWithNonZeroSize()
+    public void AppxManifest_ReferencesNonEmptyPackagingAssets()
     {
-        var baseDir = AppContext.BaseDirectory;
-        var dir = new DirectoryInfo(baseDir);
-        string? assetsDir = null;
-        while (dir != null)
-        {
-            var candidate = Path.Combine(dir.FullName, "src", "Muses.App", "Assets", "Packaging");
-            if (Directory.Exists(candidate))
-            {
-                assetsDir = candidate;
-                break;
-            }
-            dir = dir.Parent;
-        }
+        var root = LoadPackageManifest();
+        var storeLogo = Assert.Single(root.Descendants(root.Name.Namespace + "Logo"));
+        var visualAssets = root.Descendants().Attributes()
+            .Where(attribute => attribute.Name.LocalName.EndsWith("Logo", StringComparison.Ordinal) ||
+                attribute.Name.LocalName == "Image")
+            .Select(attribute => attribute.Value);
 
-        Assert.NotNull(assetsDir);
-        var requiredFiles = new[]
+        foreach (var asset in visualAssets.Prepend(storeLogo.Value))
         {
-            "Square44x44Logo.png",
-            "Square150x150Logo.png",
-            "Wide310x150Logo.png",
-            "StoreLogo.png",
-            "SplashScreen.png"
-        };
-
-        foreach (var file in requiredFiles)
-        {
-            var path = Path.Combine(assetsDir, file);
-            Assert.True(File.Exists(path), $"File {file} should exist in {assetsDir}");
-            var length = new FileInfo(path).Length;
-            Assert.True(length > 0, $"File {file} should not be empty");
+            var path = Path.Combine(AppContext.BaseDirectory, "Packaging", asset.Replace('\\', '/'));
+            Assert.True(File.Exists(path) && new FileInfo(path).Length > 0, $"Missing or empty package asset {asset}");
         }
     }
+
+    private static XElement LoadPackageManifest() =>
+        XElement.Load(Path.Combine(AppContext.BaseDirectory, "Packaging", "Package.appxmanifest"));
 
     private sealed class MockHttpMessageHandler(HttpStatusCode statusCode, string content) : HttpMessageHandler
     {

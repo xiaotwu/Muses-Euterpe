@@ -31,6 +31,20 @@ public class QueueServiceTests
     }
 
     [Fact]
+    public void ClearUpNext_only_clears_manual_insertions()
+    {
+        var q = new QueueService();
+        var collection = new[] { Snap("a"), Snap("b") };
+        q.Play(collection[0], collection, QueueSource.Playlist);
+        q.PlayNext(Snap("manual"));
+
+        q.ClearUpNext();
+
+        Assert.Empty(q.UpNext);
+        Assert.Equal(collection[1].Id, q.Next()?.Track.Id);
+    }
+
+    [Fact]
     public void Next_drains_upNext_then_context_and_writes_history()
     {
         var q = new QueueService();
@@ -94,6 +108,33 @@ public class QueueServiceTests
     }
 
     [Fact]
+    public void Restore_keeps_manual_occurrence_and_unshuffle_keeps_only_existing_items()
+    {
+        var store = new MemoryQueueStore();
+        var queue = new QueueService { Store = store };
+        var context = new[] { Snap("a"), Snap("b"), Snap("c") };
+        queue.Play(context[0], context, QueueSource.Playlist);
+        var originalIds = queue.Items.Select(item => item.Id).ToArray();
+        queue.ToggleShuffle();
+        queue.RemoveItem(queue.Items.FindIndex(item => item.Id == originalIds[1]));
+        queue.PlayNext(context[0]);
+        var manual = queue.Next()!;
+        queue.CheckpointPosition(manual.Track.Id, 1200);
+
+        var restored = new QueueService { Store = store };
+        restored.Restore();
+        Assert.Equal(manual.Id, restored.Current()?.Id);
+        Assert.Equal(1200, restored.LastPositionMs);
+        Assert.Equal(originalIds[0], restored.Items[restored.CurrentIndex].Id);
+        Assert.True(restored.Shuffle);
+
+        restored.ToggleShuffle();
+        Assert.Equal(new[] { originalIds[0], originalIds[2] }, restored.Items.Select(item => item.Id));
+        Assert.Equal(manual.Id, restored.Current()?.Id);
+        Assert.Equal(originalIds[2], restored.Next()?.Id);
+    }
+
+    [Fact]
     public void PeekNext_follows_collection_then_wraps_on_repeat_all()
     {
         var q = new QueueService();
@@ -128,5 +169,12 @@ public class QueueServiceTests
         Assert.Equal(3, q.Items.Count);
         Assert.Equal(2, q.CurrentIndex);
         Assert.Equal("c", q.Current()?.Track.Title);
+    }
+
+    private sealed class MemoryQueueStore : IQueueStore
+    {
+        private QueueStateRecord? _state;
+        public void Save(QueueStateRecord state) => _state = state;
+        public QueueStateRecord? Load() => _state;
     }
 }

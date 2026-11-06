@@ -9,23 +9,25 @@ public sealed class HistoryService
 {
     private readonly IHistoryRepository _repo;
     private readonly LibraryService? _library;
-    private readonly PlaybackService? _playback;
+    private readonly TimeProvider _timeProvider;
 
     private TrackSnapshot? _activeTrack;
     private long _activeStartEpoch;
     private double _activeListenedSeconds;
+    private long? _playingSince;
 
     public event Action? Changed;
 
-    public HistoryService(IHistoryRepository repo, LibraryService? library = null, PlaybackService? playback = null)
+    public HistoryService(IHistoryRepository repo, LibraryService? library = null, PlaybackService? playback = null,
+        TimeProvider? timeProvider = null)
     {
         _repo = repo;
         _library = library;
-        _playback = playback;
+        _timeProvider = timeProvider ?? TimeProvider.System;
 
-        if (_playback is not null)
+        if (playback is not null)
         {
-            _playback.EventBus.EventPosted += OnPlaybackEvent;
+            playback.EventBus.EventPosted += OnPlaybackEvent;
         }
     }
 
@@ -34,71 +36,68 @@ public sealed class HistoryService
         switch (evt.Kind)
         {
             case PlaybackEventKind.TrackStarted when evt.Track is not null:
-                FinalizeActiveSession();
+                FinalizeActiveSession(ListeningOutcome.Interrupted);
                 _activeTrack = evt.Track;
-                _activeStartEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                _activeListenedSeconds = 0;
+                _activeStartEpoch = _timeProvider.GetUtcNow().ToUnixTimeSeconds();
+                _playingSince = _timeProvider.GetTimestamp();
                 break;
 
-            case PlaybackEventKind.TrackCompleted when _activeTrack is not null:
-                var durationMs = (int)(_activeTrack.DurationSeconds * 1000);
-                var endEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                var completedEvt = new ListeningEventEntity(
-                    Id: Guid.NewGuid().ToString(),
-                    TrackId: _activeTrack.Id.ToString(),
-                    StartedAt: _activeStartEpoch,
-                    EndedAt: endEpoch,
-                    Outcome: ListeningOutcome.Completed,
-                    ContextSummaryJson: null,
-                    ListenedMs: durationMs > 0 ? durationMs : (int)(_activeListenedSeconds * 1000)
-                );
-                _repo.RecordEvent(completedEvt);
-                _library?.RecordPlay(_activeTrack.Id);
-                _activeTrack = null;
-                _activeListenedSeconds = 0;
-                Changed?.Invoke();
+            case PlaybackEventKind.TrackPaused when MatchesActiveTrack(evt):
+                PauseClock();
                 break;
 
-            case PlaybackEventKind.TrackSkipped when _activeTrack is not null:
-                FinalizeActiveSession();
+            case PlaybackEventKind.TrackResumed when MatchesActiveTrack(evt):
+                _playingSince ??= _timeProvider.GetTimestamp();
+                break;
+
+            case PlaybackEventKind.TrackCompleted when MatchesActiveTrack(evt):
+                FinalizeActiveSession(ListeningOutcome.Completed);
+                break;
+
+            case PlaybackEventKind.TrackSkipped when MatchesActiveTrack(evt):
+                FinalizeActiveSession(ListeningOutcome.Skipped);
+                break;
+
+            case PlaybackEventKind.TrackStopped when MatchesActiveTrack(evt):
+                FinalizeActiveSession(ListeningOutcome.Interrupted);
                 break;
         }
     }
 
-    public void FinalizeActiveSession()
+    private bool MatchesActiveTrack(PlaybackEvent evt) => _activeTrack is { } active && evt.Track?.Id == active.Id;
+
+    private void PauseClock()
+    {
+        if (_playingSince is not { } since) return;
+        _activeListenedSeconds += _timeProvider.GetElapsedTime(since).TotalSeconds;
+        _playingSince = null;
+    }
+
+    private void FinalizeActiveSession(ListeningOutcome outcome)
     {
         if (_activeTrack is null) return;
 
-        var durationSec = _activeTrack.DurationSeconds;
-        var listenedSec = _activeListenedSeconds;
-        var endEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-        var isCompleted = (durationSec > 0 && listenedSec >= durationSec * 0.5) || listenedSec >= 30.0;
-        var outcome = isCompleted ? ListeningOutcome.Completed : (listenedSec > 2.0 ? ListeningOutcome.Skipped : ListeningOutcome.Interrupted);
-
-        if (listenedSec >= 2.0)
+        PauseClock();
+        var track = _activeTrack;
+        var listenedMs = (int)Math.Clamp(_activeListenedSeconds * 1000, 0, int.MaxValue);
+        _activeTrack = null;
+        _activeListenedSeconds = 0;
+        if (listenedMs >= 2000 || outcome == ListeningOutcome.Completed)
         {
             var evt = new ListeningEventEntity(
                 Id: Guid.NewGuid().ToString(),
-                TrackId: _activeTrack.Id.ToString(),
+                TrackId: track.Id.ToString(),
                 StartedAt: _activeStartEpoch,
-                EndedAt: endEpoch,
+                EndedAt: _timeProvider.GetUtcNow().ToUnixTimeSeconds(),
                 Outcome: outcome,
                 ContextSummaryJson: null,
-                ListenedMs: (int)(listenedSec * 1000)
+                ListenedMs: listenedMs
             );
             _repo.RecordEvent(evt);
-
-            if (isCompleted && _library is not null)
-            {
-                _library.RecordPlay(_activeTrack.Id);
-            }
 
             Changed?.Invoke();
         }
 
-        _activeTrack = null;
-        _activeListenedSeconds = 0;
     }
 
     public void Clear()
@@ -109,7 +108,7 @@ public sealed class HistoryService
 
     public ListeningHistoryDashboard GetDashboard(RecapRange range)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _timeProvider.GetUtcNow();
         long? fromEpoch = range switch
         {
             RecapRange.Week => now.AddDays(-7).ToUnixTimeSeconds(),

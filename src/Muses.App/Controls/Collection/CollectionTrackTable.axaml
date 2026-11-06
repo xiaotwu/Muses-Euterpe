@@ -7,7 +7,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="4,6" />
-      <Setter Property="Foreground" Value="{StaticResource MusesTextSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextSecondaryBrush}" />
       <Setter Property="FontSize" Value="12" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Cursor" Value="Hand" />
@@ -17,11 +17,11 @@
       <Setter Property="Background" Value="Transparent" />
     </Style>
     <Style Selector="Button.header:pointerover TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
     </Style>
   </UserControl.Styles>
 
-  <DockPanel Background="{StaticResource MusesPageBrush}">
+  <DockPanel Background="{DynamicResource MusesPageBrush}">
     <!-- Collapse Handle (Chevron Down) -->
     <Button x:Name="CollapseButton" DockPanel.Dock="Top"
             HorizontalAlignment="Center"
@@ -35,11 +35,11 @@
             ToolTip.Tip="Return to song card deck">
       <PathIcon Data="M7.41,8.59L12,13.17L16.59,8.59L18,10L12,16L6,10L7.41,8.59Z"
                 Width="12" Height="12"
-                Foreground="{StaticResource MusesTextSecondaryBrush}" />
+                Foreground="{DynamicResource MusesTextSecondaryBrush}" />
     </Button>
 
     <!-- Hairline Separator -->
-    <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" Margin="24,0" />
+    <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource MusesWhiteOverlay14Brush}" Margin="24,0" />
 
     <!-- Table Header Row -->
     <Border DockPanel.Dock="Top" Margin="24,4,24,4">
@@ -66,7 +66,7 @@
     </Border>
 
     <!-- Hairline Separator -->
-    <Border DockPanel.Dock="Top" Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" Margin="24,0,24,4" />
+    <Border DockPanel.Dock="Top" Height="1" Background="{DynamicResource MusesWhiteOverlay14Brush}" Margin="24,0,24,4" />
 
     <!-- Table Row List -->
     <ScrollViewer x:Name="TableScroll"

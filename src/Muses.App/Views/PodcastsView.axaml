@@ -1,0 +1,262 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ctrl="using:Muses.App.Controls"
+             xmlns:discovery="using:Muses.Infrastructure.Discovery"
+             xmlns:vm="using:Muses.App.ViewModels"
+             x:Class="Muses.App.Views.PodcastsView"
+             x:DataType="vm:PodcastsViewModel">
+  <UserControl.Resources>
+    <DataTemplate x:Key="ShowCard" x:DataType="discovery:PodcastShowCard">
+      <Button Classes="podcastCard" Width="148" Margin="0,0,16,8"
+              Command="{Binding $parent[UserControl].((vm:PodcastsViewModel)DataContext).OpenShowCommand}"
+              CommandParameter="{Binding}" AutomationProperties.Name="{Binding Title}"
+              ToolTip.Tip="{Binding Title}">
+        <StackPanel Spacing="8">
+          <ctrl:ArtworkControl Width="136" Height="136" CornerRadius="8" GlyphSize="30"
+                               SourceUrl="{Binding ArtworkUrl}" />
+          <TextBlock Classes="podcastItemTitle" Text="{Binding Title}" />
+        </StackPanel>
+      </Button>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.podcastPageTitle">
+      <Setter Property="FontFamily" Value="{StaticResource MusesHeadingFont}" />
+      <Setter Property="FontSize" Value="32" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesHeadingBrush}" />
+    </Style>
+    <Style Selector="TextBlock.podcastSectionTitle">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.podcastItemTitle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="TextBlock.podcastCaption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextSecondaryBrush}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="Button.podcastAction">
+      <Setter Property="Background" Value="{DynamicResource MusesGlassPanelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MusesHairlineBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.podcastAction:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MusesSelectionBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Button.podcastCard">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.podcastCard:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MusesSelectionBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+    <ScrollViewer IsVisible="{Binding !IsDetail}" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="32,28,32,80" Spacing="24">
+        <TextBlock Classes="podcastPageTitle" Text="{Binding Labels.FollowedTitle}"
+                   AutomationProperties.HeadingLevel="1" TextWrapping="Wrap" />
+
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Width="440" HorizontalAlignment="Left">
+          <TextBox x:Name="PodcastSearchBox" Text="{Binding Query, Mode=TwoWay}"
+                   PlaceholderText="{Binding Labels.SearchPrompt}"
+                   AutomationProperties.Name="{Binding Labels.SearchPrompt}"
+                   MinWidth="180" MaxLength="1000" VerticalAlignment="Center">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <Button Grid.Column="1" Classes="podcastAction" Content="{Binding Labels.Search}"
+                  Command="{Binding SearchCommand}" IsEnabled="{Binding !IsSearching}" />
+          <Button Grid.Column="2" Classes="podcastAction" Content="{Binding Labels.ClearSearch}"
+                  IsVisible="{Binding HasQuery}" Command="{Binding ClearSearchCommand}" />
+        </Grid>
+
+        <StackPanel Spacing="8" IsVisible="{Binding HasSearchResults}">
+          <TextBlock Classes="podcastSectionTitle" Text="{Binding Labels.SearchResults}"
+                     AutomationProperties.HeadingLevel="2" TextWrapping="Wrap" />
+          <ItemsControl ItemsSource="{Binding SearchResults}" ItemTemplate="{StaticResource ShowCard}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+        </StackPanel>
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding IsSearching}"
+                   Text="{Binding Labels.Searching}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding NoSearchResults}"
+                   Text="{Binding Labels.NoSearchResults}" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Spacing="8" IsVisible="{Binding SearchFailed}">
+          <TextBlock Classes="podcastCaption" Text="{Binding Labels.SearchFailed}"
+                     TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          <Button Classes="podcastAction" Content="{Binding Labels.Retry}" Command="{Binding SearchCommand}" />
+        </StackPanel>
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding SaveFailed}"
+                   Text="{Binding Labels.SaveFailed}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding PlayFailed}"
+                   Text="{Binding Labels.PlayFailed}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+
+        <StackPanel IsVisible="{Binding !HasFollowedShows}" Spacing="8" Margin="0,18,0,0">
+          <PathIcon Width="24" Height="24" HorizontalAlignment="Left"
+                    Foreground="{DynamicResource MusesAccentBrush}"
+                    Data="M12,14A3,3 0 0,0 15,11V5A3,3 0 0,0 9,5V11A3,3 0 0,0 12,14M17,11A5,5 0 0,1 7,11H5A7,7 0 0,0 11,17.92V21H13V17.92A7,7 0 0,0 19,11Z" />
+          <TextBlock Classes="podcastSectionTitle" Text="{Binding Labels.EmptyTitle}" TextWrapping="Wrap" />
+          <TextBlock Classes="podcastCaption" Text="{Binding Labels.EmptyHint}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="10" IsVisible="{Binding HasContinueEpisodes}">
+          <TextBlock Classes="podcastSectionTitle" Text="{Binding Labels.ContinueTitle}"
+                     AutomationProperties.HeadingLevel="2" />
+          <TextBlock Classes="podcastCaption" Text="{Binding Labels.ContinueHint}" />
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ContinueEpisodes}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="10" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PodcastEpisodeRow">
+                  <Button Classes="podcastCard" Width="160" Margin="0,0,0,6"
+                          Command="{Binding $parent[UserControl].((vm:PodcastsViewModel)DataContext).PlayEpisodeCommand}"
+                          CommandParameter="{Binding}" AutomationProperties.Name="{Binding PlaybackLabel}"
+                          AutomationProperties.HelpText="{Binding StatusLabel}" ToolTip.Tip="{Binding PlaybackLabel}">
+                    <StackPanel Spacing="5">
+                      <ctrl:ArtworkControl Width="148" Height="148" CornerRadius="8" GlyphSize="30"
+                                           SourceUrl="{Binding ArtworkUrl}" />
+                      <TextBlock Classes="podcastItemTitle" Text="{Binding Title}" />
+                      <TextBlock Classes="podcastCaption" Text="{Binding ShowTitle}" />
+                      <ProgressBar Height="3" Value="{Binding ProgressPercent}" Maximum="100"
+                                   Foreground="{DynamicResource MusesAccentBrush}" />
+                      <TextBlock Classes="podcastCaption" Text="{Binding StatusLabel}" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </StackPanel>
+
+        <ItemsControl IsVisible="{Binding HasFollowedShows}" ItemsSource="{Binding FollowedShows}"
+                      ItemTemplate="{StaticResource ShowCard}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+
+    <ScrollViewer x:Name="DetailScroll" IsVisible="{Binding IsDetail}" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="32,28,32,80" Spacing="20">
+        <Button x:Name="BackToShowsButton" Classes="podcastAction" Command="{Binding BackToShowsCommand}"
+                AutomationProperties.Name="{Binding Labels.Back}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <PathIcon Width="10" Height="10" Data="M15.4,5.4L14,4L6,12L14,20L15.4,18.6L8.8,12Z" />
+            <TextBlock Text="{Binding Labels.Back}" />
+          </StackPanel>
+        </Button>
+
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+          <ctrl:ArtworkControl Width="108" Height="108" CornerRadius="10" GlyphSize="32"
+                               SourceUrl="{Binding SelectedShow.ArtworkUrl}" />
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10">
+            <TextBlock Classes="podcastPageTitle" Text="{Binding SelectedShow.Title}"
+                       AutomationProperties.HeadingLevel="1" TextWrapping="Wrap" />
+            <WrapPanel>
+              <Button Classes="podcastAction" Content="{Binding FollowActionLabel}"
+                      Command="{Binding ToggleFollowCommand}" Margin="0,0,8,4" />
+              <Button Classes="podcastAction" Command="{Binding RefreshShowCommand}" Margin="0,0,0,4"
+                      IsEnabled="{Binding !IsLoadingShow}" ToolTip.Tip="{Binding Labels.Refresh}"
+                      AutomationProperties.Name="{Binding Labels.Refresh}">
+                <PathIcon Width="14" Height="14"
+                          Data="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 1,0 19.93,13H17.91A6,6 0 1,1 16.24,7.76L13,11H20V4Z" />
+              </Button>
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+
+        <TextBlock Classes="podcastSectionTitle" Text="{Binding Labels.Episodes}"
+                   AutomationProperties.HeadingLevel="2" />
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding IsLoadingShow}"
+                   Text="{Binding Labels.LoadingEpisodes}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding NoEpisodes}"
+                   Text="{Binding Labels.NoEpisodes}" AutomationProperties.LiveSetting="Polite" />
+        <StackPanel Spacing="8" IsVisible="{Binding ShowLoadFailed}">
+          <TextBlock Classes="podcastCaption" Text="{Binding Labels.ShowLoadFailed}"
+                     TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+          <Button Classes="podcastAction" Content="{Binding Labels.Retry}"
+                  Command="{Binding RefreshShowCommand}" IsEnabled="{Binding !IsLoadingShow}" />
+        </StackPanel>
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding SaveFailed}"
+                   Text="{Binding Labels.SaveFailed}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Classes="podcastCaption" IsVisible="{Binding PlayFailed}"
+                   Text="{Binding Labels.PlayFailed}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+
+        <WrapPanel IsVisible="{Binding CanPlayUnplayed}">
+          <Button Classes="podcastAction" Content="{Binding Labels.PlayUnplayed}"
+                  Command="{Binding PlayUnplayedCommand}" Margin="0,0,10,4" />
+          <TextBlock Classes="podcastCaption" Text="{Binding UnplayedOrderLabel}"
+                     VerticalAlignment="Center" TextWrapping="Wrap" />
+        </WrapPanel>
+
+        <ItemsControl ItemsSource="{Binding Episodes}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:PodcastEpisodeRow">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <Button Classes="podcastCard" HorizontalAlignment="Stretch" IsEnabled="{Binding IsAvailable}"
+                        Command="{Binding $parent[UserControl].((vm:PodcastsViewModel)DataContext).PlayEpisodeCommand}"
+                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding PlaybackLabel}"
+                        AutomationProperties.HelpText="{Binding StatusLabel}" ToolTip.Tip="{Binding PlaybackLabel}">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <ctrl:ArtworkControl Width="42" Height="42" CornerRadius="5" SourceUrl="{Binding ArtworkUrl}" />
+                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                      <TextBlock Classes="podcastItemTitle" Text="{Binding Title}" />
+                      <TextBlock Classes="podcastCaption" Text="{Binding StatusLabel}" />
+                      <ProgressBar IsVisible="{Binding CanResume}" Height="3" Width="160" HorizontalAlignment="Left"
+                                   Value="{Binding ProgressPercent}" Maximum="100"
+                                   Foreground="{DynamicResource MusesAccentBrush}" />
+                    </StackPanel>
+                    <PathIcon Grid.Column="2" Width="13" Height="13" VerticalAlignment="Center" Margin="0,0,4,0"
+                              Foreground="{DynamicResource MusesTextSecondaryBrush}"
+                              Data="M8,5V19L19,12Z" />
+                  </Grid>
+                </Button>
+                <Button Grid.Column="1" Classes="podcastCard" VerticalAlignment="Center" Width="36" Height="36"
+                        HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                        Command="{Binding $parent[UserControl].((vm:PodcastsViewModel)DataContext).TogglePlayedCommand}"
+                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding MarkActionLabel}"
+                        ToolTip.Tip="{Binding MarkActionLabel}">
+                  <Panel>
+                    <PathIcon Width="16" Height="16" IsVisible="{Binding !IsCompleted}"
+                              Foreground="{DynamicResource MusesTextSecondaryBrush}"
+                              Data="M12,2A10,10 0 1,0 12,22A10,10 0 1,0 12,2ZM12,4A8,8 0 1,1 12,20A8,8 0 1,1 12,4Z" />
+                    <PathIcon Width="16" Height="16" IsVisible="{Binding IsCompleted}"
+                              Foreground="{DynamicResource MusesAccentBrush}"
+                              Data="M12,2A10,10 0 1,0 12,22A10,10 0 1,0 12,2ZM10,17L5,12L6.41,10.59L10,14.17L17.59,6.59L19,8Z" />
+                  </Panel>
+                </Button>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Classes="podcastAction" IsVisible="{Binding HasMoreEpisodes}" IsEnabled="{Binding !IsLoadingMore}"
+                Content="{Binding Labels.LoadMore}" Command="{Binding LoadMoreEpisodesCommand}" />
+      </StackPanel>
+    </ScrollViewer>
+  </Panel>
+</UserControl>

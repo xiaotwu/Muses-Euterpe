@@ -39,9 +39,7 @@ public sealed class HomeFeedCache
         TimeSpan? webFreshWindow = null,
         TimeSpan? webStaleLimit = null)
     {
-        _directory = directory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Muses", "Cache", "home-feed");
+        _directory = directory ?? Path.Combine(LocalDataMaintenance.LocalCacheRoot(), "home-feed");
         _baselineFreshWindow = baselineFreshWindow ?? BaselineFreshWindow;
         _webFreshWindow = webFreshWindow ?? WebFreshWindow;
         _webStaleLimit = webStaleLimit ?? WebStaleLimit;

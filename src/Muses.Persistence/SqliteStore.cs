@@ -9,8 +9,9 @@ using Muses.Core.Preferences;
 
 namespace Muses.Persistence;
 
-public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IPlaylistRepository, IYouTubeImportRepository, ICatalogRepository, IHistoryRepository, IEQRepository, INotesRepository, IInboxRepository, IAutomationRepository, IFocusRepository, IPreferencesStore
+public sealed partial class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IPlaylistRepository, IYouTubeImportRepository, ICatalogRepository, IHistoryRepository, IEQRepository, INotesRepository, IInboxRepository, IAutomationRepository, IFocusRepository, IPreferencesStore
 {
+    private const string DatabaseFileName = "muses-youtube-native.sqlite";
     private readonly SqliteConnection _connection;
     public bool UsedInMemoryFallback { get; }
     public string? FailureDescription { get; }
@@ -25,9 +26,44 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
 
     public static string DefaultPath()
     {
+        var paths = DefaultPaths();
+        return paths.FirstOrDefault(File.Exists) ?? paths[0];
+    }
+
+    /// <summary>
+    /// The preferred database path followed by legacy paths that can still be opened.
+    /// </summary>
+    public static IReadOnlyList<string> DefaultPaths()
+    {
+        var dataOverride = Environment.GetEnvironmentVariable("MUSES_DATA_HOME");
+        if (Path.IsPathFullyQualified(dataOverride ?? ""))
+            return [Path.Combine(dataOverride!, DatabaseFileName)];
+
+        if (OperatingSystem.IsLinux())
+        {
+            return LinuxDatabasePaths(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
+                Environment.GetEnvironmentVariable("XDG_CONFIG_HOME"));
+        }
+
         var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         var folder = OperatingSystem.IsMacOS() ? "MusesEuterpe" : "Muses";
-        return Path.Combine(root, folder, "muses-youtube-native.sqlite");
+        return [Path.Combine(root, folder, DatabaseFileName)];
+    }
+
+    internal static string[] LinuxDatabasePaths(string home, string? dataHome, string? configHome)
+    {
+        var defaultConfig = Path.Combine(home, ".config");
+        var dataRoot = Path.IsPathFullyQualified(dataHome ?? "") ? dataHome! : Path.Combine(home, ".local", "share");
+        var configRoot = Path.IsPathFullyQualified(configHome ?? "") ? configHome! : defaultConfig;
+
+        // Older Euterpe Linux builds used .NET's ApplicationData (XDG_CONFIG_HOME).
+        // Open their database in place, including its existing SQLite sidecars.
+        return new[] { dataRoot, configRoot, defaultConfig }
+            .Select(root => Path.Combine(root, "Muses", DatabaseFileName))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     public static SqliteStore Open(string? path = null, bool inMemory = false)
@@ -36,10 +72,11 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
             return new SqliteStore(OpenMemory(), false, null);
 
         var destination = path ?? DefaultPath();
+        SqliteConnection? conn = null;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            var conn = new SqliteConnection(new SqliteConnectionStringBuilder
+            conn = new SqliteConnection(new SqliteConnectionStringBuilder
             {
                 DataSource = destination,
                 Mode = SqliteOpenMode.ReadWriteCreate
@@ -49,6 +86,7 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
         }
         catch (Exception ex)
         {
+            conn?.Dispose();
             BackupCorrupt(destination);
             return new SqliteStore(OpenMemory(), true, ex.Message);
         }
@@ -59,8 +97,10 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO queue_state (id, items_json, current_index, up_next_json, history_json,
-                repeat_mode_raw, shuffle, saved_at, current_track_id, last_position_ms, groups_json)
-            VALUES ($id, $items, $idx, $up, $hist, $repeat, $shuffle, $saved, $track, $pos, $groups)
+                repeat_mode_raw, shuffle, saved_at, current_track_id, last_position_ms, groups_json,
+                inserted_current_json, original_order_json)
+            VALUES ($id, $items, $idx, $up, $hist, $repeat, $shuffle, $saved, $track, $pos, $groups,
+                $inserted, $originalOrder)
             ON CONFLICT(id) DO UPDATE SET
                 items_json = excluded.items_json,
                 current_index = excluded.current_index,
@@ -71,7 +111,9 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
                 saved_at = excluded.saved_at,
                 current_track_id = excluded.current_track_id,
                 last_position_ms = excluded.last_position_ms,
-                groups_json = excluded.groups_json;
+                groups_json = excluded.groups_json,
+                inserted_current_json = excluded.inserted_current_json,
+                original_order_json = excluded.original_order_json;
             """;
         cmd.Parameters.AddWithValue("$id", state.Id.ToString());
         cmd.Parameters.AddWithValue("$items", state.ItemsJson);
@@ -84,6 +126,8 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
         cmd.Parameters.AddWithValue("$track", (object?)state.CurrentTrackId?.ToString() ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$pos", (object?)state.LastPositionMs ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$groups", (object?)state.GroupsJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$inserted", (object?)state.InsertedCurrentJson ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$originalOrder", (object?)state.OriginalOrderJson ?? DBNull.Value);
         cmd.ExecuteNonQuery();
     }
 
@@ -106,7 +150,9 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
             SavedAt = DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(reader.GetOrdinal("saved_at"))),
             CurrentTrackId = GetGuid(reader, "current_track_id"),
             LastPositionMs = GetDouble(reader, "last_position_ms"),
-            GroupsJson = GetString(reader, "groups_json")
+            GroupsJson = GetString(reader, "groups_json"),
+            InsertedCurrentJson = GetString(reader, "inserted_current_json"),
+            OriginalOrderJson = GetString(reader, "original_order_json")
         };
     }
 
@@ -117,19 +163,21 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
             INSERT INTO tracks (id, title, artist, album_title, album_artist, duration_ms, track_no, disc_no, year, genre,
                 youtube_id, media_kind_raw, release_catalog_id, release_order, artist_catalog_id, artwork_url, lyrics,
                 lyrics_offset_ms, replay_gain, sample_rate, bit_depth, codec, bit_rate, channels, is_lossless,
-                metadata_status_raw, availability_raw, added_at, last_played_at, play_count, liked)
+                metadata_status_raw, availability_raw, added_at, last_played_at, play_count, liked, library_member)
             VALUES ($id, $title, $artist, $album, $albumArtist, $dur, $trackNo, $discNo, $year, $genre,
                 $yt, $kind, $rel, $relOrd, $artCat, $art, $lyrics, $lyOff, $rg, $sr, $bd, $codec, $br, $ch, $lossless,
-                $meta, $avail, $added, $last, $plays, $liked)
+                $meta, $avail, $added, $last, $plays, $liked, $libraryMember)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title, artist = excluded.artist, album_title = excluded.album_title,
                 album_artist = excluded.album_artist, duration_ms = excluded.duration_ms,
                 year = excluded.year, youtube_id = excluded.youtube_id,
+                media_kind_raw = COALESCE(excluded.media_kind_raw, tracks.media_kind_raw),
                 release_catalog_id = excluded.release_catalog_id, release_order = excluded.release_order,
                 artist_catalog_id = excluded.artist_catalog_id,
                 artwork_url = excluded.artwork_url, lyrics = excluded.lyrics,
                 last_played_at = excluded.last_played_at, play_count = excluded.play_count,
-                liked = excluded.liked;
+                liked = excluded.liked,
+                library_member = MAX(tracks.library_member, excluded.library_member);
             """;
         BindTrack(cmd, track);
         cmd.ExecuteNonQuery();
@@ -166,7 +214,12 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
     public void ToggleLike(Guid id)
     {
         using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "UPDATE tracks SET liked = CASE liked WHEN 1 THEN 0 ELSE 1 END WHERE id = $id;";
+        cmd.CommandText = """
+            UPDATE tracks SET
+                liked = CASE liked WHEN 1 THEN 0 ELSE 1 END,
+                library_member = CASE liked WHEN 1 THEN library_member ELSE 1 END
+            WHERE id = $id;
+            """;
         cmd.Parameters.AddWithValue("$id", id.ToString());
         cmd.ExecuteNonQuery();
     }
@@ -328,33 +381,25 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
 
     public void AddTrack(Guid playlistId, Guid trackId)
     {
-        using (var checkCmd = _connection.CreateCommand())
-        {
-            checkCmd.CommandText = "SELECT 1 FROM playlist_items WHERE playlist_id = $pid AND track_id = $tid LIMIT 1;";
-            checkCmd.Parameters.AddWithValue("$pid", playlistId.ToString());
-            checkCmd.Parameters.AddWithValue("$tid", trackId.ToString());
-            if (checkCmd.ExecuteScalar() != null) return; // Deduplicated!
-        }
-
-        int nextOrder = 0;
-        using (var orderCmd = _connection.CreateCommand())
-        {
-            orderCmd.CommandText = "SELECT COALESCE(MAX(item_order) + 1, 0) FROM playlist_items WHERE playlist_id = $pid;";
-            orderCmd.Parameters.AddWithValue("$pid", playlistId.ToString());
-            var res = orderCmd.ExecuteScalar();
-            if (res != null && res != DBNull.Value) nextOrder = Convert.ToInt32(res);
-        }
-
-        using var insCmd = _connection.CreateCommand();
-        insCmd.CommandText = """
+        using var tx = _connection.BeginTransaction();
+        using var cmd = _connection.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = """
             INSERT INTO playlist_items (id, playlist_id, track_id, item_order)
-            VALUES ($id, $pid, $tid, $ord);
+            SELECT $id, $pid, $tid,
+                (SELECT COALESCE(MAX(item_order) + 1, 0) FROM playlist_items WHERE playlist_id = $pid)
+            WHERE EXISTS (SELECT 1 FROM playlists WHERE id = $pid)
+                AND NOT EXISTS (SELECT 1 FROM playlist_items WHERE playlist_id = $pid AND track_id = $tid);
+
+            UPDATE tracks SET library_member = 1
+            WHERE id = $tid AND EXISTS (
+                SELECT 1 FROM playlists WHERE id = $pid);
             """;
-        insCmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
-        insCmd.Parameters.AddWithValue("$pid", playlistId.ToString());
-        insCmd.Parameters.AddWithValue("$tid", trackId.ToString());
-        insCmd.Parameters.AddWithValue("$ord", nextOrder);
-        insCmd.ExecuteNonQuery();
+        cmd.Parameters.AddWithValue("$id", Guid.NewGuid().ToString());
+        cmd.Parameters.AddWithValue("$pid", playlistId.ToString());
+        cmd.Parameters.AddWithValue("$tid", trackId.ToString());
+        cmd.ExecuteNonQuery();
+        tx.Commit();
     }
 
     public void RemoveItem(Guid itemId)
@@ -381,24 +426,32 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
 
     public void MoveItem(Guid playlistId, int fromIndex, int toIndex)
     {
-        var items = LoadPlaylistItems(playlistId);
+        using var tx = _connection.BeginTransaction();
+        var items = ReadPlaylistItems(playlistId, tx);
         if (fromIndex < 0 || fromIndex >= items.Count || toIndex < 0 || toIndex > items.Count) return;
 
         var target = items[fromIndex];
         items.RemoveAt(fromIndex);
         items.Insert(Math.Min(toIndex, items.Count), target);
 
-        using var tx = _connection.BeginTransaction();
-        for (var i = 0; i < items.Count; i++)
-        {
-            using var cmd = _connection.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = "UPDATE playlist_items SET item_order = $ord WHERE id = $id;";
-            cmd.Parameters.AddWithValue("$ord", i);
-            cmd.Parameters.AddWithValue("$id", items[i].Id.ToString());
-            cmd.ExecuteNonQuery();
-        }
+        SavePlaylistItemOrder(items, tx);
         tx.Commit();
+    }
+
+    public bool MoveItem(Guid playlistId, Guid itemId, int offset)
+    {
+        if (offset is not (-1 or 1)) return false;
+
+        using var tx = _connection.BeginTransaction();
+        var items = ReadPlaylistItems(playlistId, tx);
+        var from = items.FindIndex(item => item.Id == itemId);
+        var to = from + offset;
+        if (from < 0 || to < 0 || to >= items.Count) return false;
+
+        (items[from], items[to]) = (items[to], items[from]);
+        SavePlaylistItemOrder(items, tx);
+        tx.Commit();
+        return true;
     }
 
     public void TogglePin(Guid id)
@@ -434,8 +487,23 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
 
     private List<PlaylistItemEntity> LoadPlaylistItems(Guid playlistId)
     {
+        var items = ReadPlaylistItems(playlistId, null);
+        foreach (var item in items)
+        {
+            if (item.TrackId.HasValue) item.Track = Get(item.TrackId.Value);
+        }
+        return items;
+    }
+
+    private List<PlaylistItemEntity> ReadPlaylistItems(Guid playlistId, SqliteTransaction? transaction)
+    {
         using var cmd = _connection.CreateCommand();
-        cmd.CommandText = "SELECT * FROM playlist_items WHERE playlist_id = $pid ORDER BY item_order ASC, id ASC;";
+        cmd.Transaction = transaction;
+        cmd.CommandText = """
+            SELECT * FROM playlist_items
+            WHERE playlist_id = $pid AND EXISTS (SELECT 1 FROM playlists WHERE id = $pid)
+            ORDER BY item_order ASC, id ASC;
+            """;
         cmd.Parameters.AddWithValue("$pid", playlistId.ToString());
         using var reader = cmd.ExecuteReader();
         var items = new List<PlaylistItemEntity>();
@@ -449,27 +517,30 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
                 ItemOrder = reader.GetInt32(reader.GetOrdinal("item_order"))
             });
         }
-        foreach (var item in items)
-        {
-            if (item.TrackId.HasValue) item.Track = Get(item.TrackId.Value);
-        }
         return items;
     }
 
     private void RenumberPlaylistItems(Guid playlistId)
     {
-        var items = LoadPlaylistItems(playlistId);
         using var tx = _connection.BeginTransaction();
+        var items = ReadPlaylistItems(playlistId, tx);
+        SavePlaylistItemOrder(items, tx);
+        tx.Commit();
+    }
+
+    private void SavePlaylistItemOrder(List<PlaylistItemEntity> items, SqliteTransaction tx)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE playlist_items SET item_order = $ord WHERE id = $id;";
+        var order = cmd.Parameters.Add("$ord", SqliteType.Integer);
+        var id = cmd.Parameters.Add("$id", SqliteType.Text);
         for (var i = 0; i < items.Count; i++)
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.Transaction = tx;
-            cmd.CommandText = "UPDATE playlist_items SET item_order = $ord WHERE id = $id;";
-            cmd.Parameters.AddWithValue("$ord", i);
-            cmd.Parameters.AddWithValue("$id", items[i].Id.ToString());
+            order.Value = i;
+            id.Value = items[i].Id.ToString();
             cmd.ExecuteNonQuery();
         }
-        tx.Commit();
     }
 
     // --- IYouTubeImportRepository ---
@@ -953,6 +1024,7 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
         Lyrics = GetString(reader, "lyrics"),
         PlayCount = reader.GetInt32(reader.GetOrdinal("play_count")),
         Liked = reader.GetInt32(reader.GetOrdinal("liked")) != 0,
+        LibraryMember = reader.GetInt32(reader.GetOrdinal("library_member")) != 0,
         AddedAt = DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(reader.GetOrdinal("added_at"))),
         LastPlayedAt = GetLong(reader, "last_played_at") is { } ms
             ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null,
@@ -1009,6 +1081,7 @@ public sealed class SqliteStore : IDisposable, IQueueStore, ITrackRepository, IP
         cmd.Parameters.AddWithValue("$last", (object?)track.LastPlayedAt?.ToUnixTimeMilliseconds() ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$plays", track.PlayCount);
         cmd.Parameters.AddWithValue("$liked", track.Liked ? 1 : 0);
+        cmd.Parameters.AddWithValue("$libraryMember", track.LibraryMember ? 1 : 0);
     }
 
     private static SqliteConnection OpenMemory()

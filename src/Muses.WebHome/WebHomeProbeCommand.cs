@@ -1,113 +1,105 @@
+using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Muses.Core.Advanced;
 
 namespace Muses.WebHome;
 
-/// <summary>
-/// Helper-side probeSession implementation. Owns the ephemeral cookie jar and never
-/// scrapes inside the Avalonia process. Identity is a channel hint beside a test jar,
-/// or yt-dlp against Liked Videos (LL) using the opted-in cookies.
-/// </summary>
 public static class WebHomeProbeCommand
 {
     public static async Task<WebHomeResponse> ExecuteAsync(
         WebHomeRequest request,
         string? ytdlpPath = null,
         CancellationToken cancellationToken = default,
-        Func<string, CancellationToken, Task<string?>>? resolveChannelFromCookies = null)
+        HttpMessageHandler? handler = null)
     {
         if (request.ProtocolVersion != WebHomeProtocolVersion.Current)
-            return WebHomeResponse.Unavailable("protocolMismatch", "Unsupported Web Home protocol version.");
-
-        if (!string.Equals(request.Action, "probeSession", StringComparison.OrdinalIgnoreCase))
-            return WebHomeResponse.Unavailable("malformedResponse", $"Action '{request.Action}' is not implemented in this helper build.");
-
+            return WebHomeResponse.Unavailable("protocolMismatch");
+        if (request.Action is not ("probeSession" or "fetchHome"))
+            return WebHomeResponse.Unavailable("malformedRequest");
         if (string.IsNullOrWhiteSpace(request.ExpectedChannelId))
-            return WebHomeResponse.Unavailable("oauthRequired", "Signed-in channel id is required before probing Web Home.");
+            return WebHomeResponse.Unavailable("oauthRequired");
+        if (request.CookieSource is not { } source)
+            return WebHomeResponse.Unavailable("cookieSourceUnavailable");
 
-        using var jar = new WebHomeCookieJar();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Math.Clamp(request.TimeoutMs, 1000, 12000));
+        var ct = timeout.Token;
         try
         {
-            jar.SeedNetscapeHeader();
-
-            var source = request.CookieSource;
-            var cookiesReady = false;
-
-            if (source.IsFileSource)
+            IReadOnlyList<WebHomeCookie> cookies;
+            if (source.IsFileSource && handler is not null)
             {
-                var src = source.FilePath!;
-                if (!File.Exists(src))
-                    return WebHomeResponse.Unavailable("cookieSourceUnavailable", "Cookie file was not found.");
-                File.Copy(src, jar.CookieFilePath, overwrite: true);
-                cookiesReady = jar.HasCookiesBeyondHeader();
-                // Tests may place channel.txt beside the cookie file.
-                var hintBeside = Path.Combine(Path.GetDirectoryName(src) ?? "", "channel.txt");
-                if (File.Exists(hintBeside))
-                    File.Copy(hintBeside, Path.Combine(jar.WorkspacePath, "channel.txt"), overwrite: true);
+                cookies = await WebHomeCookieJar.ReadAsync(source.FilePath!, ct).ConfigureAwait(false);
             }
             else
             {
-                var browser = (source.BrowserName ?? "").Trim().ToLowerInvariant();
-                if (browser is "default" or "")
-                    browser = OperatingSystem.IsWindows() ? "edge" : "chrome";
-                var allowed = new HashSet<string>(StringComparer.Ordinal) { "chrome", "firefox", "brave", "edge", "safari" };
-                if (!allowed.Contains(browser))
-                    return WebHomeResponse.Unavailable("cookieSourceUnavailable", $"Browser '{source.BrowserName}' is not supported.");
+                if (source.IsFileSource || source.BrowserProfile is not null ||
+                    source.BrowserName != (OperatingSystem.IsWindows() ? "edge" : "chrome") ||
+                    request.WorkspaceId is not { } workspaceId || workspaceId == Guid.Empty)
+                    return WebHomeResponse.Unavailable("cookieSourceUnavailable");
 
-                var spec = string.IsNullOrWhiteSpace(source.BrowserProfile) ? browser : $"{browser}:{source.BrowserProfile}";
                 var ytdlp = ytdlpPath ?? LocateYTDlp();
-                if (ytdlp is null || ytdlp.Length == 0)
-                    return WebHomeResponse.Unavailable("cookieSourceUnavailable", "yt-dlp was not found for browser cookie export.");
-                cookiesReady = await WebHomeCookieJar.TryExportFromBrowserAsync(
-                    ytdlp,
-                    spec,
-                    jar.CookieFilePath,
-                    cancellationToken).ConfigureAwait(false);
+                if (ytdlp is null)
+                    return WebHomeResponse.Unavailable("cookieSourceUnavailable");
+
+                using var jar = new WebHomeCookieJar(id: workspaceId);
+                jar.SeedNetscapeHeader();
+                if (!await WebHomeCookieJar.TryExportFromBrowserAsync(ytdlp, source.BrowserName, jar.CookieFilePath, ct)
+                    .ConfigureAwait(false))
+                    return WebHomeResponse.Unavailable("cookieSourceUnavailable");
+
+                cookies = await WebHomeCookieJar.ReadAsync(jar.CookieFilePath, ct).ConfigureAwait(false);
             }
 
-            if (!cookiesReady)
-                return WebHomeResponse.Unavailable("cookieSourceUnavailable", "Could not materialize an ephemeral cookie jar.");
-
-            var channel = jar.ReadChannelHint();
-            if (channel is null)
+            using var http = new HttpClient(handler ?? new HttpClientHandler
             {
-                var ytdlp = ytdlpPath ?? LocateYTDlp();
-                var resolver = resolveChannelFromCookies
-                    ?? ((path, ct) => ytdlp is null
-                        ? Task.FromResult<string?>(null)
-                        : WebHomeIdentity.TryResolveChannelAsync(ytdlp, path, ct));
-                channel = await resolver(jar.CookieFilePath, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (channel is null)
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                AutomaticDecompression = DecompressionMethods.All
+            }, disposeHandler: handler is null)
             {
-                return WebHomeResponse.Unavailable(
-                    "identityUnavailable",
-                    "Cookie jar was created and will be deleted on exit; channel identity could not be read from the opted-in cookies.");
-            }
-
-            if (!string.Equals(channel, request.ExpectedChannelId, StringComparison.Ordinal))
-                return WebHomeResponse.Mismatch(channel);
-
-            return WebHomeResponse.Available(channel);
+                MaxResponseContentBufferSize = WebHomeSessionClient.MaximumResponseBytes
+            };
+            return await new WebHomeSessionClient(http, cookies, request).ExecuteAsync(ct).ConfigureAwait(false);
         }
-        finally
+        catch (WebHomeFailure failure)
         {
-            // Dispose deletes the workspace — cookies do not survive helper exit.
+            return WebHomeResponse.Unavailable(failure.Code);
+        }
+        catch (OperationCanceledException)
+        {
+            return WebHomeResponse.Unavailable(cancellationToken.IsCancellationRequested ? "cancelled" : "timedOut");
+        }
+        catch (Exception ex) when (ex is JsonException or RegexMatchTimeoutException or FormatException)
+        {
+            return WebHomeResponse.Unavailable("shapeChanged");
+        }
+        catch (HttpRequestException)
+        {
+            return WebHomeResponse.Unavailable("offline");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            return WebHomeResponse.Unavailable("cookieSourceUnavailable");
         }
     }
 
     private static string? LocateYTDlp()
     {
         var name = OperatingSystem.IsWindows() ? "yt-dlp.exe" : "yt-dlp";
-        var baseDir = AppContext.BaseDirectory;
-        var sibling = Path.Combine(baseDir, name);
-        if (File.Exists(sibling)) return sibling;
-        var paths = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator);
-        foreach (var p in paths)
+        var helperDir = new DirectoryInfo(AppContext.BaseDirectory);
+        foreach (var dir in new[] { helperDir, helperDir.Parent })
         {
-            var c = Path.Combine(p, name);
-            if (File.Exists(c)) return c;
+            if (dir is null) continue;
+            var bundled = Path.Combine(dir.FullName, name);
+            if (File.Exists(bundled)) return bundled;
         }
-        return null;
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        return path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Where(Path.IsPathFullyQualified)
+            .Select(dir => Path.Combine(dir, name))
+            .FirstOrDefault(File.Exists);
     }
 }

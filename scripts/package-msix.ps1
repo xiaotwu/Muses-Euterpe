@@ -1,133 +1,131 @@
-# Muses Windows 11 MSIX Packaging Script
-# Note: Store/WinGet are NOT published. Run this on Windows only — macOS cannot produce MSIX.
-# Usage:
-#   powershell -ExecutionPolicy Bypass -File scripts\package-msix.ps1 [-Configuration Release] [-Version 0.1.0.0]
-
+# Package Muses for Windows 11 x64. Without a signing certificate, the output is for inspection.
+[CmdletBinding()]
 param(
     [string]$Configuration = "Release",
-    [string]$Version = "0.1.0.0",
-    [string]$Runtime = "win-x64"
+    [ValidatePattern('^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$')]
+    [string]$Version = "0.1.0",
+    [ValidateSet("win-x64")]
+    [string]$Runtime = "win-x64",
+    [string]$OutputDir = (Join-Path (Split-Path -Parent $PSScriptRoot) "artifacts\msix"),
+    [string]$SdkToolsDir,
+    [ValidatePattern('^[0-9A-Fa-f]{40}$')]
+    [string]$CertificateThumbprint
 )
 
 $ErrorActionPreference = "Stop"
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RepoRoot = Split-Path -Parent $ScriptDir
-$AppProj = Join-Path $RepoRoot "src\Muses.App\Muses.App.csproj"
-$PublishDir = Join-Path $RepoRoot "artifacts\publish\Muses"
-$MsixOutDir = Join-Path $RepoRoot "artifacts\msix"
-
-Write-Host "==> Publishing Muses ($Runtime, $Configuration)..." -ForegroundColor Cyan
-if (Test-Path $PublishDir) { Remove-Item -Recurse -Force $PublishDir }
-New-Item -ItemType Directory -Force -Path $PublishDir | Out-Null
-New-Item -ItemType Directory -Force -Path $MsixOutDir | Out-Null
-
-dotnet publish $AppProj -c $Configuration -r $Runtime --self-contained false -o $PublishDir /p:PublishSingleFile=false
-
-Write-Host "==> Publishing isolated Web Home helper next to the app..." -ForegroundColor Cyan
-$HelperProj = Join-Path $RepoRoot "src\Muses.WebHome.Helper\Muses.WebHome.Helper.csproj"
-$HelperOut = Join-Path $PublishDir "Helpers"
-New-Item -ItemType Directory -Force -Path $HelperOut | Out-Null
-dotnet publish $HelperProj -c $Configuration -r $Runtime --self-contained false -o $HelperOut /p:PublishSingleFile=false
-
-Write-Host "==> Copying Package.appxmanifest and packaging assets..." -ForegroundColor Cyan
-Copy-Item (Join-Path $RepoRoot "src\Muses.App\Package.appxmanifest") (Join-Path $PublishDir "AppxManifest.xml") -Force
-$AssetsSrc = Join-Path $RepoRoot "src\Muses.App\Assets\Packaging"
-$AssetsDst = Join-Path $PublishDir "Assets\Packaging"
-New-Item -ItemType Directory -Force -Path $AssetsDst | Out-Null
-Copy-Item -Recurse -Force "$AssetsSrc\*" $AssetsDst
-
-function Find-SdkTool([string]$name) {
-    $fromKits = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\$name" -ErrorAction SilentlyContinue | Select-Object -Last 1
-    if ($fromKits) { return $fromKits.FullName }
-    $nugetRoot = Join-Path $env:USERPROFILE ".nuget\packages\microsoft.windows.sdk.buildtools"
-    $fromNuget = Get-ChildItem -Path $nugetRoot -Recurse -Filter $name -ErrorAction SilentlyContinue |
-        Where-Object { $_.Directory.Name -eq "x64" } |
-        Select-Object -Last 1
-    if ($fromNuget) { return $fromNuget.FullName }
-    return $null
+if ($env:OS -ne "Windows_NT") {
+    throw "Run MSIX packaging on Windows with the Windows SDK tools."
 }
 
-function Get-MusesSideloadCertificate {
-    $existing = Get-ChildItem Cert:\CurrentUser\My |
-        Where-Object {
-            $_.Subject -eq "CN=xiaotwu" -and
-            $_.HasPrivateKey -and
-            $_.NotAfter -gt (Get-Date) -and
-            ($_.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq "1.3.6.1.5.5.7.3.3" })
-        } |
+$appVersion = [version]$Version
+$versionParts = @($appVersion.Major, $appVersion.Minor, $appVersion.Build, [Math]::Max(0, $appVersion.Revision))
+$manifestVersion = $versionParts -join "."
+if (($versionParts | Measure-Object -Maximum).Maximum -gt [uint16]::MaxValue -or $manifestVersion -eq "0.0.0.0") {
+    throw "Use an MSIX version greater than zero with components from 0 through 65535."
+}
+
+function Find-SdkTool([string]$Name) {
+    if ($SdkToolsDir) {
+        return (Get-Item -LiteralPath (Join-Path $SdkToolsDir $Name)).FullName
+    }
+
+    $toolOnPath = Get-Command -Name $Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($toolOnPath) { return $toolOnPath.Source }
+
+    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    $kitTool = Get-ChildItem -File -Path "$programFilesX86\Windows Kits\10\bin\*\x64\$Name" -ErrorAction SilentlyContinue |
+        Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
         Select-Object -First 1
-    if ($existing) { return $existing }
+    if ($kitTool) { return $kitTool.FullName }
 
-    Write-Host "==> Creating local CN=xiaotwu code-signing certificate (sideload, not Store)..." -ForegroundColor Cyan
-    return New-SelfSignedCertificate `
-        -Type Custom `
-        -Subject "CN=xiaotwu" `
-        -FriendlyName "Muses Euterpe Sideload" `
-        -KeyUsage DigitalSignature `
-        -HashAlgorithm SHA256 `
-        -KeyLength 2048 `
-        -NotAfter (Get-Date).AddYears(5) `
-        -CertStoreLocation "Cert:\CurrentUser\My" `
-        -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+    $nugetPackages = $env:NUGET_PACKAGES
+    if (-not $nugetPackages) { $nugetPackages = Join-Path $env:USERPROFILE ".nuget\packages" }
+    $nugetTool = Get-ChildItem -File -Path "$nugetPackages\microsoft.windows.sdk.buildtools\*\bin\*\x64\$Name" -ErrorAction SilentlyContinue |
+        Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
+        Select-Object -First 1
+    if ($nugetTool) { return $nugetTool.FullName }
+
+    throw "Cannot find $Name. Install the Windows SDK or restore Microsoft.Windows.SDK.BuildTools and set -SdkToolsDir."
 }
 
-function Install-MusesSideloadTrust($cert) {
-    $cerPath = Join-Path $MsixOutDir "Muses-sideload.cer"
-    Export-Certificate -Cert $cert -FilePath $cerPath | Out-Null
-
-    $userPeople = Get-ChildItem Cert:\CurrentUser\TrustedPeople -ErrorAction SilentlyContinue |
-        Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
-    if (-not $userPeople) {
-        try {
-            Import-Certificate -FilePath $cerPath -CertStoreLocation Cert:\CurrentUser\TrustedPeople | Out-Null
-            Write-Host "==> Trusted sideload cert in CurrentUser\TrustedPeople ($($cert.Thumbprint))" -ForegroundColor Green
-        } catch {
-            Write-Host "==> CurrentUser\TrustedPeople import failed: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
-    }
-
-    # AppX sideload requires the signing root in LocalMachine Trusted People (admin).
-    $machinePeople = Get-ChildItem Cert:\LocalMachine\TrustedPeople -ErrorAction SilentlyContinue |
-        Where-Object { $_.Thumbprint -eq $cert.Thumbprint }
-    if (-not $machinePeople) {
-        try {
-            Import-Certificate -FilePath $cerPath -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
-            Write-Host "==> Trusted sideload cert in LocalMachine\TrustedPeople" -ForegroundColor Green
-        } catch {
-            Write-Host "==> LocalMachine\TrustedPeople needs elevation. One-time admin:" -ForegroundColor Yellow
-            Write-Host "    Import-Certificate -FilePath `"$cerPath`" -CertStoreLocation Cert:\LocalMachine\TrustedPeople" -ForegroundColor Yellow
-            Write-Host "    Add-AppxPackage -Path `"$(Join-Path $MsixOutDir "Muses-$Version-$Runtime.msix")`"" -ForegroundColor Yellow
-        }
-    }
-}
-
-# Locate MakeAppx.exe: Windows SDK, then NuGet Microsoft.Windows.SDK.BuildTools (no full SDK install required).
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$appDir = Join-Path $repoRoot "src\Muses.App"
+$appProject = Join-Path $appDir "Muses.App.csproj"
+$helperProject = Join-Path $repoRoot "src\Muses.WebHome.Helper\Muses.WebHome.Helper.csproj"
+[xml]$manifest = Get-Content -LiteralPath (Join-Path $appDir "Package.appxmanifest") -Raw
+$manifest.Package.Identity.SetAttribute("Version", $manifestVersion)
 $makeAppx = Find-SdkTool "makeappx.exe"
 
-if ($makeAppx) {
-    Write-Host "==> Creating MSIX package using $makeAppx..." -ForegroundColor Green
-    $msixPath = Join-Path $MsixOutDir "Muses-$Version-$Runtime.msix"
-    & $makeAppx pack /d $PublishDir /p $msixPath /o
-    if ($LASTEXITCODE -ne 0) { throw "MakeAppx pack failed with exit $LASTEXITCODE" }
-    Write-Host "==> Successfully created MSIX: $msixPath" -ForegroundColor Green
-
+if ($CertificateThumbprint) {
     $signTool = Find-SdkTool "signtool.exe"
-    if (-not $signTool) {
-        Write-Host "==> SignTool not found. Package is unsigned; SmartScreen / untrusted-publisher will block sideload." -ForegroundColor Yellow
-    } else {
-        $cert = Get-MusesSideloadCertificate
-        Install-MusesSideloadTrust $cert
-        Write-Host "==> Signing $msixPath with CN=xiaotwu ($($cert.Thumbprint))..." -ForegroundColor Cyan
-        & $signTool sign /fd SHA256 /td SHA256 /sha1 $cert.Thumbprint /v $msixPath
-        if ($LASTEXITCODE -ne 0) { throw "SignTool failed with exit $LASTEXITCODE" }
-        & $signTool verify /pa $msixPath
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "==> Signature verify /pa reported a problem (often missing root). Sideload still works if TrustedPeople has this cert." -ForegroundColor Yellow
-        } else {
-            Write-Host "==> Signed and verified: $msixPath" -ForegroundColor Green
+    $certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$CertificateThumbprint"
+    if (-not $certificate.HasPrivateKey -or $certificate.Subject -cne $manifest.Package.Identity.Publisher) {
+        throw "Use a signing certificate with a private key and subject $($manifest.Package.Identity.Publisher)."
+    }
+}
+
+$tempRoot = [IO.Path]::TrimEndingDirectorySeparator(
+    (Resolve-Path -LiteralPath ([IO.Path]::GetTempPath())).ProviderPath
+)
+$scratch = Join-Path $tempRoot "muses-msix-$([guid]::NewGuid().ToString('N'))"
+$publishDir = Join-Path $scratch "payload"
+$artifactDir = Join-Path $scratch "dotnet"
+$packageName = "Muses-$appVersion-$Runtime.msix"
+$stagedPackage = Join-Path $scratch $packageName
+
+try {
+    Write-Host "Publishing Muses and its isolated Web Home helper ($Runtime, $Configuration)..."
+    $publishOptions = @(
+        "-c", $Configuration, "-r", $Runtime, "--self-contained",
+        "--artifacts-path", $artifactDir, "-p:Version=$appVersion"
+    )
+    dotnet publish $appProject @publishOptions -o $publishDir | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "App publish failed (exit $LASTEXITCODE)." }
+    dotnet publish $helperProject @publishOptions -o (Join-Path $publishDir "Helpers") | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "Web Home helper publish failed (exit $LASTEXITCODE)." }
+
+    foreach ($file in @("Muses.exe", "coreclr.dll", "Helpers\MusesWebHomeHelper.exe", "Helpers\coreclr.dll")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $publishDir $file) -PathType Leaf)) {
+            throw "Missing $file in the self-contained MSIX payload."
         }
     }
-} else {
-    Write-Host "==> Windows SDK MakeAppx.exe not found. Files are prepared in $PublishDir for packaging." -ForegroundColor Yellow
-    Write-Host "==> You can package manually using: MakeAppx.exe pack /d `"$PublishDir`" /p `"$MsixOutDir\Muses.msix`"" -ForegroundColor Yellow
+
+    # Checkout-local media binaries are for source runs. Installed builds resolve tools on PATH.
+    foreach ($file in @("yt-dlp", "yt-dlp.exe", "mpv.exe", "d3dcompiler_43.dll")) {
+        $mediaPath = Join-Path $publishDir $file
+        if (Test-Path -LiteralPath $mediaPath) { Remove-Item -LiteralPath $mediaPath -Force }
+    }
+
+    $manifest.Save((Join-Path $publishDir "AppxManifest.xml"))
+    $assetsParent = Join-Path $publishDir "Assets"
+    [IO.Directory]::CreateDirectory($assetsParent) | Out-Null
+    Copy-Item -LiteralPath (Join-Path $appDir "Assets\Packaging") -Destination $assetsParent -Recurse
+    Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination $publishDir
+
+    $packLog = & $makeAppx pack /d $publishDir /p $stagedPackage
+    if ($LASTEXITCODE -ne 0) {
+        $packLog | Out-Host
+        throw "MakeAppx pack failed (exit $LASTEXITCODE)."
+    }
+
+    if ($CertificateThumbprint) {
+        & $signTool sign /fd SHA256 /sha1 $certificate.Thumbprint $stagedPackage | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "SignTool failed (exit $LASTEXITCODE)." }
+    }
+
+    [IO.Directory]::CreateDirectory([IO.Path]::GetFullPath($OutputDir)) | Out-Null
+    $packagePath = Join-Path $OutputDir $packageName
+    Copy-Item -LiteralPath $stagedPackage -Destination $packagePath -Force
+    if (-not $CertificateThumbprint) {
+        Write-Warning "This unsigned package is for structural verification. Sign with the manifest publisher's certificate for installation."
+    }
+    Write-Output (Get-Item -LiteralPath $packagePath).FullName
+} finally {
+    if (Test-Path -LiteralPath $scratch) {
+        $resolvedScratch = (Resolve-Path -LiteralPath $scratch).ProviderPath
+        if ($resolvedScratch -ne $scratch -or (Split-Path -Parent $resolvedScratch) -ne $tempRoot) {
+            throw "Refusing to remove unexpected MSIX staging directory $resolvedScratch."
+        }
+        Remove-Item -LiteralPath $resolvedScratch -Recurse -Force
+    }
 }

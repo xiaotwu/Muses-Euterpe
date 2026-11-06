@@ -1,8 +1,9 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Styling;
-using FluentAvalonia.Styling;
+using Avalonia.Threading;
 using Muses.App.Services;
 using Muses.App.Theme;
 using Muses.App.ViewModels;
@@ -10,15 +11,18 @@ using Muses.App.Views;
 using Muses.Core.Library;
 using Muses.Core.L10n;
 using Muses.Core.Playback;
+using Muses.Core.Podcasts;
 using Muses.Core.Preferences;
 using Muses.Core.Platform;
 using Muses.Infrastructure;
 using Muses.Core.Queue;
 using Muses.Infrastructure.Account;
+using Muses.Infrastructure.Discovery;
 using Muses.Infrastructure.Playback;
 using Muses.Infrastructure.Platform;
 using Muses.Infrastructure.YTDlp;
 using Muses.Persistence;
+using Muses.Platform.Linux.Media;
 using Muses.Platform.Windows;
 
 namespace Muses.App;
@@ -27,8 +31,6 @@ public partial class App : Application
 {
     private SqliteStore? _store;
     private ProcessStreamEngine? _engine;
-    private WindowsSMTCService? _smtc;
-    private TrayIconHost? _trayHost;
     private IGlobalHotkeys? _globalHotkeys;
     private ShellViewModel? _shell;
 
@@ -36,17 +38,14 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        if (Current?.Styles[0] is FluentAvaloniaTheme fa)
-            fa.CustomAccentColor = ThemeBrushes.AccentColor;
-
-        RequestedThemeVariant = ThemeVariant.Dark;
-
         // Sync MusesMotion* duration resources (and zero them under OS reduce-motion) before chrome loads.
         MotionChrome.Apply(this);
+        GlassChrome.Apply(this);
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _store = SqliteStore.Open();
+            var libraryPath = SqliteStore.DefaultPath();
+            _store = SqliteStore.Open(libraryPath);
             var preferences = new SqlitePreferences(_store);
             ApplyTheme(preferences);
             ApplyLanguage(preferences);
@@ -59,14 +58,12 @@ public partial class App : Application
             _engine = new ProcessStreamEngine(ytdlp, quality);
             _engine.SetReplayGainEnabled(preferences.GetBool(PrefKey.ReplayGainEnabled, true));
             _engine.SetCrossfadeSeconds(preferences.GetDouble(PrefKey.CrossfadeSeconds, 0));
-            var playback = new PlaybackService(_engine, queue, library, preferences);
+            var podcastProgress = new PodcastProgressService(_store);
+            var playback = new PlaybackService(_engine, queue, library, preferences, podcastProgress: podcastProgress);
             var playlistService = new PlaylistService(_store);
             var youtubeImportService = new YouTubeImportService(_store, _store, ytdlp);
             var catalog = new Muses.Infrastructure.Catalog.YouTubeCatalogService(_store, _store, ytdlp);
             catalog.RebuildFromTrackMetadata();
-            var homeFeedCache = new Muses.Infrastructure.Discovery.HomeFeedCache();
-            var discoveryProvider = new Muses.Infrastructure.Discovery.YTDlpDiscoveryProvider(ytdlp);
-            var homeDiscovery = new Muses.Infrastructure.Discovery.HomeDiscoveryService(discoveryProvider, homeFeedCache, library);
             var situational = new Muses.Core.Recommendation.SituationalRecommendationService(library);
             var search = new Muses.Infrastructure.Search.GlobalSearchService(library, catalog, ytdlp);
             var lyrics = new Muses.Infrastructure.Lyrics.LyricsService(new Muses.Infrastructure.Lyrics.LrclibLyricsProvider(), _store);
@@ -99,47 +96,111 @@ public partial class App : Application
             });
 
             // Account must never block playback composition.
-            var account = new YouTubeAccountService(PlatformCredentialStore.CreateDefault());
-            var webHomeClient = new Muses.Infrastructure.Advanced.ProcessWebHomeHelperClient();
+            var isolatedDataRoot = Environment.GetEnvironmentVariable("MUSES_DATA_HOME");
+            var isIsolatedProfile = Path.IsPathFullyQualified(isolatedDataRoot ?? "");
+            var credentialStore = isIsolatedProfile
+                ? new MemoryCredentialStore()
+                : PlatformCredentialStore.CreateDefault();
+            var account = new YouTubeAccountService(credentialStore);
+            var webHomeClient = new Muses.Infrastructure.Advanced.ProcessWebHomeHelperClient(
+                helperPath: isIsolatedProfile ? "" : null);
             var webHome = new Muses.Infrastructure.Advanced.WebHomeSessionController(
                 webHomeClient,
-                () => account.Profile?.ChannelId,
+                () => account.IsSignedIn ? account.Profile?.ChannelId : null,
                 preferences);
 
-            _smtc = new WindowsSMTCService(playback);
+            var hiddenToTray = false;
+            void ShowMainWindow()
+            {
+                if (desktop.MainWindow is not { } window)
+                    return;
+
+                hiddenToTray = false;
+                window.Show();
+                if (window.WindowState == WindowState.Minimized)
+                    window.WindowState = WindowState.Normal;
+                window.Activate();
+            }
+
+            void Quit() => desktop.Shutdown();
+
+            IPlatformSMTC mediaControls = OperatingSystem.IsLinux()
+                ? new LinuxMprisService(playback, action => Dispatcher.UIThread.InvokeAsync(action).GetTask(), ShowMainWindow, Quit)
+                : new WindowsSMTCService(playback);
             _globalHotkeys = WindowsGlobalHotkeys.Create();
             var audioProbe = WindowsAudioOutputProbe.Create();
-            var tray = new WindowsTrayController(
-                playback,
-                preferences,
-                showMain: () => desktop.MainWindow?.Show(),
-                exit: () => desktop.Shutdown());
+            var tray = new WindowsTrayController(playback, preferences, ShowMainWindow, Quit);
 
-            var shell = new ShellViewModel();
+            var shell = new ShellViewModel
+            {
+                PolyhymniaLibraryImporter = _store.UsedInMemoryFallback ? null : new PolyhymniaLibraryImporter(libraryPath),
+                Podcasts = new PodcastsViewModel(_store, new YouTubePodcastCatalog(), library, playback, podcastProgress)
+            };
             shell.Attach(
-                playback, library, ytdlp, playlistService, youtubeImportService, homeDiscovery, catalog,
+                playback, library, ytdlp, playlistService, youtubeImportService, catalog,
                 situational, search, lyrics, history, eq, focus, notes, inbox, automation,
-                preferences, account, _smtc, tray, webHome, _engine, _globalHotkeys, audioProbe);
+                preferences, account, mediaControls, tray, webHome, _engine, _globalHotkeys, audioProbe);
             _shell = shell;
-            shell.RequestAppExit += () => desktop.Shutdown();
+            shell.RequestAppExit += Quit;
 
             var main = new MainWindow { DataContext = shell };
             desktop.MainWindow = main;
+            main.Opened += RestorePlaybackOnOpen;
+            async void RestorePlaybackOnOpen(object? sender, EventArgs e)
+            {
+                main.Opened -= RestorePlaybackOnOpen;
+                await playback.RestoreCurrentPausedAsync();
+            }
 
-            _trayHost = new TrayIconHost(tray, preferences);
+            var checkpointTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+            checkpointTimer.Tick += (_, _) =>
+            {
+                if (playback.State.IsPlaying)
+                    playback.CheckpointPosition();
+                podcastProgress.RetryPending();
+            };
+            checkpointTimer.Start();
+
+            var trayHost = new TrayIconHost(this, tray);
+            void RestoreIfTrayDisappears()
+            {
+                if (hiddenToTray && !trayHost.CanRestoreWindow)
+                    ShowMainWindow();
+            }
+
+            trayHost.AvailabilityChanged += RestoreIfTrayDisappears;
+            main.Closing += (_, e) =>
+            {
+                if (e.CloseReason != WindowCloseReason.WindowClosing || e.IsProgrammatic
+                    || !shell.CloseToTray || !trayHost.CanRestoreWindow)
+                    return;
+
+                e.Cancel = true;
+                hiddenToTray = true;
+                if (shell.IsVideoOverlayOpen)
+                    shell.CloseVideoOverlay();
+                main.Hide();
+            };
             if (tray.ShouldEnableFromPrefs())
                 tray.SetEnabled(true);
-            _trayHost.Apply();
 
             desktop.Exit += (_, _) =>
             {
+                checkpointTimer.Stop();
+                main.Opened -= RestorePlaybackOnOpen;
+                shell.Podcasts?.Stop();
+                shell.StopPlaybackUpdates();
+                playback.StopForShutdown();
+                playback.CheckpointPosition();
+                shell.StopAccountHome();
                 webHomeClient.Dispose();
                 focus.Dispose();
                 inbox.Dispose();
                 automation.Dispose();
                 queue.Persist();
-                _trayHost?.Dispose();
-                _smtc?.Dispose();
+                trayHost.AvailabilityChanged -= RestoreIfTrayDisappears;
+                trayHost.Dispose();
+                (mediaControls as IDisposable)?.Dispose();
                 _globalHotkeys?.Dispose();
                 _engine.Dispose();
                 var reset = _shell?.ResetOnExit == true;
@@ -147,6 +208,9 @@ public partial class App : Application
                 if (reset)
                     LocalDataMaintenance.ResetDataFiles();
             };
+
+            if (mediaControls is LinuxMprisService mpris)
+                _ = mpris.StartAsync();
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -154,7 +218,7 @@ public partial class App : Application
 
     public static void ApplyTheme(IPreferences preferences)
     {
-        var theme = AppThemeCodec.Parse(preferences.GetString(PrefKey.Theme, "dark"));
+        var theme = AppThemeCodec.Parse(preferences.GetString(PrefKey.Theme, "system"));
         if (Current is null) return;
         Current.RequestedThemeVariant = theme switch
         {

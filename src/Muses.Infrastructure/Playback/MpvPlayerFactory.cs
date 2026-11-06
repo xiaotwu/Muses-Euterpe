@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using Muses.Infrastructure.YTDlp;
 
 namespace Muses.Infrastructure.Playback;
 
@@ -18,7 +19,8 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
 
     public string? FindBinary() => _binaryResolver?.Invoke() ?? LocateMpvBinary();
 
-    public IMpvPlayerSession Start(Uri url, int initialVolume0to100)
+    public async Task<IMpvPlayerSession> StartAsync(
+        ResolvedAudioStream stream, int initialVolume0to100, CancellationToken cancellationToken)
     {
         var binary = FindBinary()
             ?? throw new FileNotFoundException("mpv binary was not found on PATH or under resources/.");
@@ -42,22 +44,21 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         {
             FileName = binary,
             UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true
+            CreateNoWindow = true
         };
         foreach (var a in new[]
                  {
+                     "--no-config",
+                     "--no-ytdl",
                      "--no-video",
                      "--no-terminal",
                      "--really-quiet",
-                     "--idle=no",
+                     "--idle=yes",
+                     "--pause",
                      "--keep-open=no",
                      "--gapless-audio=weak",
                      ipcArg,
-                     $"--volume={volume}",
-                     "--",
-                     url.ToString()
+                     $"--volume={volume}"
                  })
             psi.ArgumentList.Add(a);
 
@@ -73,32 +74,27 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         }
 
         var ipc = new MpvIpcClient();
+        var session = new MpvPlayerSession(process, ipc, endpoint, windows);
         try
         {
-            // Connect synchronously with a short timeout so Start() fails fast.
-            ipc.ConnectAsync(endpoint, windows, CancellationToken.None)
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult();
+            await ipc.ConnectAsync(endpoint, windows, cancellationToken).ConfigureAwait(false);
+            using var loadTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            loadTimeout.CancelAfter(TimeSpan.FromSeconds(20));
+            try
+            {
+                await session.LoadAsync(stream, loadTimeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new MpvSourceException("Timed out waiting for mpv to load the audio stream.", ex);
+            }
+            return session;
         }
         catch
         {
-            try
-            {
-                if (!process.HasExited)
-                    process.Kill(entireProcessTree: true);
-            }
-            catch { /* ignore */ }
-            process.Dispose();
-            ipc.Dispose();
-            if (!windows)
-            {
-                try { if (File.Exists(endpoint)) File.Delete(endpoint); } catch { /* ignore */ }
-            }
+            session.Dispose();
             throw;
         }
-
-        return new MpvPlayerSession(process, ipc, endpoint, windows);
     }
 
     public static string? LocateMpvBinary()
@@ -177,6 +173,8 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         private int _disposed;
         private int _eofRaised;
         private double _timePos;
+        private readonly TaskCompletionSource<bool> _fileLoaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _exited;
 
         public MpvPlayerSession(Process process, MpvIpcClient ipc, string endpoint, bool windows)
         {
@@ -186,18 +184,42 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
             _windows = windows;
             _ipc.EventReceived += OnEvent;
             _ipc.Disconnected += OnDisconnected;
+            _process.Exited += (_, _) => OnDisconnected();
             _process.EnableRaisingEvents = true;
-            _process.Exited += (_, _) =>
-            {
-                try { Exited?.Invoke(); } catch { /* ignore */ }
-            };
         }
 
-        public bool IsAlive => _disposed == 0 && !_process.HasExited;
+        public bool IsAlive => _disposed == 0 && _exited == 0 && !_process.HasExited;
         public double TimePos => _timePos;
+        public double? Duration { get; private set; }
 
         public event Action? EndOfFile;
         public event Action? Exited;
+
+        public async Task LoadAsync(ResolvedAudioStream stream, CancellationToken cancellationToken)
+        {
+            if (stream.RequestHeaders.Count > 0)
+            {
+                var headers = stream.RequestHeaders.Select(header => $"{header.Key}: {header.Value}").ToArray();
+                await _ipc.SendAsync(["set_property", "http-header-fields", headers], cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            await _ipc.SendAsync(["loadfile", stream.Url.AbsoluteUri], cancellationToken).ConfigureAwait(false);
+            if (!await _fileLoaded.Task.WaitAsync(cancellationToken).ConfigureAwait(false))
+                throw new MpvSourceException("mpv could not open the audio stream.");
+            if (await _ipc.RequestAsync(["get_property", "aid"], cancellationToken).ConfigureAwait(false)
+                is not { ValueKind: JsonValueKind.Number })
+                throw new MpvSourceException("mpv did not select an audio track.");
+            try
+            {
+                if (await _ipc.RequestAsync(["get_property", "duration"], cancellationToken).ConfigureAwait(false)
+                    is { ValueKind: JsonValueKind.Number } duration)
+                    Duration = duration.GetDouble();
+            }
+            catch (IOException)
+            {
+                // Some inputs have no duration. Keep the caller's metadata fallback.
+            }
+        }
 
         public void SetPause(bool paused) =>
             _ = FireAndForget(["set_property", "pause", paused]);
@@ -205,7 +227,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         public void SeekAbsolute(double seconds)
         {
             _timePos = Math.Max(0, seconds);
-            _ = FireAndForget(["seek", seconds, "absolute"]);
+            _ = FireAndForget(["seek", seconds, "absolute+exact"]);
         }
 
         public void SetVolume(int volume0to100) =>
@@ -236,16 +258,29 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
 
         private void OnEvent(string name, JsonElement root)
         {
-            if (!string.Equals(name, "end-file", StringComparison.Ordinal)) return;
+            if (name == "file-loaded")
+            {
+                _fileLoaded.TrySetResult(true);
+                return;
+            }
+            if (name != "end-file") return;
+            _fileLoaded.TrySetResult(false);
             var reason = root.TryGetProperty("reason", out var r) ? r.GetString() : null;
-            if (!string.Equals(reason, "eof", StringComparison.Ordinal)) return;
+            if (reason == "error")
+            {
+                OnDisconnected();
+                return;
+            }
+            if (reason != "eof") return;
             if (Interlocked.Exchange(ref _eofRaised, 1) != 0) return;
             try { EndOfFile?.Invoke(); } catch { /* ignore */ }
         }
 
         private void OnDisconnected()
         {
-            // Process exit / socket close is surfaced via Exited; nothing else to do.
+            _fileLoaded.TrySetResult(false);
+            if (Interlocked.Exchange(ref _exited, 1) != 0) return;
+            try { Exited?.Invoke(); } catch { /* ignore */ }
         }
 
         private async Task FireAndForget(object[] command)
@@ -276,3 +311,5 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         }
     }
 }
+
+internal sealed class MpvSourceException(string message, Exception? inner = null) : IOException(message, inner);

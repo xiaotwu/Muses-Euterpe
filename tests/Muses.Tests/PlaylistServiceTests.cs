@@ -97,6 +97,34 @@ public class PlaylistServiceTests
     }
 
     [Fact]
+    public void MoveItem_by_occurrence_resolves_current_order_and_notifies_after_a_move()
+    {
+        var (store, service) = MakeService();
+        using (store)
+        {
+            var playlist = service.Create("P2");
+            service.AddTrack(playlist, MakeTrack(store, "A"));
+            service.AddTrack(playlist, MakeTrack(store, "B"));
+            service.AddTrack(playlist, MakeTrack(store, "C"));
+            var originalItems = service.Get(playlist.Id)!.Items;
+            var selected = originalItems[2];
+            service.RemoveItem(originalItems[0]);
+            var changes = 0;
+            service.PlaylistsChanged += () => changes++;
+
+            Assert.False(service.MoveItem(playlist.Id, selected.Id, -2));
+            Assert.False(service.MoveItem(playlist.Id, selected.Id, 1));
+            Assert.False(service.MoveItem(playlist.Id, originalItems[0].Id, -1));
+            Assert.True(service.MoveItem(playlist.Id, selected.Id, -1));
+
+            var items = service.Get(playlist.Id)!.Items;
+            Assert.Equal(new[] { selected.Id, originalItems[1].Id }, items.Select(i => i.Id));
+            Assert.Equal(new[] { 0, 1 }, items.Select(i => i.ItemOrder));
+            Assert.Equal(1, changes);
+        }
+    }
+
+    [Fact]
     public void Delete_cascades_playlist_items()
     {
         var (store, service) = MakeService();

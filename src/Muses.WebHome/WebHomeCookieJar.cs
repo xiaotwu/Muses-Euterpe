@@ -1,59 +1,71 @@
-using System.Runtime.InteropServices;
+using System.Diagnostics;
 using Muses.Core.Advanced;
 
 namespace Muses.WebHome;
 
-/// <summary>
-/// Ephemeral, permission-restricted cookie workspace owned by the helper process.
-/// Always deleted on Dispose / process exit — never stored under the Avalonia app data root.
-/// </summary>
 public sealed class WebHomeCookieJar : IDisposable
 {
-    public const string RootFolderName = "muses-web-home-helper";
-
-    private readonly string _workspace;
+    private const string NetscapeHeader = "# Netscape HTTP Cookie File\n";
+    private const int MaximumCookieFileBytes = 10 * 1024 * 1024;
+    private const UnixFileMode PrivateDirectory = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
     private int _disposed;
 
-    public string WorkspacePath => _workspace;
-    public string CookieFilePath => Path.Combine(_workspace, "cookies.txt");
+    public string WorkspacePath { get; }
+    public string CookieFilePath => Path.Combine(WorkspacePath, "cookies.txt");
 
-    public WebHomeCookieJar(string? rootDirectory = null)
+    public WebHomeCookieJar(string? rootDirectory = null, Guid? id = null)
     {
-        var root = rootDirectory ?? Path.Combine(Path.GetTempPath(), RootFolderName);
-        Directory.CreateDirectory(root);
-        TryRestrictDirectory(root);
-        _workspace = Path.Combine(root, Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_workspace);
-        TryRestrictDirectory(_workspace);
+        var root = rootDirectory ?? WebHomeWorkspace.RootPath;
+        CreatePrivateDirectory(root);
+        CleanupOrphans(root);
+        WorkspacePath = Path.Combine(root, (id ?? Guid.NewGuid()).ToString("N"));
+        CreatePrivateDirectory(WorkspacePath);
     }
 
     public void SeedNetscapeHeader()
     {
-        File.WriteAllText(CookieFilePath, "# Netscape HTTP Cookie File\n");
-        TryRestrictFile(CookieFilePath);
+        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
+        if (!OperatingSystem.IsWindows())
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        using var writer = new StreamWriter(new FileStream(CookieFilePath, options));
+        writer.Write(NetscapeHeader);
     }
 
-    public bool HasCookiesBeyondHeader()
+    internal static async Task<IReadOnlyList<WebHomeCookie>> ReadAsync(string path, CancellationToken cancellationToken)
     {
-        if (!File.Exists(CookieFilePath)) return false;
-        var text = File.ReadAllText(CookieFilePath);
-        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return lines.Any(l => !l.StartsWith('#') && l.Contains('\t'));
-    }
+        using var stream = File.OpenRead(path);
+        if (stream.Length is <= 0 or > MaximumCookieFileBytes)
+            return [];
 
-    /// <summary>
-    /// Optional channel hint written by tests / future identity probe into the jar workspace.
-    /// Production probe uses this only when present; otherwise returns Unavailable.
-    /// </summary>
-    public void WriteChannelHint(string channelId) =>
-        File.WriteAllText(Path.Combine(_workspace, "channel.txt"), channelId.Trim());
+        using var reader = new StreamReader(stream);
+        var cookies = new List<WebHomeCookie>();
+        var charsRead = 0;
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            charsRead += line.Length + 1;
+            if (charsRead > MaximumCookieFileBytes)
+                return [];
+            if (line.StartsWith("#HttpOnly_", StringComparison.Ordinal))
+                line = line["#HttpOnly_".Length..];
+            else if (line.StartsWith('#'))
+                continue;
 
-    public string? ReadChannelHint()
-    {
-        var path = Path.Combine(_workspace, "channel.txt");
-        if (!File.Exists(path)) return null;
-        var value = File.ReadAllText(path).Trim();
-        return string.IsNullOrEmpty(value) ? null : value;
+            var fields = line.Split('\t');
+            if (fields.Length != 7 || !long.TryParse(fields[4], out var expiry) || expiry < 0)
+                continue;
+            var domain = fields[0].TrimStart('.').ToLowerInvariant();
+            if (domain != "youtube.com" && !domain.EndsWith(".youtube.com", StringComparison.Ordinal))
+                continue;
+            var name = fields[5];
+            var value = fields[6];
+            if (name.Length == 0 || name.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_')
+                || value.Any(c => c is < '!' or > '~' or ';') || !fields[2].StartsWith('/'))
+                continue;
+
+            cookies.Add(new WebHomeCookie(domain, fields[1] == "TRUE", fields[2], expiry, name, value));
+        }
+
+        return cookies;
     }
 
     public static async Task<bool> TryExportFromBrowserAsync(
@@ -62,10 +74,7 @@ public sealed class WebHomeCookieJar : IDisposable
         string destinationCookieFile,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(ytdlpPath) || !File.Exists(ytdlpPath))
-            return false;
-
-        var psi = new System.Diagnostics.ProcessStartInfo
+        var info = new ProcessStartInfo
         {
             FileName = ytdlpPath,
             UseShellExecute = false,
@@ -73,65 +82,76 @@ public sealed class WebHomeCookieJar : IDisposable
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (var a in new[]
-                 {
-                     "--ignore-config", "--quiet", "--no-warnings",
-                     "--cookies-from-browser", browserSpecification,
-                     "--cookies", destinationCookieFile
-                 })
-            psi.ArgumentList.Add(a);
+        foreach (var argument in new[]
+        {
+            "--ignore-config", "--quiet", "--no-warnings",
+            "--cookies-from-browser", browserSpecification, "--cookies", destinationCookieFile
+        })
+            info.ArgumentList.Add(argument);
 
-        using var proc = System.Diagnostics.Process.Start(psi);
-        if (proc is null) return false;
+        using var process = Process.Start(info);
+        if (process is null)
+            return false;
+        var discardOutput = Task.WhenAll(
+            process.StandardOutput.BaseStream.CopyToAsync(Stream.Null, cancellationToken),
+            process.StandardError.BaseStream.CopyToAsync(Stream.Null, cancellationToken));
         try
         {
-            await proc.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            await discardOutput.ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            try { proc.Kill(entireProcessTree: true); } catch { /* ignore */ }
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().ConfigureAwait(false);
             throw;
         }
 
-        return File.Exists(destinationCookieFile) && new FileInfo(destinationCookieFile).Length > 40;
+        // Export-only yt-dlp can emit a no-URL usage status after writing the cookie jar.
+        return new FileInfo(destinationCookieFile).Length > NetscapeHeader.Length;
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        try
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+            DeleteWorkspace(WorkspacePath);
+    }
+
+    private static void CreatePrivateDirectory(string path)
+    {
+        var directory = OperatingSystem.IsWindows()
+            ? Directory.CreateDirectory(path)
+            : Directory.CreateDirectory(path, PrivateDirectory);
+        if (directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new IOException("Web Home workspace cannot be a link.");
+        if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(path) != PrivateDirectory)
+            File.SetUnixFileMode(path, PrivateDirectory);
+    }
+
+    private static void CleanupOrphans(string root)
+    {
+        var cutoff = DateTime.UtcNow.AddHours(-1);
+        foreach (var directory in new DirectoryInfo(root).EnumerateDirectories())
         {
-            if (Directory.Exists(_workspace))
-                Directory.Delete(_workspace, recursive: true);
-        }
-        catch
-        {
-            // Best-effort wipe; helper process exit also drops the temp tree.
+            if (Guid.TryParseExact(directory.Name, "N", out _) && directory.LastWriteTimeUtc < cutoff
+                && !directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                DeleteWorkspace(directory.FullName);
         }
     }
 
-    private static void TryRestrictDirectory(string path)
+    private static void DeleteWorkspace(string path)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            try
-            {
-                // 0700 owner-only
-                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            }
-            catch { /* best effort */ }
-        }
+        try { Directory.Delete(path, recursive: true); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
+}
 
-    private static void TryRestrictFile(string path)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            try
-            {
-                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            }
-            catch { /* best effort */ }
-        }
-    }
+internal sealed record WebHomeCookie(string Domain, bool IncludeSubdomains, string Path, long Expiry, string Name, string Value)
+{
+    public bool AppliesTo(Uri uri, long now) =>
+        (Expiry == 0 || Expiry > now)
+        && (uri.Host == Domain || (IncludeSubdomains && uri.Host.EndsWith("." + Domain, StringComparison.Ordinal)))
+        && (uri.AbsolutePath == Path || uri.AbsolutePath.StartsWith(Path.EndsWith('/') ? Path : Path + "/", StringComparison.Ordinal));
 }

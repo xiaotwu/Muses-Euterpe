@@ -36,7 +36,7 @@
     <!-- Eyebrow -->
     <TextBlock x:Name="EyebrowText"
                FontSize="10" FontWeight="SemiBold"
-               Foreground="{StaticResource MusesTextSecondaryBrush}"
+               Foreground="{DynamicResource MusesTextSecondaryBrush}"
                LetterSpacing="0.6"
                TextTrimming="CharacterEllipsis"
                MaxLines="1" />
@@ -44,14 +44,14 @@
     <!-- Title -->
     <TextBlock x:Name="TitleText"
                FontSize="15" FontWeight="SemiBold"
-               Foreground="{StaticResource MusesTextPrimaryBrush}"
+               Foreground="{DynamicResource MusesTextPrimaryBrush}"
                TextTrimming="CharacterEllipsis"
                MaxLines="2" />
 
     <!-- Subtitle (Fixed Height 34) -->
     <TextBlock x:Name="SubtitleText"
                FontSize="13"
-               Foreground="{StaticResource MusesTextSecondaryBrush}"
+               Foreground="{DynamicResource MusesTextSecondaryBrush}"
                Height="34"
                TextTrimming="CharacterEllipsis"
                MaxLines="2" />
@@ -61,8 +61,8 @@
             Classes="editorialCard"
             Width="540" Height="309"
             CornerRadius="12"
-            Background="{StaticResource MusesSurfaceBrush}"
-            BorderBrush="{StaticResource MusesHairlineBrush}"
+            Background="{DynamicResource MusesSurfaceBrush}"
+            BorderBrush="{DynamicResource MusesHairlineBrush}"
             BorderThickness="1"
             ClipToBounds="True"
             BoxShadow="0 6 16 0 #33000000">

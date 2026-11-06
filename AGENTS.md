@@ -1,66 +1,14 @@
-# Muses Euterpe — Project Guidance
+# Muses Euterpe project guidance
 
-Muses Euterpe is the Windows 11 port of [Muses](https://github.com/xiaotwu/Muses-Polyhymnia). Product law is the same: a native desktop **YouTube-native music application**. Not a local-file player, not Electron, not a WebView sound source.
+Euterpe is the shared Windows and Linux desktop edition of Muses. The installed application is named Muses. Polyhymnia defines the product and the application content, motion, and interactions. The host owns the window decorations, system media controls, credential storage, and packaging.
 
-Display name is **Muses**. The repository and solution are named Euterpe.
+- Use one Avalonia 12 AXAML UI for both platforms, with the shared Muses palette, typography, and control materials. Follow current Polyhymnia source for the navigation islands, floating player, queue, and Now Playing.
+- Keep browsing surfaces focused on artwork. Apply translucent materials within bounded control groups and preserve keyboard access, focus, legibility, and reduced motion.
+- Keep playback, queue, and persistence behind the existing C# service boundaries. Use yt-dlp and mpv for audio, and keep the IFrame video session separate. The product library is YouTube-backed.
+- Preserve existing library and queue data on upgrade. Keep account credentials in platform storage and browser consent and cookies within the isolated helper boundary.
+- User-facing strings use L10n. Identifiers and code comments use English.
+- Run dotnet build and dotnet test. Compare the actual desktop app against the Mac reference before claiming visual or interaction parity.
+- Keep implementation and validation resource use bounded. Reuse existing dependencies, keep builds and smoke profiles in task-owned locations, and stop test processes when finished. Remove task-owned temporary files, superseded build artifacts, and caches once they are no longer needed. Preserve user data, shared dependency caches, and files or tools still in use by another task.
+- Project-Muses owns the shared website and release aggregation. Euterpe owns its desktop builds and platform-specific release assets. Keep package selection specific to the running platform and architecture.
 
-## Source of truth
-
-1. Explicit current user decisions and this file.
-2. Current C# source.
-3. Tests under `tests/Muses.Tests`.
-4. The macOS Muses source at a sibling `../Muses-Polyhymnia` checkout, when behavior is unspecified here.
-
-## Architecture
-
-- `src/Muses.Core` — tokens, domain, policies, `PlaybackService` facade, L10n. No UI.
-- `src/Muses.App` — Avalonia 11 + FluentAvalonia chrome and ViewModels.
-- `src/Muses.Infrastructure` — yt-dlp, mpv `ProcessStreamEngine`, discovery, lyrics, history, advanced services, update checker (GitHub releases API only).
-- `src/Muses.Persistence` — SQLite store (`SqliteStore.DefaultPath`).
-- `src/Muses.Platform.Windows` — SMTC + tray bridges (no-op / limited on non-Windows). Credentials live in Infrastructure via `ICredentialStore`.
-- `src/Muses.WebHome` + `src/Muses.WebHome.Helper` — isolated Web Home helper. Cookie jars are ephemeral, permission-restricted, and deleted on helper exit. No scraping in the Avalonia process.
-
-`PlaybackService` is the only UI-facing playback facade. Views never own a second engine or store. EQ band changes reach the engine through `PlaybackService.SetEq` → `IPlayerEngine.SetEq` (mpv `af` equalizer in production; recorded by `FakePlayerEngine` in tests).
-
-## Visual contract
-
-Keep Muses chrome: accent `#FA586A`, page `#1F1F1F`, 244/88 sidebar, 668×56 floating capsule, MonteCarlo wordmark, YouTube red mark, no glass on browsing cards.
-
-Adapt windowing: native Win11 caption on the right, Mica on the window, Acrylic on chrome. Do not draw fake macOS traffic lights.
-
-Play/pause in the main capsule is a white circle, not pink.
-
-## Privacy
-
-Local-first. Tokens in the platform credential store. Web Home cookies live only in a permission-restricted helper jar deleted on exit. No telemetry. Update checks only hit the GitHub releases API.
-
-## Verification
-
-`dotnet test` and `dotnet build`. Do not claim done without running them. Visual work is judged in the running app against Muses screenshots.
-
-Identifiers and comments are English. User-visible strings go through `L10n.Tr`.
-
-## Packaging
-
-- `scripts/package-msix.ps1` prepares / packs MSIX on **Windows** with the Windows SDK.
-- macOS and Linux checkouts cannot produce a MSIX artifact — document that honestly in INSTALL.
-- Microsoft Store and WinGet are **not published**.
-
-## Windows 11 host notes
-
-- Primary development host is Windows 11. `dotnet test` / `dotnet build Muses.slnx` / `dotnet run --project src/Muses.App` are the supported loop.
-- SQLite: `%APPDATA%\Muses\muses-youtube-native.sqlite`.
-- OAuth tokens: Windows Credential Manager (`Muses/YouTubeOAuth/...`), never plaintext JSON under `%AppData%\Muses`.
-- Web Home helper jar: `%TEMP%\muses-web-home-helper\...`, deleted on helper exit. Helper exe is copied to `Helpers/` next to the app.
-- Vendored `resources/mpv.exe` and `resources/yt-dlp.exe` are gitignored; drop them in locally. App copies them to output when present.
-- Automation is a background engine. There is no user-facing rules editor yet.
-- Optional system-wide hotkeys (`PrefKey.FfGlobalHotkeys`, default off) use Windows `RegisterHotKey` for Ctrl+P / Ctrl+Left / Ctrl+Right. In-window chords always work when the main window is focused.
-- Microsoft Store and WinGet remain unpublished — remind the user later; do not advertise them.
-
-## Family repository
-
-The local checkout lives at `Project-Muses/Muses-Euterpe`. Project-Muses owns the shared website and aggregated releases; this repository owns Windows builds, signing and packaging. Polyhymnia is the product reference. Its current champagne-gold design supersedes the historical pink visual contract above as the target direction; existing Windows colors remain implementation status until a separately verified port update.
-
-## Shared product baseline
-
-[Project-Muses platform baseline](https://github.com/xiaotwu/Project-Muses/blob/main/docs/platform-baseline.md) records the family direction. Polyhymnia is the core product reference. Explicit user decisions and current source/runtime evidence take precedence over historical port documents. Windows may be rebuilt against that baseline; preserve library data and verify native Windows behavior before claiming parity.
+See [desktop port plan](docs/desktop-port.md) and [family baseline](https://github.com/xiaotwu/Project-Muses/blob/main/docs/platform-baseline.md).

@@ -15,26 +15,26 @@
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.chromeBtn PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextMutedBrush}" />
       <Setter Property="Width" Value="14" />
       <Setter Property="Height" Value="14" />
     </Style>
     <Style Selector="Button.chromeBtn:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MusesHairlineBrush}" />
     </Style>
     <Style Selector="Button.chromeBtn:pointerover PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
     </Style>
   </UserControl.Styles>
 
-  <Panel Background="{StaticResource MusesPageBrush}">
+  <Panel Background="{DynamicResource MusesPageBrush}">
     <!-- Empty State Container -->
     <DockPanel x:Name="EmptyPanel" IsVisible="False">
       <Border DockPanel.Dock="Top" Margin="40,32,40,28">
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Spacing="4">
-            <TextBlock x:Name="EmptyPageTitle" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <TextBlock x:Name="EmptyPageSubtitle" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="EmptyPageTitle" FontSize="34" FontWeight="Heavy" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="EmptyPageSubtitle" FontSize="13" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
           </StackPanel>
           <StackPanel Grid.Column="1" x:Name="EmptyHeaderControls" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" />
         </Grid>
@@ -47,11 +47,11 @@
                   Foreground="{StaticResource MusesWhiteOverlay66Brush}" />
         <TextBlock x:Name="EmptyTitleText"
                    FontSize="20" FontWeight="SemiBold"
-                   Foreground="{StaticResource MusesTextPrimaryBrush}"
+                   Foreground="{DynamicResource MusesTextPrimaryBrush}"
                    HorizontalAlignment="Center" />
         <TextBlock x:Name="EmptySubtitleText"
                    FontSize="13"
-                   Foreground="{StaticResource MusesTextSecondaryBrush}"
+                   Foreground="{DynamicResource MusesTextSecondaryBrush}"
                    HorizontalAlignment="Center" />
       </StackPanel>
     </DockPanel>
@@ -63,12 +63,12 @@
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Spacing="4">
             <StackPanel Orientation="Horizontal" Spacing="12">
-              <TextBlock x:Name="PageTitle" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+              <TextBlock x:Name="PageTitle" FontSize="34" FontWeight="Heavy" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
               <Button x:Name="YouTubeLinkButton" Classes="chromeBtn" ToolTip.Tip="Open on YouTube" IsVisible="False" VerticalAlignment="Center">
                 <ctrl:YouTubeMark MarkSize="14" />
               </Button>
             </StackPanel>
-            <TextBlock x:Name="PageSubtitle" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="PageSubtitle" FontSize="13" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
           </StackPanel>
 
           <!-- Header Action Controls -->

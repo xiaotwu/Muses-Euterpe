@@ -1,10 +1,12 @@
 using Muses.Core.Advanced;
+using Muses.Core.Discovery;
 using Muses.Core.Domain;
 using Muses.Core.Playback;
 using Muses.Core.Preferences;
 using Muses.Core.Queue;
 using Muses.Infrastructure.Advanced;
 using Muses.Infrastructure.Playback;
+using Muses.Infrastructure.YTDlp;
 using Muses.Persistence;
 using Muses.WebHome;
 using Xunit;
@@ -84,6 +86,14 @@ public sealed class Phase4EqAndWebHomeTests
         Assert.Equal(WebHomeSessionStatus.Closed, off.Status);
         Assert.Equal(0, offClient.ExecuteCount);
 
+        // Previous versions only authorized the session probe.
+        prefs.SetBool(PrefKey.WebHomeEnabled, true);
+        prefs.SetString(PrefKey.WebHomeConsentVersion, "1");
+        var legacy = new WebHomeSessionController(offClient, () => "UC_one", prefs);
+        Assert.Null(await legacy.FetchHomeAsync());
+        Assert.Equal(WebHomeSessionStatus.PendingConsent, legacy.Status);
+        Assert.Equal(0, offClient.ExecuteCount);
+
         // Consent + enable → Available
         var okClient = new FakeWebHomeHelperClient(WebHomeResponse.Available("UC_one"));
         var ok = new WebHomeSessionController(okClient, () => "UC_one", prefs);
@@ -111,45 +121,114 @@ public sealed class Phase4EqAndWebHomeTests
     [Fact]
     public void WebHomeCookieJar_deletes_workspace_on_dispose()
     {
-        string workspace;
-        using (var jar = new WebHomeCookieJar())
-        {
-            jar.SeedNetscapeHeader();
-            workspace = jar.WorkspacePath;
-            Assert.True(Directory.Exists(workspace));
-            Assert.True(File.Exists(jar.CookieFilePath));
-        }
-        Assert.False(Directory.Exists(workspace));
-    }
-
-    [Fact]
-    public async Task WebHomeProbeCommand_file_source_with_channel_hint_can_match_or_mismatch()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "muses-wh-test-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dir);
+        var root = Directory.CreateTempSubdirectory("muses-wh-test-");
         try
         {
-            var cookiePath = Path.Combine(dir, "cookies.txt");
-            await File.WriteAllTextAsync(cookiePath, "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\ttest\n");
-            await File.WriteAllTextAsync(Path.Combine(dir, "channel.txt"), "UC_expected");
-
-            var available = await WebHomeProbeCommand.ExecuteAsync(new WebHomeRequest(
-                "probeSession", "UC_expected",
-                new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath),
-                "en", "US"));
-            Assert.True(available.IsAvailable);
-            Assert.Equal("UC_expected", available.ChannelId);
-
-            var mismatch = await WebHomeProbeCommand.ExecuteAsync(new WebHomeRequest(
-                "probeSession", "UC_other",
-                new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath),
-                "en", "US"));
-            Assert.False(mismatch.IsAvailable);
-            Assert.Equal("accountMismatch", mismatch.ErrorCode);
+            string workspace;
+            using (var jar = new WebHomeCookieJar(root.FullName))
+            {
+                jar.SeedNetscapeHeader();
+                workspace = jar.WorkspacePath;
+                Assert.True(Directory.Exists(workspace));
+                Assert.True(File.Exists(jar.CookieFilePath));
+            }
+            Assert.False(Directory.Exists(workspace));
         }
-        finally
+        finally { root.Delete(recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("match", null, true)]
+    [InlineData("mismatch", "accountMismatch", false)]
+    [InlineData("missing", "identityUnavailable", false)]
+    [InlineData("badFeed", "shapeChanged", true)]
+    public async Task WebHome_fetch_verifies_active_identity_before_loading_sanitized_feed(
+        string scenario, string? errorCode, bool expectsBrowse)
+    {
+        const string expected = "UCabcdefghijklmnopqrstuv";
+        const string other = "UCABCDEFGHIJKLMNOPQRSTUV";
+        var dir = Directory.CreateTempSubdirectory("muses-wh-test-");
+        try
         {
-            try { Directory.Delete(dir, true); } catch { /* ignore */ }
+            var cookiePath = Path.Combine(dir.FullName, "cookies.txt");
+            await File.WriteAllTextAsync(cookiePath, "# Netscape HTTP Cookie File\n"
+                + "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tfixtureSecret\n"
+                + ".example.com\tTRUE\t/\tTRUE\t0\tSID\tforeignSecret\n"
+                + ".youtube.com\tTRUE\t/\tTRUE\t1\tSID\texpiredSecret\n");
+            await File.WriteAllTextAsync(Path.Combine(dir.FullName, "channel.txt"), expected);
+
+            using var handler = new WebHomeFixtureHandler(scenario, scenario == "mismatch" ? other : expected);
+            var response = await WebHomeProbeCommand.ExecuteAsync(new WebHomeRequest("fetchHome", expected,
+                new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath),
+                "en", "US"), handler: handler);
+            Assert.Equal(expectsBrowse, handler.BrowseRequested);
+            Assert.Equal(errorCode, response.ErrorCode);
+            if (errorCode is not null)
+            {
+                Assert.False(response.IsAvailable);
+                Assert.Null(response.Sections);
+                return;
+            }
+
+            Assert.True(response.IsAvailable);
+            Assert.Equal(expected, response.ChannelId);
+            var section = Assert.Single(Assert.IsAssignableFrom<IReadOnlyList<WebHomeSection>>(response.Sections));
+            Assert.Equal("Made for you", section.Title);
+            var item = Assert.Single(section.Items);
+            Assert.Equal(new HomeCardEndpoint(HomeCardEndpointKind.Video, "song_fixture"), item.PlayEndpoint);
+            Assert.Equal("https://i.ytimg.com/vi/song_fixture/cover.jpg", item.ArtworkUrl);
+            Assert.DoesNotContain("fixtureSecret", System.Text.Json.JsonSerializer.Serialize(response));
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    private sealed class WebHomeFixtureHandler(string scenario, string channel) : HttpMessageHandler
+    {
+        public bool BrowseRequested { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var uri = Assert.IsType<Uri>(request.RequestUri);
+            Assert.Contains(uri.Host, new[] { "music.youtube.com", "www.youtube.com" });
+            Assert.Equal("SAPISIDHASH", request.Headers.Authorization?.Scheme);
+            var cookies = Assert.Single(request.Headers.GetValues("Cookie"));
+            Assert.Equal("SAPISID=fixtureSecret", cookies);
+
+            var content = uri.AbsolutePath switch
+            {
+                "/" => """
+                    <script>ytcfg.set({"INNERTUBE_API_KEY":"fixtureKey","INNERTUBE_CLIENT_VERSION":"1",
+                        "VISITOR_DATA":"fixtureVisitor","SESSION_INDEX":0});</script>
+                    """,
+                "/youtubei/v1/account/account_menu" when scenario == "missing" =>
+                    """{"recommendation":{"browseEndpoint":{"browseId":"UCabcdefghijklmnopqrstuv"}}}""",
+                "/youtubei/v1/account/account_menu" => $$$$"""
+                    {"header":{"activeAccountHeaderRenderer":{"channelId":"{{{{channel}}}}"}}}
+                    """,
+                "/youtubei/v1/account/accounts_list" => """{"accountItem":{"isSelected":false}}""",
+                "/youtubei/v1/browse" => await BrowseAsync(request, ct),
+                _ => throw new InvalidOperationException("Unexpected fixture route.")
+            };
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(content) };
+        }
+
+        private async Task<string> BrowseAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            BrowseRequested = true;
+            Assert.Contains("FEmusic_home", await request.Content!.ReadAsStringAsync(ct));
+            return scenario == "badFeed" ? """{"unknownRenderer":{}}""" : """
+                {"musicCarouselShelfRenderer":{
+                    "title":{"simpleText":"Made for you"},
+                    "contents":[{"musicTwoRowItemRenderer":{
+                        "title":{"simpleText":"Fixture track"},
+                        "navigationEndpoint":{"watchEndpoint":{"videoId":"song_fixture"}},
+                        "thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[
+                            {"url":"https://i.ytimg.com.example.com/cover.jpg"},
+                            {"url":"https://i.ytimg.com/vi/song_fixture/cover.jpg"}
+                        ]}}}
+                    }}]
+                }}
+                """;
         }
     }
 
@@ -200,10 +279,11 @@ public sealed class Phase4EqAndWebHomeTests
     {
         public EqAwareFakeSession? LastSession { get; private set; }
         public string? FindBinary() => "/fake/mpv";
-        public IMpvPlayerSession Start(Uri url, int initialVolume0to100)
+        public Task<IMpvPlayerSession> StartAsync(
+            ResolvedAudioStream stream, int initialVolume0to100, CancellationToken cancellationToken)
         {
             LastSession = new EqAwareFakeSession(initialVolume0to100);
-            return LastSession;
+            return Task.FromResult<IMpvPlayerSession>(LastSession);
         }
     }
 

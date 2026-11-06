@@ -108,21 +108,14 @@ public partial class CollectionPage : UserControl
         set => TrackTable.Library = value;
     }
 
-    public PlaybackService? Playback
-    {
-        get => TrackTable.Playback;
-        set => TrackTable.Playback = value;
-    }
+    public PlaybackService? Playback { get; set; }
 
-    public PlaylistService? PlaylistService
-    {
-        get => TrackTable.PlaylistService;
-        set => TrackTable.PlaylistService = value;
-    }
+    public PlaylistService? PlaylistService { get; set; }
 
     public event Action<CollectionTrackRow>? TrackActivated;
     public event Action? BackRequested;
     public event Action<CollectionTrackRow>? RemoveRequested;
+    public Action<CollectionTrackRow, int>? MoveRequested { get; set; }
     public event Action? PlayAllRequested;
     public event Action? ShuffleRequested;
 
@@ -147,11 +140,23 @@ public partial class CollectionPage : UserControl
 
         SongDeck.TrackActivated += row => TrackActivated?.Invoke(row);
         SongDeck.ExpandRequested += () => SetMode(CollectionPageMode.List);
-        SongDeck.RemoveRequested += row => RemoveRequested?.Invoke(row);
+        SongDeck.TrackMenu = CreateTrackMenu;
 
         TrackTable.TrackActivated += row => TrackActivated?.Invoke(row);
         TrackTable.CollapseRequested += () => SetMode(CollectionPageMode.Stage);
-        TrackTable.RemoveRequested += row => RemoveRequested?.Invoke(row);
+        TrackTable.TrackMenu = CreateTrackMenu;
+    }
+
+    private ContextMenu CreateTrackMenu(CollectionTrackRow row)
+    {
+        var move = MoveRequested;
+        var earlier = move is not null && Rows?.Any(item => item.CanonicalIndex < row.CanonicalIndex) == true;
+        var later = move is not null && Rows?.Any(item => item.CanonicalIndex > row.CanonicalIndex) == true;
+        return TrackContextMenu.Create(row.Snapshot, Playback, Library, PlaylistService,
+            onPlay: () => TrackActivated?.Invoke(row),
+            onRemoveFromContainer: RemoveRequested is not null ? () => RemoveRequested(row) : null,
+            onMoveEarlier: earlier ? () => move!(row, -1) : null,
+            onMoveLater: later ? () => move!(row, 1) : null);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

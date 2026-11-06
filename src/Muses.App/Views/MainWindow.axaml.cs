@@ -1,48 +1,37 @@
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Media;
-using FluentAvalonia.UI.Windowing;
+using Avalonia.Interactivity;
 using Muses.App.ViewModels;
-using Muses.Core.Chrome;
 using Muses.Core.Preferences;
 using Muses.Core.System;
-using Muses.App.Theme;
 
 namespace Muses.App.Views;
 
-public partial class MainWindow : AppWindow
+public partial class MainWindow : Window
 {
     public MainWindow()
     {
         InitializeComponent();
-        Opened += (_, _) => GlassChrome.Attach(this);
-        TitleBar.ExtendsContentIntoTitleBar = true;
-        TitleBar.Height = WindowChromeMetrics.CaptionDragHeight;
-        TitleBar.ButtonBackgroundColor = Colors.Transparent;
-        TitleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
-        TitleBar.ForegroundColor = ThemeBrushes.TextPrimaryColor;
-        TitleBar.ButtonForegroundColor = ThemeBrushes.TextPrimaryColor;
         AddHandler(DragDrop.DropEvent, OnDrop);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(KeyDownEvent, OnNavigationKeyDown, RoutingStrategies.Tunnel);
         DragDrop.SetAllowDrop(this, true);
-        Closing += OnClosingToTray;
-
-        DataContextChanged += (_, _) =>
-        {
-            if (DataContext is ShellViewModel vm)
-            {
-                vm.RequestOpenSearchWindow += (q, s) => SearchWindow.ShowOrActivate(this, vm, q, s);
-            }
-        };
     }
 
-    private void OnClosingToTray(object? sender, WindowClosingEventArgs e)
+    private void OnNavigationKeyDown(object? sender, KeyEventArgs e)
     {
-        if (DataContext is not ShellViewModel vm) return;
-        if (!vm.CloseToTray) return;
-        if (!vm.TrayEnabled) return;
-        e.Cancel = true;
-        Hide();
+        if (DataContext is not ShellViewModel vm || e.KeyModifiers != KeyModifiers.Alt || e.Key is not (Key.Left or Key.Right))
+            return;
+
+        if (e.Key == Key.Left && vm.IsNowPlayingOpen)
+            vm.ToggleNowPlaying();
+        else
+        {
+            var command = e.Key == Key.Left ? vm.NavigateBackCommand : vm.NavigateForwardCommand;
+            if (command.CanExecute(null)) command.Execute(null);
+        }
+
+        e.Handled = true;
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -58,11 +47,12 @@ public partial class MainWindow : AppWindow
             if (vm.IsAudioNerdOpen) { vm.IsAudioNerdOpen = false; e.Handled = true; return; }
             if (vm.IsNotesOpen) { vm.IsNotesOpen = false; e.Handled = true; return; }
             if (vm.IsInbox) { vm.SelectedSection = SidebarSection.Home; e.Handled = true; return; }
-            if (vm.SettingsOpen) { vm.SettingsOpen = false; e.Handled = true; return; }
+            if (vm.SettingsOpen) { vm.CloseSettingsCommand.Execute(null); e.Handled = true; return; }
             if (vm.PasteOpen) { vm.PasteOpen = false; e.Handled = true; return; }
             if (vm.IsLyricsDrawerOpen) { vm.IsLyricsDrawerOpen = false; e.Handled = true; return; }
             if (vm.IsQueueDrawerOpen) { vm.IsQueueDrawerOpen = false; e.Handled = true; return; }
             if (vm.IsNowPlayingOpen) { vm.IsNowPlayingOpen = false; e.Handled = true; return; }
+            if (vm.IsSearch) { vm.ReturnFromSearch(); e.Handled = true; return; }
         }
 
         // F11 toggles Now Playing fullscreen
@@ -105,7 +95,7 @@ public partial class MainWindow : AppWindow
                 e.Handled = true;
                 break;
             case Key.OemComma:
-                vm.SettingsOpen = true;
+                vm.OpenSettingsCommand.Execute(null);
                 e.Handled = true;
                 break;
             case Key.V:
@@ -137,7 +127,7 @@ public partial class MainWindow : AppWindow
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = e.Data.Contains(DataFormats.Text) || e.Data.Contains(DataFormats.Files)
+        e.DragEffects = e.DataTransfer.Formats.Contains(DataFormat.Text)
             ? DragDropEffects.Copy
             : DragDropEffects.None;
     }
@@ -145,7 +135,7 @@ public partial class MainWindow : AppWindow
     private async void OnDrop(object? sender, DragEventArgs e)
     {
         if (DataContext is not ShellViewModel vm) return;
-        var text = e.Data.GetText();
+        var text = e.DataTransfer.TryGetText();
         if (string.IsNullOrWhiteSpace(text)) return;
         if (!text.Contains("youtu", StringComparison.OrdinalIgnoreCase)) return;
         try

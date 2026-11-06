@@ -47,6 +47,39 @@ public class YouTubeImportTests
     }
 
     [Fact]
+    public async Task Import_reuses_the_identity_of_playback_only_tracks_and_adds_them_to_library()
+    {
+        using var store = SqliteStore.Open(inMemory: true);
+        var library = new LibraryService(store);
+        var track = library.UpsertFromYouTube("abcdefghijk", "Song", "Artist", 0, null);
+        var fetcher = new FakeFetcher
+        {
+            Entries = [
+                new YouTubePlaylistEntry(track.YouTubeId, track.Title, track.Artist, 150, "List"),
+                new YouTubePlaylistEntry(track.YouTubeId, track.Title, track.Artist, 150, "List")
+            ]
+        };
+        var service = new YouTubeImportService(store, store, fetcher);
+
+        var id = await service.ImportPlaylistAsync("https://www.youtube.com/playlist?list=PLexistingTrack");
+
+        var item = Assert.Single(library.AllTracks());
+        Assert.Equal(track.Id, item.Id);
+        Assert.Equal(150_000, item.DurationMs);
+        Assert.Collection(service.Get(id)!.Items,
+            first =>
+            {
+                Assert.Equal(track.Id, first.TrackId);
+                Assert.Equal(0, first.ItemOrder);
+            },
+            second =>
+            {
+                Assert.Equal(track.Id, second.TrackId);
+                Assert.Equal(1, second.ItemOrder);
+            });
+    }
+
+    [Fact]
     public async Task Deleting_import_does_not_delete_tracks()
     {
         using var store = SqliteStore.Open(inMemory: true);

@@ -88,9 +88,11 @@ public sealed class YouTubeImportService
             TrackEntity track;
             if (existingTrack is not null)
             {
-                if (existingTrack.DurationMs <= 0 && durationMs > 0)
+                var enrichDuration = existingTrack.DurationMs <= 0 && durationMs > 0;
+                if (!existingTrack.LibraryMember || enrichDuration)
                 {
-                    existingTrack.DurationMs = durationMs;
+                    existingTrack.LibraryMember = true;
+                    if (enrichDuration) existingTrack.DurationMs = durationMs;
                     _trackRepo.Upsert(existingTrack);
                 }
                 track = existingTrack;

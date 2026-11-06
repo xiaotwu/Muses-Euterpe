@@ -35,6 +35,8 @@ public sealed class QueueStateRecord
     public Guid? CurrentTrackId { get; set; }
     public double? LastPositionMs { get; set; }
     public string? GroupsJson { get; set; }
+    public string? InsertedCurrentJson { get; set; }
+    public string? OriginalOrderJson { get; set; }
 }
 
 public interface IQueueStore

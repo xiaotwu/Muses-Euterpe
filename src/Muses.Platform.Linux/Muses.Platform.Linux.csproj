@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Muses.Tests" />
+  </ItemGroup>
+</Project>

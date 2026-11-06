@@ -107,4 +107,34 @@ public class YouTubeVideoOverlayPolicyTests
         Assert.Contains("rel=0", html);
         Assert.Contains("modestbranding=1", html);
     }
+
+    [Fact]
+    public void Identified_iframe_passes_origin_and_reports_player_status()
+    {
+        var origin = new Uri("https://xiaotwu.github.io/Project-Muses/");
+        var html = YouTubeEmbed.PageHtml("M7lc1UVf-VE", origin);
+
+        Assert.Contains("origin=https%3A%2F%2Fxiaotwu.github.io", html);
+        Assert.Contains("https://www.youtube.com/iframe_api", html);
+        Assert.Contains("muses-video-ready", html);
+        Assert.Contains("muses-video-error:", html);
+        Assert.DoesNotContain("muses-video-ready", YouTubeEmbed.PageHtml("M7lc1UVf-VE"));
+    }
+
+    [Fact]
+    public void Unavailable_embed_does_not_load_and_can_be_closed()
+    {
+        var (_, _, iframe, session) = Create();
+        iframe.IsAvailable = false;
+
+        Assert.True(session.Open("M7lc1UVf-VE"));
+        Assert.False(session.EmbedAvailable);
+        Assert.Equal(0, iframe.LoadCount);
+
+        session.Close();
+
+        Assert.False(session.IsOpen);
+        Assert.Null(session.SuspensionToken);
+        Assert.Equal(1, iframe.TearDownCount);
+    }
 }

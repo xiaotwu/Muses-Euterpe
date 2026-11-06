@@ -1,4 +1,6 @@
 using Muses.Core.Domain;
+using Muses.Core.Playback;
+using Muses.Core.Queue;
 using Muses.Infrastructure.Playback;
 using Muses.Infrastructure.YTDlp;
 
@@ -66,6 +68,24 @@ public class ProcessStreamEngineTests
         Assert.Equal(42.5, engine.Inner.State.Position);
         Assert.Equal(42.5, factory.LastSession!.LastSeek);
         Assert.Equal(42.5, factory.LastSession.TimePos);
+    }
+
+    [Fact]
+    public async Task Position_sample_taken_before_seek_does_not_overwrite_seek()
+    {
+        var factory = new FakeMpvFactory();
+        await using var engine = new EngineOwner(new ProcessStreamEngine(new FakeBridge(), factory));
+        await engine.Inner.LoadPausedAsync(TrackSnapshot.Test("song", "vid-1", 200));
+
+        // Drive a single poll directly so the response order is independent of timer scheduling.
+        engine.Inner.State.IsPlaying = true;
+        var session = factory.LastSession!;
+        session.SetTimePos(15);
+        session.BeforePositionReply = () => engine.Inner.Seek(42.5);
+
+        engine.Inner.PollPosition();
+
+        Assert.Equal(42.5, engine.Inner.State.Position);
     }
 
     [Fact]
@@ -183,6 +203,53 @@ public class ProcessStreamEngineTests
     }
 
     [Fact]
+    public async Task Playback_notifies_ui_on_load_failure_and_retries_the_same_queue_entry()
+    {
+        var factory = new FakeMpvFactory { BinaryPath = null };
+        await using var engine = new EngineOwner(new ProcessStreamEngine(new FakeBridge(), factory));
+        var queue = new QueueService();
+        var playback = new PlaybackService(engine.Inner, queue);
+        var track = TrackSnapshot.Test("song", "vid-1", 10);
+        var events = new List<PlaybackEventKind>();
+        playback.EventBus.EventPosted += evt => events.Add(evt.Kind);
+
+        playback.PlayTrack(track, [track], QueueSource.Songs);
+        var entry = queue.Current()?.Id;
+        Assert.Equal(new[] { PlaybackEventKind.TrackLoading, PlaybackEventKind.TrackLoadFailed }, events);
+        Assert.Equal(track.Id, playback.State.Track?.Id);
+        Assert.Equal(PlayerErrorKind.EngineStartFailed, playback.State.Error?.Kind);
+
+        factory.BinaryPath = "/fake/mpv";
+        playback.Toggle();
+
+        Assert.True(playback.State.IsPlaying);
+        Assert.Equal(entry, queue.Current()?.Id);
+        Assert.Equal(PlaybackEventKind.TrackStarted, events[^1]);
+    }
+
+    [Fact]
+    public async Task Failed_media_open_invalidates_the_resolved_stream_and_retry_loads_fresh_context()
+    {
+        var bridge = new FakeBridge();
+        var factory = new FakeMpvFactory { RejectSource = true };
+        await using var engine = new EngineOwner(new ProcessStreamEngine(bridge, factory));
+        var track = TrackSnapshot.Test("song", "vid-1", 10);
+
+        await Assert.ThrowsAsync<MpvSourceException>(() => engine.Inner.LoadAsync(track));
+        Assert.Equal(PlayerErrorKind.SourceUnavailable, engine.Inner.State.Error?.Kind);
+        Assert.False(engine.Inner.State.IsPlaying);
+        var failed = factory.Stream;
+        Assert.Same(failed, bridge.Invalidated);
+
+        factory.RejectSource = false;
+        await engine.Inner.LoadAsync(track);
+        Assert.NotSame(failed, factory.Stream);
+        Assert.Equal("audio probe", factory.Stream!.RequestHeaders["User-Agent"]);
+        Assert.True(engine.Inner.State.IsPlaying);
+        Assert.Null(engine.Inner.State.Error);
+    }
+
+    [Fact]
     public async Task Position_comes_from_session_not_wall_clock_while_paused()
     {
         var factory = new FakeMpvFactory();
@@ -213,6 +280,17 @@ public class ProcessStreamEngineTests
         public int ResolveCount { get; private set; }
         public string? LastQuality { get; private set; }
         public TimeSpan ResolveDelay { get; set; } = TimeSpan.Zero;
+        public ResolvedAudioStream? Invalidated { get; private set; }
+
+        public async Task<ResolvedAudioStream> ResolveAudioStreamAsync(
+            string videoId, string quality, TimeSpan timeout, CancellationToken ct = default)
+        {
+            var url = await ResolveStreamUrlAsync(videoId, quality, timeout, ct);
+            return new ResolvedAudioStream(url, new Dictionary<string, string> { ["User-Agent"] = "audio probe" });
+        }
+
+        public void InvalidateAudioStream(string videoId, string quality, ResolvedAudioStream stream) =>
+            Invalidated = stream;
 
         public async Task<Uri> ResolveStreamUrlAsync(string videoId, string quality, TimeSpan timeout, CancellationToken ct = default)
         {
@@ -241,18 +319,24 @@ public class ProcessStreamEngineTests
         public string? BinaryPath { get; set; } = "/fake/mpv";
         public FakeMpvSession? LastSession { get; private set; }
         public List<Uri> StartedUrls { get; } = [];
+        public ResolvedAudioStream? Stream { get; private set; }
+        public bool RejectSource { get; set; }
         public int LiveSessionCount => StartedUrls.Count == 0 ? 0 : (LastSession?.IsAlive == true ? 1 : 0);
 
         public string? FindBinary() => BinaryPath;
 
-        public IMpvPlayerSession Start(Uri url, int initialVolume0to100)
+        public Task<IMpvPlayerSession> StartAsync(
+            ResolvedAudioStream stream, int initialVolume0to100, CancellationToken cancellationToken)
         {
             if (BinaryPath is null)
                 throw new FileNotFoundException("mpv missing");
-            StartedUrls.Add(url);
+            Stream = stream;
+            if (RejectSource)
+                throw new MpvSourceException("fixture source rejected");
+            StartedUrls.Add(stream.Url);
             LastSession?.Dispose();
-            LastSession = new FakeMpvSession(url, initialVolume0to100);
-            return LastSession;
+            LastSession = new FakeMpvSession(stream.Url, initialVolume0to100);
+            return Task.FromResult<IMpvPlayerSession>(LastSession);
         }
     }
 
@@ -286,8 +370,13 @@ public class ProcessStreamEngineTests
         public string? LastAf { get; private set; }
         public void SetAudioFilters(string? afChain) => LastAf = afChain ?? "";
         public void SetTimePos(double seconds) => TimePos = seconds;
-        public Task<double?> GetTimePosAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<double?>(TimePos);
+        public Action? BeforePositionReply { get; set; }
+        public Task<double?> GetTimePosAsync(CancellationToken cancellationToken = default)
+        {
+            var sample = TimePos;
+            BeforePositionReply?.Invoke();
+            return Task.FromResult<double?>(sample);
+        }
 
         public void RaiseEndOfFile() => EndOfFile?.Invoke();
         public void RaiseExited() => Exited?.Invoke();

@@ -2,34 +2,55 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Muses.App.ViewModels"
              xmlns:ctrl="using:Muses.App.Controls"
+             xmlns:playback="using:Muses.App.Controls.Playback"
              x:Class="Muses.App.Views.PlayerBarView"
              x:DataType="vm:ShellViewModel"
              MaxWidth="668" Height="56"
-             HorizontalAlignment="Center">
+             HorizontalAlignment="Stretch">
   <UserControl.Styles>
     <Style Selector="Button.chrome">
       <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="14" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Width" Value="32" />
-      <Setter Property="Height" Value="32" />
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Cursor" Value="Hand" />
     </Style>
+    <Style Selector="UserControl.compact TextBlock.dockTiming">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="UserControl.compact Panel.dockText">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.dockCapsule"><Setter Property="Padding" Value="14,0" /></Style>
+    <Style Selector="UserControl.compact Border.dockCapsule">
+      <Setter Property="Padding" Value="6,0" />
+    </Style>
+    <Style Selector="UserControl.compact Button.chrome">
+      <Setter Property="Width" Value="24" />
+    </Style>
     <Style Selector="Button.chrome PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextMutedBrush}" />
       <Setter Property="Width" Value="16" />
       <Setter Property="Height" Value="16" />
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="Foreground" Duration="{StaticResource MusesMotionHover}" />
+          <BrushTransition Property="Foreground" Duration="{DynamicResource MusesMotionHover}" />
         </Transitions>
       </Setter>
     </Style>
+    <Style Selector="Button.chrome:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MusesHairlineBrush}" />
+    </Style>
+    <Style Selector="Button.playBtn:pointerover /template/ ContentPresenter, Button.playBtn:pressed /template/ ContentPresenter">
+      <Setter Property="Background" Value="#FFFFFF" />
+    </Style>
     <Style Selector="Button.chrome:pointerover PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
     </Style>
     <Style Selector="Button.chrome.active PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesAccentBrush}" />
     </Style>
     <Style Selector="Button.chrome:disabled">
       <Setter Property="Opacity" Value="0.28" />
@@ -40,40 +61,41 @@
       <Setter Property="Width" Value="32" />
       <Setter Property="Height" Value="32" />
       <Setter Property="CornerRadius" Value="16" />
-      <Setter Property="Background" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="Background" Value="#F5EFE6" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="RenderTransform" Value="none" />
       <Setter Property="Transitions">
         <Transitions>
-          <TransformOperationsTransition Property="RenderTransform" Duration="{StaticResource MusesMotionHover}" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="{DynamicResource MusesMotionHover}" />
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="Button.playBtn:pointerover">
+    <Style Selector="UserControl.motionEnabled Button.playBtn:pointerover">
       <Setter Property="RenderTransform" Value="scale(1.06)" />
     </Style>
   </UserControl.Styles>
 
-  <Border MaxWidth="668" Height="56"
+  <Border Classes="dockCapsule" MaxWidth="668" Height="56"
           CornerRadius="1000"
           Background="{DynamicResource MusesGlassCapsuleBrush}"
-          BorderBrush="{StaticResource MusesWhiteOverlay14Brush}"
+          BorderBrush="{DynamicResource MusesGlassRimBrush}"
           BorderThickness="1"
-          BoxShadow="0 8 18 0 #59000000"
-          Padding="14,0"
+          BoxShadow="{DynamicResource MusesGlassDockShadow}"
           HorizontalAlignment="Stretch"
           ClipToBounds="False">
     <Panel>
       <!-- Top Edge Progress Track (Insets 28px each side matching capsule corner curve) -->
       <Border x:Name="ProgressTrackContainer"
-              Height="12"
+              Height="10"
               VerticalAlignment="Top"
-              Margin="28,0,28,0"
+              Margin="14,0,14,0"
               Background="Transparent"
               Cursor="Hand"
               ClipToBounds="False"
+              IsVisible="{Binding HasTrack}"
+              ZIndex="1"
               PointerEntered="OnProgressPointerEntered"
               PointerExited="OnProgressPointerExited"
               PointerPressed="OnProgressPointerPressed"
@@ -88,11 +110,11 @@
                   Background="{StaticResource MusesWhiteOverlay2EBrush}"
                   HorizontalAlignment="Stretch" />
 
-          <!-- Filled Track (Magenta) -->
+          <!-- Filled Track -->
           <Border x:Name="ProgressTrackFill"
                   Height="3"
                   CornerRadius="1.5"
-                  Background="{StaticResource MusesAccentBrush}"
+                  Background="{DynamicResource MusesAccentBrush}"
                   HorizontalAlignment="Left"
                   Width="0" />
 
@@ -112,15 +134,15 @@
       <!-- Main Controls Row -->
       <Grid ColumnDefinitions="Auto,*,Auto" HorizontalAlignment="Stretch">
         <!-- 1. Leading Transport Cluster -->
-        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" IsEnabled="{Binding HasTrack}">
           <!-- Shuffle -->
           <Button Classes="chrome" Classes.active="{Binding ShuffleOn}"
-                  ToolTip.Tip="Shuffle" AutomationProperties.Name="Shuffle" Command="{Binding ToggleShuffleCommand}">
+                  ToolTip.Tip="{playback:PlaybackText Shuffle, 随机播放}" AutomationProperties.Name="{playback:PlaybackText Shuffle, 随机播放}" Command="{Binding ToggleShuffleCommand}">
             <PathIcon Data="M14.83,13.41L13.42,14.82L16.55,17.95L14.5,20H20V14.5L17.96,16.54L14.83,13.41M14.5,4L16.54,6.04L4,18.59L5.41,20L17.96,7.46L20,9.5V4M10.59,9.17L5.41,4L4,5.41L9.17,10.58L10.59,9.17Z" />
           </Button>
 
           <!-- Previous -->
-          <Button Classes="chrome" ToolTip.Tip="Previous" AutomationProperties.Name="Previous Track" Command="{Binding PreviousCommand}">
+          <Button Classes="chrome" ToolTip.Tip="{playback:PlaybackText Previous, 上一首}" AutomationProperties.Name="{playback:PlaybackText Previous, 上一首}" Command="{Binding PreviousCommand}">
             <PathIcon Data="M6,18V6H8V18H6M9.5,12L18,6V18L9.5,12Z" />
           </Button>
 
@@ -130,27 +152,23 @@
                   AutomationProperties.Name="{Binding PlayLabel}"
                   Command="{Binding TogglePlaybackCommand}">
             <Panel>
-              <!-- Progress Ring when playing -->
-              <Ellipse Width="34" Height="34"
-                       Stroke="{StaticResource MusesAccentBrush}" StrokeThickness="1.5"
-                       IsVisible="{Binding IsPlaying}" />
               <!-- Play Icon -->
-              <PathIcon Width="13" Height="13" Foreground="{StaticResource MusesPageBrush}" IsVisible="{Binding !IsPlaying}"
+              <PathIcon Width="13" Height="13" Foreground="#30291E" IsVisible="{Binding !IsPlaying}"
                         Data="M8,5.14V19.14L19,12.14L8,5.14Z" Margin="1,0,0,0" />
               <!-- Pause Icon -->
-              <PathIcon Width="13" Height="13" Foreground="{StaticResource MusesPageBrush}" IsVisible="{Binding IsPlaying}"
+              <PathIcon Width="13" Height="13" Foreground="#30291E" IsVisible="{Binding IsPlaying}"
                         Data="M14,19H18V5H14M6,19H10V5H6V19Z" />
             </Panel>
           </Button>
 
           <!-- Next -->
-          <Button Classes="chrome" ToolTip.Tip="Next" AutomationProperties.Name="Next Track" Command="{Binding NextCommand}">
+          <Button Classes="chrome" ToolTip.Tip="{playback:PlaybackText Next, 下一首}" AutomationProperties.Name="{playback:PlaybackText Next, 下一首}" Command="{Binding NextCommand}">
             <PathIcon Data="M16,18H18V6H16M6,18L14.5,12L6,6V18Z" />
           </Button>
 
           <!-- Repeat (Cycles Off -> All -> One) -->
           <Button Classes="chrome" Classes.active="{Binding RepeatOn}"
-                  ToolTip.Tip="Repeat Mode" AutomationProperties.Name="Repeat Mode" Command="{Binding CycleRepeatCommand}">
+                  ToolTip.Tip="{playback:PlaybackText 'Repeat mode', 循环模式}" AutomationProperties.Name="{playback:PlaybackText 'Repeat mode', 循环模式}" Command="{Binding CycleRepeatCommand}">
             <Panel>
               <!-- Repeat One Icon -->
               <PathIcon Data="M13,15V9H12L10,10V11H11.5V15H13M17,17H7V14L3,18L7,22V19H19V13H17M7,7H17V10L21,6L17,2V5H5V11H7V7Z"
@@ -162,72 +180,68 @@
           </Button>
         </StackPanel>
 
-        <!-- 2. Centered Identity Area -->
-        <Button Grid.Column="1"
-                Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand"
-                HorizontalAlignment="Center" VerticalAlignment="Center"
-                Command="{Binding ToggleNowPlayingCommand}"
-                ToolTip.Tip="Open Now Playing"
-                AutomationProperties.Name="Open Now Playing">
-          <Panel>
-            <!-- Not Playing State -->
-            <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding !HasTrack}">
-              <ctrl:MusesMark MarkSize="28" />
-              <TextBlock Text="{Binding NotPlayingLabel}"
-                         FontSize="13" FontWeight="Medium"
-                         Foreground="{StaticResource MusesTextSecondaryBrush}"
-                         VerticalAlignment="Center" />
+        <Grid Grid.Column="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10"
+              Margin="10,0" VerticalAlignment="Center">
+          <Border Width="40" Height="40" CornerRadius="7"
+                  Background="{DynamicResource MusesSurfaceBrush}" IsVisible="{Binding !HasTrack}">
+            <ctrl:MusesMark MarkSize="26" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <Button Width="40" Height="40" Padding="0" CornerRadius="7"
+                  Background="Transparent" BorderThickness="0" Cursor="Hand"
+                  x:Name="ArtworkButton" Command="{Binding ToggleNowPlayingCommand}" IsVisible="{Binding HasTrack}"
+                  ToolTip.Tip="{Binding NowPlayingTitle}" AutomationProperties.Name="{Binding NowPlayingTitle}">
+            <ctrl:ArtworkControl x:Name="DockArtwork" Width="40" Height="40" CornerRadius="6" GlyphSize="16"
+                                 SourceUrl="{Binding NowPlayingArtworkUrl}" />
+          </Button>
+          <Panel Grid.Column="1" Classes="dockText">
+            <StackPanel VerticalAlignment="Center" Spacing="1"
+                        IsVisible="{Binding HasTrack}">
+              <TextBlock Text="{Binding NowPlayingTitle}" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+              <Panel>
+                <TextBlock Text="{Binding NowPlayingArtist}" FontSize="12"
+                           IsVisible="{Binding PlaybackStatusText, Converter={x:Static StringConverters.IsNullOrEmpty}}"
+                           Foreground="{DynamicResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding PlaybackStatusText}" FontSize="12"
+                           IsVisible="{Binding PlaybackStatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           Foreground="{DynamicResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                           AutomationProperties.LiveSetting="Polite" />
+              </Panel>
             </StackPanel>
-
-            <!-- Playing Identity State -->
-            <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding HasTrack}">
-              <!-- Artwork (40x40 rounded 6) -->
-              <Border Width="40" Height="40" CornerRadius="6" ClipToBounds="True"
-                      BoxShadow="0 2 6 0 #40000000">
-                <ctrl:ArtworkControl Width="40" Height="40" CornerRadius="6" GlyphSize="16"
-                                     SourceUrl="{Binding NowPlayingArtworkUrl}" />
-              </Border>
-              <!-- Title & Artist -->
-              <StackPanel VerticalAlignment="Center" Spacing="1" MaxWidth="190">
-                <TextBlock Text="{Binding NowPlayingTitle}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}"
-                           TextTrimming="CharacterEllipsis" MaxLines="1" />
-                <TextBlock Text="{Binding NowPlayingArtist}" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}"
-                           TextTrimming="CharacterEllipsis" MaxLines="1" />
-              </StackPanel>
-              <!-- Position / Duration Readout -->
-              <TextBlock VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource MusesTextSecondaryBrush}" FontFamily="Consolas, monospace" Margin="4,0,0,0">
-                <TextBlock.Text>
-                  <MultiBinding StringFormat="{}{0}  /  {1}">
-                    <Binding Path="CurrentPositionFormatted" />
-                    <Binding Path="CurrentDurationFormatted" />
-                  </MultiBinding>
-                </TextBlock.Text>
-              </TextBlock>
+            <StackPanel VerticalAlignment="Center" Spacing="1"
+                        IsVisible="{Binding !HasTrack}">
+              <TextBlock Text="{Binding NotPlayingLabel}" FontSize="13" FontWeight="SemiBold"
+                         Foreground="{DynamicResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="Muses" FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
             </StackPanel>
           </Panel>
-        </Button>
+          <TextBlock Grid.Column="2" x:Name="Timing" Classes="dockTiming" Text="— / —"
+                     VerticalAlignment="Center" FontSize="11" FontFamily="monospace"
+                     Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+        </Grid>
 
         <!-- 3. Trailing Controls Cluster -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
           <!-- Lyrics Drawer Toggle -->
           <Button Classes="chrome" Classes.active="{Binding IsLyricsDrawerOpen}"
-                  ToolTip.Tip="Lyrics" AutomationProperties.Name="Lyrics Drawer" Command="{Binding ToggleLyricsDrawerCommand}">
+                  ToolTip.Tip="{playback:PlaybackText Lyrics, 歌词}" AutomationProperties.Name="{playback:PlaybackText Lyrics, 歌词}" Command="{Binding ToggleLyricsDrawerCommand}">
             <PathIcon Data="M9,22A1,1 0 0,1 8,21V18H4A2,2 0 0,1 2,16V4C2,2.89 2.9,2 4,2H20A2,2 0 0,1 22,4V16A2,2 0 0,1 20,18H13.9L10.2,21.71C10,21.9 9.75,22 9.5,22H9Z" />
           </Button>
 
           <!-- Queue Drawer Toggle -->
           <Button Classes="chrome" Classes.active="{Binding IsQueueDrawerOpen}"
-                  ToolTip.Tip="Queue" AutomationProperties.Name="Queue Drawer" Command="{Binding ToggleQueueDrawerCommand}">
+                  ToolTip.Tip="{playback:PlaybackText Queue, 队列}" AutomationProperties.Name="{playback:PlaybackText Queue, 队列}" Command="{Binding ToggleQueueDrawerCommand}">
             <PathIcon Data="M3,13H15V11H3M3,6V8H21V6M3,18H9V16H3V18Z" />
           </Button>
 
           <!-- Volume Flyout Button -->
-          <Button Classes="chrome" ToolTip.Tip="Volume" AutomationProperties.Name="Volume">
+          <Button Classes="chrome" ToolTip.Tip="{playback:PlaybackText Volume, 音量}" AutomationProperties.Name="{playback:PlaybackText Volume, 音量}">
             <Button.Flyout>
               <Flyout Placement="Top" ShowMode="Transient">
                 <Flyout.FlyoutPresenterTheme>
                   <ControlTheme TargetType="FlyoutPresenter">
                     <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="14" />
                     <Setter Property="BorderThickness" Value="0" />
                     <Setter Property="Padding" Value="0" />
                   </ControlTheme>
@@ -246,7 +260,7 @@
           </Button>
 
           <!-- Watch YouTube Video -->
-          <Button Classes="chrome" ToolTip.Tip="Watch YouTube Video" AutomationProperties.Name="Watch YouTube Video" Command="{Binding ToggleVideoOverlayCommand}"
+          <Button Classes="chrome" ToolTip.Tip="{playback:PlaybackText 'Watch YouTube video', 观看 YouTube 视频}" AutomationProperties.Name="{playback:PlaybackText 'Watch YouTube video', 观看 YouTube 视频}" Command="{Binding ToggleVideoOverlayCommand}"
                   IsEnabled="{Binding HasNowPlayingYouTubeId}"
                   IsVisible="{Binding HasNowPlayingYouTubeId}">
             <ctrl:YouTubeMark MarkSize="16" />

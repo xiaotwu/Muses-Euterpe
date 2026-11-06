@@ -19,9 +19,12 @@ public partial class PlaylistDetailView : UserControl
         Page.TrackActivated += row =>
         {
             if (_vm?.Playback is null || Page.Rows is null) return;
-            var snaps = Page.Rows.Select(r => r.Snapshot).ToList();
+            var rows = Page.Rows.ToList();
+            var index = rows.FindIndex(candidate => candidate.Id == row.Id);
+            if (index < 0) return;
+            var snaps = rows.Select(candidate => candidate.Snapshot).ToList();
             var source = _vm.SelectedYouTubeImport is not null ? QueueSource.Import : QueueSource.Playlist;
-            _vm.Playback.PlayTrack(row.Snapshot, snaps, source);
+            _vm.Playback.PlayTrack(row.Snapshot, snaps, source, selectedIndex: index);
         };
 
         Page.PlayAllRequested += () =>
@@ -55,7 +58,7 @@ public partial class PlaylistDetailView : UserControl
             if (_vm.SelectedPlaylist is not null && _vm.PlaylistService is not null)
             {
                 var full = _vm.PlaylistService.Get(_vm.SelectedPlaylist.Id);
-                var item = full?.Items.FirstOrDefault(i => i.Id == row.Id || i.TrackId == row.Snapshot.Id);
+                var item = full?.Items.FirstOrDefault(i => i.Id == row.Id);
                 if (item is not null)
                 {
                     _vm.PlaylistService.RemoveItem(item.Id);
@@ -65,7 +68,7 @@ public partial class PlaylistDetailView : UserControl
             else if (_vm.SelectedYouTubeImport is not null && _vm.YouTubeImportService is not null)
             {
                 var full = _vm.YouTubeImportService.Get(_vm.SelectedYouTubeImport.Id);
-                var item = full?.Items.FirstOrDefault(i => i.Id == row.Id || i.TrackId == row.Snapshot.Id || i.YouTubeId == row.Snapshot.YouTubeId);
+                var item = full?.Items.FirstOrDefault(i => i.Id == row.Id);
                 if (item is not null)
                 {
                     _vm.YouTubeImportService.RemoveItem(item.Id);
@@ -113,6 +116,11 @@ public partial class PlaylistDetailView : UserControl
             Page.CurrentTrack = _vm.Playback?.State.Track;
             Page.Playlists = _vm.PlaylistService.FetchAll();
             Page.Rows = rows;
+            Page.MoveRequested = (row, offset) =>
+            {
+                if (_vm.SelectedPlaylist?.Id == pl.Id && _vm.PlaylistService.MoveItem(pl.Id, row.Id, offset))
+                    Refresh();
+            };
         }
         else if (_vm.SelectedYouTubeImport is not null && _vm.YouTubeImportService is not null)
         {
@@ -129,6 +137,7 @@ public partial class PlaylistDetailView : UserControl
             Page.CurrentTrack = _vm.Playback?.State.Track;
             Page.Playlists = _vm.PlaylistService?.FetchAll();
             Page.Rows = rows;
+            Page.MoveRequested = null;
         }
     }
 }

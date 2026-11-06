@@ -40,7 +40,8 @@ public static class MusesSchema
                 added_at INTEGER NOT NULL,
                 last_played_at INTEGER,
                 play_count INTEGER NOT NULL DEFAULT 0,
-                liked INTEGER NOT NULL DEFAULT 0
+                liked INTEGER NOT NULL DEFAULT 0,
+                library_member INTEGER NOT NULL DEFAULT 1
             );
             CREATE INDEX IF NOT EXISTS idx_tracks_youtube ON tracks(youtube_id);
             CREATE TABLE IF NOT EXISTS queue_state (
@@ -54,7 +55,9 @@ public static class MusesSchema
                 saved_at INTEGER NOT NULL,
                 current_track_id TEXT,
                 last_position_ms REAL,
-                groups_json TEXT
+                groups_json TEXT,
+                inserted_current_json TEXT,
+                original_order_json TEXT
             );
             CREATE TABLE IF NOT EXISTS playlists (
                 id TEXT PRIMARY KEY,
@@ -195,54 +198,85 @@ public static class MusesSchema
                 started_at INTEGER NOT NULL,
                 ended_at INTEGER
             );
+            CREATE TABLE IF NOT EXISTS podcast_shows (
+                catalog_id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL,
+                artwork_url TEXT,
+                followed_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS podcast_episodes (
+                video_id TEXT PRIMARY KEY NOT NULL,
+                title TEXT NOT NULL,
+                artwork_url TEXT,
+                duration_ms INTEGER,
+                published_at INTEGER,
+                availability TEXT NOT NULL,
+                last_position_ms REAL NOT NULL DEFAULT 0,
+                completed INTEGER NOT NULL DEFAULT 0,
+                played_at INTEGER,
+                updated_at INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS podcast_episode_memberships (
+                show_catalog_id TEXT NOT NULL,
+                video_id TEXT NOT NULL,
+                source_order INTEGER NOT NULL,
+                PRIMARY KEY (show_catalog_id, video_id),
+                FOREIGN KEY (video_id) REFERENCES podcast_episodes(video_id)
+            );
             """;
         cmd.ExecuteNonQuery();
 
-        // Safe column additions for pre-existing tables
-        EnsureColumn(connection, "catalog_releases", "year", "INTEGER");
-        EnsureColumn(connection, "catalog_releases", "artist_catalog_id", "TEXT");
-        EnsureColumn(connection, "catalog_releases", "refreshed_at", "INTEGER");
-        EnsureColumn(connection, "catalog_releases", "unavailable", "INTEGER NOT NULL DEFAULT 0");
+        // Serialize the column checks and additions across concurrent opens.
+        using var migration = connection.BeginTransaction();
+        cmd.Transaction = migration;
+        EnsureColumn(cmd, "queue_state", "inserted_current_json", "TEXT");
+        EnsureColumn(cmd, "queue_state", "original_order_json", "TEXT");
+        EnsureColumn(cmd, "tracks", "library_member", "INTEGER NOT NULL DEFAULT 1");
 
-        EnsureColumn(connection, "catalog_artists", "channel_id", "TEXT");
-        EnsureColumn(connection, "catalog_artists", "browse_id", "TEXT");
-        EnsureColumn(connection, "catalog_artists", "biography", "TEXT");
-        EnsureColumn(connection, "catalog_artists", "refreshed_at", "INTEGER");
-        EnsureColumn(connection, "catalog_artists", "unavailable", "INTEGER NOT NULL DEFAULT 0");
-        EnsureColumn(connection, "listening_events", "listened_ms", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(cmd, "catalog_releases", "year", "INTEGER");
+        EnsureColumn(cmd, "catalog_releases", "artist_catalog_id", "TEXT");
+        EnsureColumn(cmd, "catalog_releases", "refreshed_at", "INTEGER");
+        EnsureColumn(cmd, "catalog_releases", "unavailable", "INTEGER NOT NULL DEFAULT 0");
 
-        EnsureColumn(connection, "track_bookmarks", "title", "TEXT");
-        EnsureColumn(connection, "track_bookmarks", "note", "TEXT");
-        EnsureColumn(connection, "track_bookmarks", "created_at", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(cmd, "catalog_artists", "channel_id", "TEXT");
+        EnsureColumn(cmd, "catalog_artists", "browse_id", "TEXT");
+        EnsureColumn(cmd, "catalog_artists", "biography", "TEXT");
+        EnsureColumn(cmd, "catalog_artists", "refreshed_at", "INTEGER");
+        EnsureColumn(cmd, "catalog_artists", "unavailable", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(cmd, "listening_events", "listened_ms", "INTEGER NOT NULL DEFAULT 0");
 
-        EnsureColumn(connection, "inbox_items", "track_title", "TEXT");
-        EnsureColumn(connection, "inbox_items", "artist", "TEXT");
-        EnsureColumn(connection, "inbox_items", "album_title", "TEXT");
-        EnsureColumn(connection, "inbox_items", "duration_seconds", "REAL NOT NULL DEFAULT 0");
-        EnsureColumn(connection, "inbox_items", "youtube_id", "TEXT");
-        EnsureColumn(connection, "inbox_items", "artwork_url", "TEXT");
-        EnsureColumn(connection, "inbox_items", "listened_ms", "REAL");
-        EnsureColumn(connection, "inbox_items", "notes", "TEXT");
+        EnsureColumn(cmd, "track_bookmarks", "title", "TEXT");
+        EnsureColumn(cmd, "track_bookmarks", "note", "TEXT");
+        EnsureColumn(cmd, "track_bookmarks", "created_at", "INTEGER NOT NULL DEFAULT 0");
 
-        EnsureColumn(connection, "automation_rules", "cooldown_ms", "INTEGER");
-        EnsureColumn(connection, "automation_rules", "last_fired_at", "INTEGER");
+        EnsureColumn(cmd, "inbox_items", "track_title", "TEXT");
+        EnsureColumn(cmd, "inbox_items", "artist", "TEXT");
+        EnsureColumn(cmd, "inbox_items", "album_title", "TEXT");
+        EnsureColumn(cmd, "inbox_items", "duration_seconds", "REAL NOT NULL DEFAULT 0");
+        EnsureColumn(cmd, "inbox_items", "youtube_id", "TEXT");
+        EnsureColumn(cmd, "inbox_items", "artwork_url", "TEXT");
+        EnsureColumn(cmd, "inbox_items", "listened_ms", "REAL");
+        EnsureColumn(cmd, "inbox_items", "notes", "TEXT");
 
-        EnsureColumn(connection, "focus_sessions", "planned_duration_ms", "INTEGER");
-        EnsureColumn(connection, "focus_sessions", "status_raw", "TEXT NOT NULL DEFAULT 'Active'");
-        EnsureColumn(connection, "focus_sessions", "listening_session_id", "TEXT");
+        EnsureColumn(cmd, "automation_rules", "cooldown_ms", "INTEGER");
+        EnsureColumn(cmd, "automation_rules", "last_fired_at", "INTEGER");
+
+        EnsureColumn(cmd, "focus_sessions", "planned_duration_ms", "INTEGER");
+        EnsureColumn(cmd, "focus_sessions", "status_raw", "TEXT NOT NULL DEFAULT 'Active'");
+        EnsureColumn(cmd, "focus_sessions", "listening_session_id", "TEXT");
+        migration.Commit();
     }
 
-    private static void EnsureColumn(SqliteConnection connection, string table, string column, string type)
+    private static void EnsureColumn(SqliteCommand cmd, string table, string column, string type)
     {
-        try
-        {
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {type};";
-            cmd.ExecuteNonQuery();
-        }
-        catch (SqliteException)
-        {
-            // Column already exists or table does not match
-        }
+        cmd.CommandText = "SELECT 1 FROM pragma_table_info($table) WHERE name = $column COLLATE NOCASE;";
+        cmd.Parameters.AddWithValue("$table", table);
+        cmd.Parameters.AddWithValue("$column", column);
+        var exists = cmd.ExecuteScalar() is not null;
+        cmd.Parameters.Clear();
+        if (exists) return;
+
+        cmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {type};";
+        cmd.ExecuteNonQuery();
     }
 }

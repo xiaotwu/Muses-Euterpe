@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Muses
+Comment=Organize and play your YouTube music library
+Exec=muses
+Icon=muses
+Terminal=false
+Categories=AudioVideo;Audio;Player;

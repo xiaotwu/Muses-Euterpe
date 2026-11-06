@@ -30,18 +30,18 @@ public sealed class YouTubeCatalogService
 
     public void RebuildFromTrackMetadata()
     {
-        var tracks = _trackRepo.All().Where(t => !string.IsNullOrEmpty(t.YouTubeId)).ToList();
-        var didModifyTracks = false;
+        var tracks = LibraryTracks();
 
         foreach (var track in tracks)
         {
+            var didModifyTrack = false;
             if (track.ReleaseCatalogId is not null && track.ReleaseCatalogId.StartsWith("playlist:", StringComparison.Ordinal))
             {
                 var pid = track.ReleaseCatalogId["playlist:".Length..];
                 if (!YouTubePlaylistID.IsMusicAlbum(pid))
                 {
                     track.ReleaseCatalogId = null;
-                    didModifyTracks = true;
+                    didModifyTrack = true;
                 }
             }
 
@@ -53,7 +53,7 @@ public sealed class YouTubeCatalogService
             if (track.ArtistCatalogId is null)
             {
                 track.ArtistCatalogId = $"artist:{cleanArtist.ToLowerInvariant()}";
-                didModifyTracks = true;
+                didModifyTrack = true;
             }
 
             if (track.ReleaseCatalogId is null)
@@ -63,7 +63,7 @@ public sealed class YouTubeCatalogService
                 if (!string.IsNullOrEmpty(albumTitle))
                 {
                     track.ReleaseCatalogId = $"album:{artistKey}:{albumTitle.ToLowerInvariant()}";
-                    didModifyTracks = true;
+                    didModifyTrack = true;
                 }
                 else
                 {
@@ -72,11 +72,11 @@ public sealed class YouTubeCatalogService
                     {
                         track.AlbumTitle = track.Title;
                     }
-                    didModifyTracks = true;
+                    didModifyTrack = true;
                 }
             }
 
-            if (didModifyTracks)
+            if (didModifyTrack)
             {
                 _trackRepo.Upsert(track);
             }
@@ -168,7 +168,7 @@ public sealed class YouTubeCatalogService
 
     public IReadOnlyList<CatalogReleaseProjection> Releases(DateTimeOffset? now = null)
     {
-        var tracks = _trackRepo.All().Where(t => !string.IsNullOrEmpty(t.YouTubeId)).ToList();
+        var tracks = LibraryTracks();
         var releaseRows = _catalogRepo.GetReleases();
 
         var hasInvalidPlaylistReleases = tracks.Any(t =>
@@ -181,7 +181,7 @@ public sealed class YouTubeCatalogService
         if ((releaseRows.Count == 0 && tracks.Count > 0) || uncataloged || hasInvalidPlaylistReleases)
         {
             RebuildFromTrackMetadata();
-            tracks = _trackRepo.All().Where(t => !string.IsNullOrEmpty(t.YouTubeId)).ToList();
+            tracks = LibraryTracks();
             releaseRows = _catalogRepo.GetReleases();
         }
 
@@ -220,14 +220,14 @@ public sealed class YouTubeCatalogService
 
     public IReadOnlyList<CatalogArtistProjection> Artists(DateTimeOffset? now = null)
     {
-        var tracks = _trackRepo.All().Where(t => !string.IsNullOrEmpty(t.YouTubeId)).ToList();
+        var tracks = LibraryTracks();
         var artistRows = _catalogRepo.GetArtists();
 
         var uncataloged = tracks.Any(t => t.ArtistCatalogId is null);
         if ((artistRows.Count == 0 && tracks.Count > 0) || uncataloged)
         {
             RebuildFromTrackMetadata();
-            tracks = _trackRepo.All().Where(t => !string.IsNullOrEmpty(t.YouTubeId)).ToList();
+            tracks = LibraryTracks();
             artistRows = _catalogRepo.GetArtists();
         }
 
@@ -247,6 +247,7 @@ public sealed class YouTubeCatalogService
                 .ToList();
 
             var artistReleases = allReleases.Where(r => r.ArtistStableId == row.StableId).ToList();
+            if (artistTracks.Count == 0 && artistReleases.Count == 0) continue;
 
             list.Add(new CatalogArtistProjection(
                 row.StableId,
@@ -266,6 +267,9 @@ public sealed class YouTubeCatalogService
 
     public CatalogArtistProjection? Artist(string stableId) =>
         Artists().FirstOrDefault(a => string.Equals(a.StableId, stableId, StringComparison.Ordinal));
+
+    private List<TrackEntity> LibraryTracks() =>
+        _trackRepo.All().Where(t => t.LibraryMember && !string.IsNullOrEmpty(t.YouTubeId)).ToList();
 
     public async Task<ArtistOnlineDiscography> FetchArtistOnlineDiscographyAsync(
         CatalogArtistProjection artist,
@@ -420,11 +424,14 @@ public sealed class YouTubeCatalogService
         string? artistName = null)
     {
         var existing = _trackRepo.GetByYouTubeId(entry.Id);
+        var channelArtistId = YouTubeCatalogIdentity.Artist(entry.ChannelId, null);
         TrackEntity track;
 
         if (existing is not null)
         {
             track = existing;
+            track.LibraryMember = true;
+            track.ArtistCatalogId ??= channelArtistId;
             if (track.ReleaseCatalogId is null && releaseStableId is not null)
             {
                 track.ReleaseCatalogId = releaseStableId;
@@ -434,14 +441,10 @@ public sealed class YouTubeCatalogService
             {
                 track.AlbumTitle = albumTitle;
             }
-            _trackRepo.Upsert(track);
         }
         else
         {
             var resolvedArtist = artistName ?? entry.Uploader ?? "Unknown";
-            var artistStableId = YouTubeCatalogIdentity.Artist(entry.ChannelId, null)
-                ?? $"artist:{resolvedArtist.ToLowerInvariant()}";
-
             track = new TrackEntity
             {
                 Title = entry.Title,
@@ -453,20 +456,20 @@ public sealed class YouTubeCatalogService
                 ArtworkUrl = $"https://i.ytimg.com/vi/{entry.Id}/hqdefault.jpg",
                 ReleaseCatalogId = releaseStableId,
                 ReleaseOrder = order,
-                ArtistCatalogId = artistStableId
+                ArtistCatalogId = channelArtistId ?? $"artist:{resolvedArtist.ToLowerInvariant()}"
             };
-            _trackRepo.Upsert(track);
+        }
 
-            if (_catalogRepo.GetArtist(artistStableId) is null)
+        _trackRepo.Upsert(track);
+        if (track.ArtistCatalogId is { } artistStableId && _catalogRepo.GetArtist(artistStableId) is null)
+        {
+            _catalogRepo.UpsertArtist(new CatalogArtistEntity
             {
-                _catalogRepo.UpsertArtist(new CatalogArtistEntity
-                {
-                    StableId = artistStableId,
-                    Name = resolvedArtist,
-                    ChannelId = entry.ChannelId,
-                    RefreshedAt = DateTimeOffset.UtcNow
-                });
-            }
+                StableId = artistStableId,
+                Name = track.Artist,
+                ChannelId = artistStableId == channelArtistId ? entry.ChannelId : null,
+                RefreshedAt = DateTimeOffset.UtcNow
+            });
         }
 
         Revision++;

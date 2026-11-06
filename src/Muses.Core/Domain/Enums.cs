@@ -3,7 +3,25 @@ namespace Muses.Core.Domain;
 public enum TrackMediaKind
 {
     Song,
-    MusicVideo
+    MusicVideo,
+    PodcastEpisode
+}
+
+internal static class TrackMediaKindCodec
+{
+    public static TrackMediaKind Parse(string? raw) => raw switch
+    {
+        "musicVideo" => TrackMediaKind.MusicVideo,
+        "podcastEpisode" => TrackMediaKind.PodcastEpisode,
+        _ => TrackMediaKind.Song
+    };
+
+    public static string? Wire(TrackMediaKind kind) => kind switch
+    {
+        TrackMediaKind.MusicVideo => "musicVideo",
+        TrackMediaKind.PodcastEpisode => "podcastEpisode",
+        _ => null
+    };
 }
 
 public enum RepeatMode
@@ -45,7 +63,8 @@ public enum QueueSource
     Search,
     Songs,
     Artist,
-    Recently
+    Recently,
+    Podcast
 }
 
 public static class QueueSourceCodec
@@ -58,6 +77,7 @@ public static class QueueSourceCodec
         QueueSource.Search => "search",
         QueueSource.Artist => "artist",
         QueueSource.Recently => "recently",
+        QueueSource.Podcast => "podcast",
         _ => "songs"
     };
 
@@ -69,6 +89,7 @@ public static class QueueSourceCodec
         "search" => QueueSource.Search,
         "artist" => QueueSource.Artist,
         "recently" => QueueSource.Recently,
+        "podcast" => QueueSource.Podcast,
         _ => QueueSource.Songs
     };
 }

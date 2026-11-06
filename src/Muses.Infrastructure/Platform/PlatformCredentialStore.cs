@@ -1,51 +1,51 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using Muses.Core.Platform;
+using Muses.Platform.Linux.Credentials;
 
 namespace Muses.Infrastructure.Platform;
 
 /// <summary>
-/// OS credential locker. On Windows uses Credential Manager (GENERIC).
-/// On macOS/Linux falls back to a permission-restricted file under user config
-/// only when Win32 Credential Manager is unavailable — never plaintext JSON in the Muses app-data folder on Windows.
+/// Windows Credential Manager adapter and platform credential store factory.
 /// </summary>
 public sealed class PlatformCredentialStore : ICredentialStore
 {
     private const string TargetPrefix = "Muses/YouTubeOAuth/";
-    private readonly ICredentialStore _fallback;
+    private const int ErrorNotFound = 1168;
+    private readonly LegacyCredentialFiles _legacy;
 
-    public PlatformCredentialStore(ICredentialStore? fallback = null)
-    {
-        _fallback = fallback ?? new MemoryCredentialStore();
-    }
+    internal PlatformCredentialStore(string? legacyRoot = null) => _legacy = new LegacyCredentialFiles(legacyRoot);
 
     public static ICredentialStore CreateDefault()
     {
         if (OperatingSystem.IsWindows())
-            return new PlatformCredentialStore(new ProtectedFileCredentialStore());
-        // Dev hosts (macOS/Linux): use protected file under XDG/config, not app sqlite.
-        return new ProtectedFileCredentialStore();
+            return new PlatformCredentialStore();
+        if (OperatingSystem.IsLinux())
+            return new SecretServiceCredentialStore(LegacyCredentialFiles.DefaultRoot());
+
+        return new MemoryCredentialStore();
     }
 
     public byte[]? Get(string account)
     {
-        if (OperatingSystem.IsWindows() && TryWinGet(account, out var data))
+        if (TryWinGet(account, out var data))
             return data;
-        return _fallback.Get(account);
+        var legacyData = _legacy.Get(account);
+        return legacyData is not null && Set(account, legacyData) ? legacyData : null;
     }
 
     public bool Set(string account, byte[] data)
     {
-        if (OperatingSystem.IsWindows() && TryWinSet(account, data))
-            return true;
-        return _fallback.Set(account, data);
+        if (!TryWinSet(account, data)) return false;
+        _legacy.Delete(account);
+        return true;
     }
 
     public bool Delete(string account)
     {
-        var win = OperatingSystem.IsWindows() && TryWinDelete(account);
-        var fb = _fallback.Delete(account);
-        return win || fb;
+        var win = TryWinDelete(account);
+        var legacy = _legacy.Delete(account);
+        return win && legacy;
     }
 
     private static bool TryWinGet(string account, out byte[]? data)
@@ -109,7 +109,7 @@ public sealed class PlatformCredentialStore : ICredentialStore
     {
         try
         {
-            return CredDelete(TargetPrefix + account, 1, 0);
+            return CredDelete(TargetPrefix + account, 1, 0) || Marshal.GetLastWin32Error() == ErrorNotFound;
         }
         catch
         {
@@ -148,20 +148,15 @@ public sealed class PlatformCredentialStore : ICredentialStore
 }
 
 /// <summary>
-/// Restricted file under ~/.config/muses/credentials (Unix) or LocalApplicationData/Muses/credentials (Windows fallback).
-/// Not used as the primary Windows path when Credential Manager succeeds.
+/// Legacy file location retained for one-way migration to the host credential store.
 /// </summary>
-public sealed class ProtectedFileCredentialStore : ICredentialStore
+internal sealed class LegacyCredentialFiles
 {
     private readonly string _root;
 
-    public ProtectedFileCredentialStore(string? root = null)
-    {
-        _root = root ?? DefaultRoot();
-        Directory.CreateDirectory(_root);
-    }
+    internal LegacyCredentialFiles(string? root = null) => _root = root ?? DefaultRoot();
 
-    private static string DefaultRoot()
+    internal static string DefaultRoot()
     {
         if (OperatingSystem.IsWindows())
         {
@@ -178,31 +173,20 @@ public sealed class ProtectedFileCredentialStore : ICredentialStore
         return Path.Combine(_root, safe + ".bin");
     }
 
-    public byte[]? Get(string account)
-    {
-        var path = PathFor(account);
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
-    }
-
-    public bool Set(string account, byte[] data)
+    internal byte[]? Get(string account)
     {
         try
         {
             var path = PathFor(account);
-            File.WriteAllBytes(path, data);
-            if (!OperatingSystem.IsWindows())
-            {
-                try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { /* ignore */ }
-            }
-            return true;
+            return File.Exists(path) ? File.ReadAllBytes(path) : null;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 
-    public bool Delete(string account)
+    internal bool Delete(string account)
     {
         try
         {

@@ -6,6 +6,7 @@ using Muses.Core.Preferences;
 using Muses.Core.Queue;
 using Muses.Infrastructure;
 using Muses.Infrastructure.Playback;
+using Muses.Infrastructure.YTDlp;
 using Muses.WebHome;
 using Xunit;
 
@@ -14,34 +15,19 @@ namespace Muses.Tests;
 public sealed class Stage3Tests
 {
     [Fact]
-    public async Task WebHome_identity_resolver_matches_expected_channel()
+    public async Task WebHome_production_helper_rejects_a_file_cookie_source()
     {
         var dir = Path.Combine(Path.GetTempPath(), "muses-wh-id-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         try
         {
             var cookiePath = Path.Combine(dir, "cookies.txt");
-            await File.WriteAllTextAsync(cookiePath, "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSID\ttest\n");
-
-            var available = await WebHomeProbeCommand.ExecuteAsync(
-                new WebHomeRequest("probeSession", "UC_from_cookies",
-                    new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath), "en", "US"),
-                resolveChannelFromCookies: (_, _) => Task.FromResult<string?>("UC_from_cookies"));
-            Assert.True(available.IsAvailable);
-            Assert.Equal("UC_from_cookies", available.ChannelId);
-
-            var mismatch = await WebHomeProbeCommand.ExecuteAsync(
-                new WebHomeRequest("probeSession", "UC_other",
-                    new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath), "en", "US"),
-                resolveChannelFromCookies: (_, _) => Task.FromResult<string?>("UC_from_cookies"));
-            Assert.Equal("accountMismatch", mismatch.ErrorCode);
-
-            var none = await WebHomeProbeCommand.ExecuteAsync(
-                new WebHomeRequest("probeSession", "UC_from_cookies",
-                    new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath), "en", "US"),
-                resolveChannelFromCookies: (_, _) => Task.FromResult<string?>(null));
-            Assert.Equal("identityUnavailable", none.ErrorCode);
-            Assert.False(none.IsAvailable);
+            await File.WriteAllTextAsync(cookiePath, "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\ttest\n");
+            var response = await WebHomeProbeCommand.ExecuteAsync(
+                new WebHomeRequest("probeSession", "UCabcdefghijklmnopqrstuv",
+                    new WebHomeCookieSourceDescriptor("file", FilePath: cookiePath), "en", "US"));
+            Assert.Equal("cookieSourceUnavailable", response.ErrorCode);
+            Assert.False(response.IsAvailable);
         }
         finally
         {
@@ -123,12 +109,13 @@ public sealed class Stage3Tests
         public int Live { get; private set; }
         public int PeakLive { get; private set; }
         public string? FindBinary() => "/fake/mpv";
-        public IMpvPlayerSession Start(Uri url, int initialVolume0to100)
+        public Task<IMpvPlayerSession> StartAsync(
+            ResolvedAudioStream stream, int initialVolume0to100, CancellationToken cancellationToken)
         {
             Started++;
             Live++;
             if (Live > PeakLive) PeakLive = Live;
-            return new CountingSession(this, initialVolume0to100);
+            return Task.FromResult<IMpvPlayerSession>(new CountingSession(this, initialVolume0to100));
         }
 
         private void OnGone() => Live = Math.Max(0, Live - 1);

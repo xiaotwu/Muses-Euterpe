@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Diagnostics;
 using Muses.Core.Advanced;
-using Muses.Core.Chrome;
 using Muses.Core.Domain;
 using Muses.Core.L10n;
 using Muses.Core.Library;
@@ -28,10 +27,6 @@ namespace Muses.App.ViewModels;
 public partial class ShellViewModel : ObservableObject
 {
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SidebarWidth))]
-    private bool _sidebarCollapsed;
-
-    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsHome))]
     [NotifyPropertyChangedFor(nameof(IsDiscover))]
     [NotifyPropertyChangedFor(nameof(IsRecently))]
@@ -42,6 +37,7 @@ public partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsPlaylists))]
     [NotifyPropertyChangedFor(nameof(IsSearch))]
     [NotifyPropertyChangedFor(nameof(IsInbox))]
+    [NotifyPropertyChangedFor(nameof(IsPodcasts))]
     [NotifyPropertyChangedFor(nameof(IsPlaylistsOverview))]
     [NotifyPropertyChangedFor(nameof(IsPlaylistsDetailVisible))]
     [NotifyPropertyChangedFor(nameof(IsAlbumsOverview))]
@@ -82,7 +78,9 @@ public partial class ShellViewModel : ObservableObject
     [ObservableProperty] private string _importPlaylistUrl = "";
     [ObservableProperty] private string? _importError;
     [ObservableProperty] private bool _importBusy;
-    [ObservableProperty] private bool _settingsOpen;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCapsuleVisible))]
+    private bool _settingsOpen;
     [ObservableProperty] private bool _pasteOpen;
     [ObservableProperty] private string _pasteUrl = "";
     [ObservableProperty] private string? _pasteError;
@@ -97,6 +95,13 @@ public partial class ShellViewModel : ObservableObject
     public bool HasNowPlayingYouTubeId => !string.IsNullOrEmpty(NowPlayingYouTubeId);
     [ObservableProperty] private string _nowPlayingSubtitle = "";
     [ObservableProperty] private bool _isCurrentTrackLiked;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCurrentTrackCommand))]
+    private bool _canSaveCurrentTrack;
+    [ObservableProperty] private bool _isPlaybackLoading;
+    [ObservableProperty] private bool _hasPlaybackError;
+    [ObservableProperty] private string _playbackStatusText = "";
+    public string SaveTrackLabel => L10n.Tr("Save to Library", "保存到资料库");
     [ObservableProperty] private string _qualityLabel = "";
     [ObservableProperty] private bool _hasTrack;
     [ObservableProperty] private bool _shuffleOn;
@@ -230,33 +235,38 @@ public partial class ShellViewModel : ObservableObject
     private IAudioOutputProbe? _audioProbe;
     public event Action? RequestAppExit;
 
-    /// <summary>Live iframe client for the overlay host (WebView2 on Windows, degraded elsewhere).</summary>
+    /// <summary>Iframe client for the platform video overlay.</summary>
     public IYouTubeIFrameClient? VideoIFrameClient => _videoIFrameClient;
     public IPreferences Preferences { get; private set; } = new MemoryPreferences();
     public YouTubeAccountService? Account { get; private set; }
     public WebHomeSessionController? WebHome { get; private set; }
     public WindowsTrayController? Tray { get; private set; }
-    public WindowsSMTCService? Smtc { get; private set; }
+    public IPlatformSMTC? Smtc { get; private set; }
 
     public bool ShowGuestBanner => Account is null || !Account.IsSignedIn;
     public string? AccountDisplayName => Account?.Profile?.DisplayName;
     public string? AccountErrorMessage => Account?.ErrorMessage;
-    public bool IsAccountError => Account?.State == Muses.Core.Account.YouTubeAccountState.Error;
+    public bool IsAccountError => !string.IsNullOrEmpty(AccountErrorMessage);
     public bool IsAccountSignedIn => Account?.IsSignedIn == true;
     public bool IsAccountSigningIn => Account?.State == Muses.Core.Account.YouTubeAccountState.SigningIn;
 
-    public bool IsCapsuleVisible => !IsNowPlayingOpen && !IsVideoOverlayOpen;
+    public bool IsCapsuleVisible => !SettingsOpen && !IsNowPlayingOpen && !IsVideoOverlayOpen;
     public bool IsVideoEmbedAvailable => _videoIFrameClient?.IsAvailable ?? false;
-    public string VideoEmbedUnavailableMessage => L10n.Tr(
-        "In-app YouTube embed requires WebView2 (Windows). On this Mac build the embed surface is disabled — use Open in YouTube, or continue with native audio.",
-        "应用内 YouTube 嵌入需要 WebView2（Windows）。当前 Mac 构建已禁用嵌入画面 — 请使用“在 YouTube 中打开”，或继续使用原生音频。");
-
-    public double SidebarWidth =>
-        SidebarCollapsed ? AppleMusicTokens.SidebarCollapsedWidth : AppleMusicTokens.SidebarWidth;
-
-    /// <summary>macOS still draws traffic lights on the left; Win11 caption is on the right.</summary>
-    public bool NeedsTrafficLightPad => OperatingSystem.IsMacOS();
-    public double TrafficLightPadHeight => NeedsTrafficLightPad ? 22 : 0;
+    public string VideoEmbedUnavailableMessage => _videoIFrameClient switch
+    {
+        LinuxWebKitYouTubeIFrameClient { RuntimeUnavailable: false } => L10n.Tr(
+            "The embedded YouTube player could not load this video. You can open it in YouTube.",
+            "嵌入式 YouTube 播放器无法加载此视频。你可以在 YouTube 中打开。"),
+        _ when OperatingSystem.IsLinux() => L10n.Tr(
+            "In-app video requires WebKitGTK and an X11 or XWayland session. You can open this video in YouTube.",
+            "应用内视频需要 WebKitGTK 和 X11 或 XWayland 会话。你可以在 YouTube 中打开此视频。"),
+        _ when OperatingSystem.IsWindows() => L10n.Tr(
+            "In-app video requires the Microsoft Edge WebView2 Runtime. You can open this video in YouTube.",
+            "应用内视频需要 Microsoft Edge WebView2 运行时。你可以在 YouTube 中打开此视频。"),
+        _ => L10n.Tr(
+            "In-app video is unavailable on this platform. You can open this video in YouTube.",
+            "此平台无法在应用内播放视频。你可以在 YouTube 中打开此视频。"),
+    };
 
     public bool IsSearch => SelectedSection == SidebarSection.Search;
     public bool IsHome => SelectedSection == SidebarSection.Home;
@@ -276,12 +286,9 @@ public partial class ShellViewModel : ObservableObject
     public bool IsArtistDetail => IsArtists && SelectedArtist is not null;
     public bool IsArtistsOverview => IsArtists && SelectedArtist is null;
 
-    public Muses.Infrastructure.Discovery.HomeDiscoveryService? HomeDiscovery { get; private set; }
     public Muses.Infrastructure.Catalog.YouTubeCatalogService? Catalog { get; private set; }
     public Muses.Core.Recommendation.SituationalRecommendationService? Situational { get; private set; }
     public Muses.Infrastructure.Search.GlobalSearchService? GlobalSearch { get; private set; }
-
-    public event Action<string?, Muses.Core.Search.GlobalSearchScope?>? RequestOpenSearchWindow;
 
     public string Wordmark => "Muses";
     public string SearchLabel => L10n.Tr("Search", "搜索");
@@ -307,8 +314,6 @@ public partial class ShellViewModel : ObservableObject
         "Supports YouTube playlist links (with list= parameter). Importing is for personal use only, comply with YouTube's Terms of Service and local laws.",
         "支持 YouTube 歌单链接(含 list= 参数)。导入仅个人使用，遵守 YouTube 服务条款与当地法律。");
     public string SettingsLabel => L10n.Tr("Settings", "设置");
-    public string CollapseLabel => L10n.Tr("Collapse Sidebar", "折叠边栏");
-    public string ExpandLabel => L10n.Tr("Expand Sidebar", "展开边栏");
     public string NotPlayingLabel => L10n.Tr("Not Playing", "未在播放");
     public string PublicDiscoveryLabel => L10n.Tr("Public discovery", "公共发现");
     public string GuestBannerTitle => L10n.Tr("Make Home yours", "让首页更懂你");
@@ -348,7 +353,6 @@ public partial class ShellViewModel : ObservableObject
         IYTDlpBridge ytdlp,
         PlaylistService? playlistService = null,
         YouTubeImportService? youtubeImportService = null,
-        Muses.Infrastructure.Discovery.HomeDiscoveryService? homeDiscovery = null,
         Muses.Infrastructure.Catalog.YouTubeCatalogService? catalog = null,
         Muses.Core.Recommendation.SituationalRecommendationService? situational = null,
         Muses.Infrastructure.Search.GlobalSearchService? globalSearch = null,
@@ -361,7 +365,7 @@ public partial class ShellViewModel : ObservableObject
         AutomationService? automation = null,
         IPreferences? preferences = null,
         YouTubeAccountService? account = null,
-        WindowsSMTCService? smtc = null,
+        IPlatformSMTC? smtc = null,
         WindowsTrayController? tray = null,
         WebHomeSessionController? webHome = null,
         ProcessStreamEngine? streamEngine = null,
@@ -390,27 +394,26 @@ public partial class ShellViewModel : ObservableObject
             _globalHotkeys.NextPressed += () => Dispatcher.UIThread.Post(() => Playback?.Next());
             _globalHotkeys.PreviousPressed += () => Dispatcher.UIThread.Post(() => Playback?.Previous());
         }
-        WebHomeEnabled = Preferences.GetBool(PrefKey.WebHomeEnabled, false);
-        RefreshWebHomeStatus();
-        if (WebHome is not null)
-            WebHome.StatusChanged += () => Dispatcher.UIThread.Post(RefreshWebHomeStatus);
-        if (Account is not null)
-            Account.Changed += () => Dispatcher.UIThread.Post(NotifyAccountChanged);
         var lang = Preferences.GetString(PrefKey.Language, "system");
         if (L10n.Source is SystemLanguageSource sys)
             sys.Preference = lang;
-        SidebarCollapsed = Preferences.GetBool(PrefKey.SidebarCollapsed, false);
+        AttachAccountHome();
         var modeRaw = Preferences.GetString(PrefKey.NowPlayingMode, "cover");
         NowPlayingMode = modeRaw == "vinyl"
             ? Muses.Core.NowPlaying.NowPlayingMode.Vinyl
             : Muses.Core.NowPlaying.NowPlayingMode.Cover;
         _videoIFrameClient = YouTubeEmbedHostFactory.CreateClient();
+        if (_videoIFrameClient is LinuxWebKitYouTubeIFrameClient linuxVideo)
+            linuxVideo.AvailabilityChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(IsVideoEmbedAvailable));
+                OnPropertyChanged(nameof(VideoEmbedUnavailableMessage));
+            };
         _videoOverlaySession = new YouTubeVideoOverlaySession(playback, _videoIFrameClient, Preferences);
         _library = library;
         _ytdlp = ytdlp;
         PlaylistService = playlistService;
         YouTubeImportService = youtubeImportService;
-        HomeDiscovery = homeDiscovery;
         Catalog = catalog;
         Situational = situational;
         GlobalSearch = globalSearch;
@@ -460,7 +463,7 @@ public partial class ShellViewModel : ObservableObject
         Commands.Register(CommandRegistry.Next, playback.Next);
         Commands.Register(CommandRegistry.Previous, playback.Previous);
         Commands.Register(CommandRegistry.PasteYouTube, () => PasteOpen = true);
-        playback.EventBus.EventPosted += _ => Dispatcher.UIThread.Post(RefreshPlayback);
+        playback.EventBus.EventPosted += OnPlaybackEvent;
         RefreshPlayback();
         RefreshSidebar();
 
@@ -491,15 +494,6 @@ public partial class ShellViewModel : ObservableObject
         };
         _playbackTimer.Start();
 
-        if (HomeDiscovery is not null)
-        {
-            HomeDiscovery.Changed += () => Dispatcher.UIThread.Post(() =>
-            {
-                OnPropertyChanged(nameof(HomeDiscovery));
-            });
-            HomeDiscovery.Load();
-        }
-
         if (Catalog is not null)
         {
             Catalog.Changed += () => Dispatcher.UIThread.Post(() =>
@@ -512,52 +506,59 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     public void OpenSearchWindow(string? query = null)
     {
-        RequestOpenSearchWindow?.Invoke(query, null);
+        OpenSearch(query, null);
     }
 
     public void OpenSearchWindowWithScope(string? query, Muses.Core.Search.GlobalSearchScope scope)
     {
-        RequestOpenSearchWindow?.Invoke(query, scope);
+        OpenSearch(query, scope);
     }
 
     [RelayCommand]
     public void SelectRelease(Muses.Core.Catalog.CatalogReleaseProjection release)
     {
-        SelectedSection = SidebarSection.Albums;
-        SelectedRelease = release;
+        Navigate(new BrowseRoute(SidebarSection.Albums, Release: release));
     }
 
     [RelayCommand]
     public void CloseReleaseDetail()
     {
-        SelectedRelease = null;
+        Navigate(new BrowseRoute(SidebarSection.Albums));
     }
 
     [RelayCommand]
     public void SelectArtist(Muses.Core.Catalog.CatalogArtistProjection artist)
     {
-        SelectedSection = SidebarSection.Artists;
-        SelectedArtist = artist;
+        Navigate(new BrowseRoute(SidebarSection.Artists, Artist: artist));
     }
 
     [RelayCommand]
     public void CloseArtistDetail()
     {
-        SelectedArtist = null;
+        Navigate(new BrowseRoute(SidebarSection.Artists));
     }
 
     public void NavigateToRelease(string stableId)
     {
-        SelectedSection = SidebarSection.Albums;
-        var rel = Catalog?.Release(stableId);
-        if (rel is not null) SelectedRelease = rel;
+        Navigate(new BrowseRoute(SidebarSection.Albums, Release: Catalog?.Release(stableId)));
     }
 
     public void NavigateToArtist(string stableId)
     {
-        SelectedSection = SidebarSection.Artists;
-        var art = Catalog?.Artist(stableId);
-        if (art is not null) SelectedArtist = art;
+        Navigate(new BrowseRoute(SidebarSection.Artists, Artist: Catalog?.Artist(stableId)));
+    }
+
+    private void OnPlaybackEvent(PlaybackEvent _) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_playbackTimer?.IsEnabled == true)
+            RefreshPlayback();
+    });
+
+    public void StopPlaybackUpdates()
+    {
+        _playbackTimer?.Stop();
+        if (Playback is not null)
+            Playback.EventBus.EventPosted -= OnPlaybackEvent;
     }
 
     public void RefreshPlayback()
@@ -570,17 +571,27 @@ public partial class ShellViewModel : ObservableObject
         NowPlayingArtist = track?.Artist;
         NowPlayingArtworkUrl = track?.ArtworkUrl;
         NowPlayingYouTubeId = track?.YouTubeId;
-        CurrentDurationSeconds = track?.DurationSeconds ?? 0;
+        CurrentDurationSeconds = Playback.State.Duration > 0 ? Playback.State.Duration : track?.DurationSeconds ?? 0;
         CurrentPositionSeconds = Playback.State.Position;
         CurrentVolume = Playback.Volume;
         ShuffleOn = Playback.Queue.Shuffle;
         CurrentRepeatMode = Playback.Queue.RepeatMode;
         RepeatOn = CurrentRepeatMode != RepeatMode.Off;
+        IsPlaybackLoading = Playback.State.Buffering;
+        HasPlaybackError = Playback.State.Error is not null;
+        PlaybackStatusText = Playback.State.Error?.Kind switch
+        {
+            PlayerErrorKind.NetworkError => L10n.Tr("Couldn't load audio. Check your connection and try again.", "无法加载音频。请检查网络连接后重试。"),
+            PlayerErrorKind.EngineStartFailed => L10n.Tr("Couldn't start audio playback. Check that mpv is available and try again.", "无法启动音频播放。请确认 mpv 可用后重试。"),
+            not null => L10n.Tr("This track couldn't play. Try again.", "无法播放此曲目。请重试。"),
+            _ => IsPlaybackLoading ? L10n.Tr("Loading audio…", "正在加载音频…") : ""
+        };
 
         if (track is not null)
         {
-            var ent = _library?.Get(track.Id);
+            var ent = _library?.Get(track.Id) ?? _library?.TrackByYouTubeId(track.YouTubeId);
             IsCurrentTrackLiked = ent?.Liked ?? track.Liked;
+            CanSaveCurrentTrack = _library is not null && !string.IsNullOrWhiteSpace(track.YouTubeId) && ent?.LibraryMember != true;
             NowPlayingSubtitle = !string.IsNullOrEmpty(track.AlbumTitle)
                 ? $"{track.Artist} — {track.AlbumTitle}"
                 : track.Artist;
@@ -591,6 +602,7 @@ public partial class ShellViewModel : ObservableObject
         else
         {
             IsCurrentTrackLiked = false;
+            CanSaveCurrentTrack = false;
             NowPlayingSubtitle = "";
             QualityLabel = "";
         }
@@ -609,9 +621,18 @@ public partial class ShellViewModel : ObservableObject
     {
         var track = Playback?.State.Track;
         if (track is null || _library is null) return;
-        _library.ToggleLike(track.Id);
-        var ent = _library.Get(track.Id);
-        IsCurrentTrackLiked = ent?.Liked ?? !IsCurrentTrackLiked;
+        var saved = _library.UpsertFromYouTube(track.YouTubeId, track.Title, track.Artist,
+            track.DurationSeconds, track.ArtworkUrl, albumTitle: track.AlbumTitle);
+        _library.ToggleLike(saved.Id);
+        RefreshPlayback();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveCurrentTrack))]
+    private void SaveCurrentTrack()
+    {
+        if (!CanSaveCurrentTrack || Playback?.State.Track is not { } track || _library is null) return;
+        _library.Save(track);
+        RefreshPlayback();
     }
 
     [RelayCommand]
@@ -730,6 +751,7 @@ public partial class ShellViewModel : ObservableObject
             IsVideoOverlayOpen = true;
             OnPropertyChanged(nameof(IsCapsuleVisible));
             OnPropertyChanged(nameof(IsVideoEmbedAvailable));
+            OnPropertyChanged(nameof(VideoEmbedUnavailableMessage));
         }
         else
         {
@@ -990,7 +1012,7 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     public void OpenInbox()
     {
-        SelectedSection = SidebarSection.Inbox;
+        Navigate(new BrowseRoute(SidebarSection.Inbox));
         RefreshInboxState();
     }
 
@@ -998,9 +1020,11 @@ public partial class ShellViewModel : ObservableObject
     public void PlayInboxItem(InboxItemEntity item)
     {
         if (Playback == null) return;
+        var trackId = Guid.Parse(item.TrackId);
+        var mediaKind = _library?.Get(trackId)?.ToSnapshot().MediaKind ?? TrackMediaKind.Song;
         var snap = new TrackSnapshot(
-            Guid.Parse(item.TrackId), item.TrackTitle, item.Artist, item.AlbumTitle,
-            item.DurationSeconds, item.YouTubeId, item.ArtworkUrl);
+            trackId, item.TrackTitle, item.Artist, item.AlbumTitle,
+            item.DurationSeconds, item.YouTubeId, item.ArtworkUrl) { MediaKind = mediaKind };
         Playback.PlayTrack(snap, [snap], QueueSource.Recently);
     }
 
@@ -1072,11 +1096,7 @@ public partial class ShellViewModel : ObservableObject
             return;
         }
 
-        SelectedSection = section;
-        SelectedPlaylist = null;
-        SelectedYouTubeImport = null;
-        SelectedRelease = null;
-        SelectedArtist = null;
+        Navigate(new BrowseRoute(section));
     }
 
     public void RefreshSidebar()
@@ -1089,23 +1109,18 @@ public partial class ShellViewModel : ObservableObject
 
     public void SelectPlaylist(PlaylistEntity playlist)
     {
-        SelectedSection = SidebarSection.Playlists;
-        SelectedPlaylist = playlist;
-        SelectedYouTubeImport = null;
+        Navigate(new BrowseRoute(SidebarSection.Playlists, Playlist: playlist));
     }
 
     public void SelectYouTubeImport(YouTubeImportEntity import)
     {
-        SelectedSection = SidebarSection.Playlists;
-        SelectedYouTubeImport = import;
-        SelectedPlaylist = null;
+        Navigate(new BrowseRoute(SidebarSection.Playlists, Import: import));
     }
 
     [RelayCommand]
     public void ClosePlaylistDetail()
     {
-        SelectedPlaylist = null;
-        SelectedYouTubeImport = null;
+        Navigate(new BrowseRoute(SidebarSection.Playlists));
     }
 
     public void SetUndoableDeletion(PlaylistDeletionSnapshot snapshot)
@@ -1203,68 +1218,10 @@ public partial class ShellViewModel : ObservableObject
 
     public event Action? PlaylistsChanged;
 
-    [RelayCommand]
-    private void ToggleSidebar()
-    {
-        SidebarCollapsed = !SidebarCollapsed;
-        Preferences.SetBool(PrefKey.SidebarCollapsed, SidebarCollapsed);
-    }
-
-
-    public void RefreshWebHomeStatus()
-    {
-        if (WebHome is null)
-        {
-            WebHomeStatusText = L10n.Tr("Web Home helper is not configured.", "Web Home 助手未配置。");
-            return;
-        }
-        WebHomeEnabled = WebHome.IsEnabled;
-        WebHomeStatusText = WebHome.Status switch
-        {
-            Muses.Core.Advanced.WebHomeSessionStatus.Available => L10n.Tr("Web Home session available.", "Web Home 会话可用。"),
-            Muses.Core.Advanced.WebHomeSessionStatus.AccountMismatch => L10n.Tr("Web Home account mismatch.", "Web Home 账号不匹配。"),
-            Muses.Core.Advanced.WebHomeSessionStatus.PendingConsent => L10n.Tr("Consent required before enabling Web Home.", "启用 Web Home 前需要同意。"),
-            Muses.Core.Advanced.WebHomeSessionStatus.Checking => L10n.Tr("Checking Web Home session…", "正在检查 Web Home 会话…"),
-            Muses.Core.Advanced.WebHomeSessionStatus.Unavailable => L10n.Tr("Web Home unavailable.", "Web Home 不可用。"),
-            Muses.Core.Advanced.WebHomeSessionStatus.Closed => WebHome.IsEnabled
-                ? L10n.Tr("Web Home enabled — probe when signed in.", "Web Home 已启用 — 登录后可探测。")
-                : L10n.Tr("Web Home is off (default).", "Web Home 默认关闭。"),
-            _ => WebHome.Status.ToString()
-        };
-        OnPropertyChanged(nameof(WebHomeStatusText));
-        OnPropertyChanged(nameof(IsWebHomeAvailable));
-    }
-
-    [RelayCommand]
-    public async Task ToggleWebHomeAsync()
-    {
-        if (WebHome is null) return;
-        if (WebHome.IsEnabled)
-        {
-            await WebHome.DisableAndClearAsync();
-        }
-        else
-        {
-            WebHome.EnableWithConsent();
-            if (IsAccountSignedIn)
-                await WebHome.ProbeSessionAsync();
-        }
-        WebHomeEnabled = WebHome.IsEnabled;
-        RefreshWebHomeStatus();
-    }
-
-    [RelayCommand]
-    public async Task ProbeWebHomeAsync()
-    {
-        if (WebHome is null) return;
-        if (!WebHome.IsEnabled || !WebHome.HasConsent)
-            WebHome.EnableWithConsent();
-        await WebHome.ProbeSessionAsync();
-        RefreshWebHomeStatus();
-    }
 
     private void NotifyAccountChanged()
     {
+        UpdateAccountHomeScope();
         OnPropertyChanged(nameof(ShowGuestBanner));
         OnPropertyChanged(nameof(AccountDisplayName));
         OnPropertyChanged(nameof(AccountErrorMessage));
@@ -1276,6 +1233,15 @@ public partial class ShellViewModel : ObservableObject
     private void NotifyL10nLabels()
     {
         OnPropertyChanged(nameof(SearchLabel));
+        OnPropertyChanged(nameof(BackLabel));
+        OnPropertyChanged(nameof(ForwardLabel));
+        OnPropertyChanged(nameof(NewNavigationLabel));
+        OnPropertyChanged(nameof(SearchPrompt));
+        OnPropertyChanged(nameof(ClearSearchLabel));
+        OnPropertyChanged(nameof(BrowseMusicLabel));
+        OnPropertyChanged(nameof(NoSearchResultsLabel));
+        OnPropertyChanged(nameof(SearchRetryLabel));
+        OnPropertyChanged(nameof(SearchAllLabel));
         OnPropertyChanged(nameof(HomeLabel));
         OnPropertyChanged(nameof(DiscoverLabel));
         OnPropertyChanged(nameof(LibraryLabel));
@@ -1307,6 +1273,7 @@ public partial class ShellViewModel : ObservableObject
         OnPropertyChanged(nameof(LyricsEmptyLabel));
         OnPropertyChanged(nameof(LyricsOffsetLabel));
         OnPropertyChanged(nameof(AudioInfoTitle));
+        RefreshWebHomeStatus();
         NotifySettingsLabels();
     }
 
@@ -1321,12 +1288,13 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void SignOutYouTube()
     {
+        RevokeAccountHomeConsent();
         Account?.SignOut();
         NotifyAccountChanged();
     }
 
     [RelayCommand]
-    private void OpenSettings() => SettingsOpen = true;
+    private void OpenSettings() => Navigate(CurrentBrowseRoute with { Settings = true });
 
     [RelayCommand]
     private void OpenPaste()
@@ -1402,9 +1370,9 @@ public partial class ShellViewModel : ObservableObject
             var entries = await _ytdlp.FetchPlaylistAsync(raw, TimeSpan.FromSeconds(40)).ConfigureAwait(true);
             if (entries.Count == 0)
                 throw new InvalidOperationException(L10n.Tr("Playlist is empty.", "歌单为空。"));
-            var snaps = entries.Select(ToSnapshot).ToList();
-            foreach (var snap in snaps)
-                _library.UpsertFromYouTube(snap.YouTubeId, snap.Title, snap.Artist, snap.DurationSeconds, snap.ArtworkUrl);
+            var snaps = entries.Select(entry => _library.UpsertFromYouTube(
+                entry.Id, entry.Title, entry.Uploader ?? "", entry.Duration ?? 0,
+                YouTubeLinks.ThumbnailUrl(entry.Id), albumTitle: entry.Album)).ToList();
             StatusMessage = L10n.Tr($"Playing {snaps.Count} tracks", $"正在播放 {snaps.Count} 首");
             Playback.PlayTrack(snaps[0], snaps, QueueSource.Import);
             return;
@@ -1416,24 +1384,16 @@ public partial class ShellViewModel : ObservableObject
         var title = meta?.Title ?? videoId;
         var artist = meta?.Uploader ?? "";
         var duration = meta?.Duration ?? 0;
-        var snapOne = _library.UpsertFromYouTube(videoId, title, artist, duration, YouTubeLinks.ThumbnailUrl(videoId));
+        var snapOne = _library.UpsertFromYouTube(videoId, title, artist, duration, YouTubeLinks.ThumbnailUrl(videoId),
+            albumTitle: meta?.Album);
         StatusMessage = title;
         Playback.PlayTrack(snapOne, [snapOne], QueueSource.Search);
     }
 
-    private static TrackSnapshot ToSnapshot(YTDlpPlaylistEntry entry) => new(
-        Guid.NewGuid(),
-        entry.Title,
-        entry.Uploader ?? "",
-        entry.Album,
-        entry.Duration ?? 0,
-        entry.Id,
-        YouTubeLinks.ThumbnailUrl(entry.Id));
-
     [RelayCommand]
     public async Task CheckForUpdatesAsync()
     {
-        UpdateChecker ??= new GitHubUpdateChecker(currentVersion: "0.1.0");
+        UpdateChecker ??= new GitHubUpdateChecker();
 
         IsCheckingForUpdates = true;
         UpdateStatusMessage = L10n.Tr("Checking for updates...", "正在检查更新...");

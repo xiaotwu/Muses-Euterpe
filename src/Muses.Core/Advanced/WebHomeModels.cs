@@ -1,3 +1,5 @@
+using Muses.Core.Discovery;
+
 namespace Muses.Core.Advanced;
 
 public enum WebHomeSessionStatus
@@ -16,7 +18,18 @@ public enum WebHomeSessionStatus
 
 public static class WebHomeProtocolVersion
 {
-    public const int Current = 1;
+    public const int Current = 2;
+}
+
+public static class WebHomeWorkspace
+{
+    public const string RootFolderName = "muses-web-home-helper";
+
+    public static string RootPath => OperatingSystem.IsWindows()
+        ? Path.Combine(Path.GetTempPath(), RootFolderName)
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".muses", "tmp", RootFolderName);
+
+    public static string GetPath(Guid id) => Path.Combine(RootPath, id.ToString("N"));
 }
 
 public sealed record WebHomeCookieSourceDescriptor(
@@ -35,7 +48,24 @@ public sealed record WebHomeRequest(
     string Region,
     int TimeoutMs = 12000,
     string? ContinuationToken = null,
-    int ProtocolVersion = WebHomeProtocolVersion.Current);
+    int ProtocolVersion = WebHomeProtocolVersion.Current,
+    Guid? WorkspaceId = null);
+
+public sealed record WebHomeItem(
+    HomeCardEndpoint Identity,
+    string Title,
+    string? Subtitle,
+    string? ArtworkUrl,
+    HomeCardEndpoint? BrowseEndpoint,
+    HomeCardEndpoint? PlayEndpoint,
+    HomeCardAvailability Availability);
+
+public sealed record WebHomeSection(
+    string Id,
+    string Title,
+    string? Subtitle,
+    HomeSectionKind Kind,
+    IReadOnlyList<WebHomeItem> Items);
 
 public sealed record WebHomeResponse(
     string? ChannelId,
@@ -44,7 +74,8 @@ public sealed record WebHomeResponse(
     DateTimeOffset? ExpiresAt,
     string? ErrorCode,
     string? ErrorMessage,
-    int ProtocolVersion = WebHomeProtocolVersion.Current)
+    int ProtocolVersion = WebHomeProtocolVersion.Current,
+    IReadOnlyList<WebHomeSection>? Sections = null)
 {
     public static WebHomeResponse Available(string channelId, DateTimeOffset? fetchedAt = null) =>
         new(channelId, true, fetchedAt ?? DateTimeOffset.UtcNow,

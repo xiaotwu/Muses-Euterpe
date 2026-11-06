@@ -2,9 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Muses.App.ViewModels"
              xmlns:ctrl="using:Muses.App.Controls"
+             xmlns:playback="using:Muses.App.Controls.Playback"
              x:Class="Muses.App.Views.QueueDrawerView"
              x:DataType="vm:ShellViewModel"
-             Width="360" Background="{DynamicResource MusesGlassDrawerBrush}">
+             Width="330" Background="{DynamicResource MusesGlassDrawerBrush}">
   <UserControl.Styles>
     <Style Selector="Button.closeBtn">
       <Setter Property="Background" Value="Transparent" />
@@ -13,6 +14,14 @@
       <Setter Property="Height" Value="32" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.closeBtn PathIcon">
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.closeBtn.active PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource MusesAccentBrush}" />
     </Style>
     <Style Selector="Button.queueRow">
       <Setter Property="Background" Value="Transparent" />
@@ -24,7 +33,7 @@
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.queueRow:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay14Brush}" />
+      <Setter Property="Background" Value="{DynamicResource MusesWhiteOverlay14Brush}" />
     </Style>
     <Style Selector="Button.clearBtn">
       <Setter Property="Background" Value="Transparent" />
@@ -33,49 +42,74 @@
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.clearBtn TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource MusesAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesAccentBrush}" />
       <Setter Property="FontSize" Value="11" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
   </UserControl.Styles>
 
-  <Border BorderBrush="{StaticResource MusesHairlineBrush}" BorderThickness="1,0,0,0">
-    <DockPanel Margin="20,24,20,96">
+  <Border BorderBrush="{DynamicResource MusesHairlineBrush}" BorderThickness="1,0,0,0">
+    <DockPanel Margin="16,18,16,24">
       <!-- Header -->
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
-        <TextBlock x:Name="QueueTitle" Text="Queue" FontSize="20" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-        <Button Grid.Column="1" Classes="closeBtn" Command="{Binding CloseQueueDrawerCommand}" ToolTip.Tip="Close">
+        <TextBlock x:Name="QueueTitle" Text="Playing Next" FontSize="19" FontFamily="{DynamicResource MusesHeadingFont}" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+          <Button Classes="closeBtn" Classes.active="{Binding RepeatOn}" Command="{Binding CycleRepeatCommand}"
+                  ToolTip.Tip="{playback:PlaybackText 'Repeat mode', 循环模式}"
+                  AutomationProperties.Name="{playback:PlaybackText 'Repeat mode', 循环模式}">
+            <Panel>
+              <PathIcon Data="M17,17H7V14L3,18L7,22V19H19V13H17M7,7H17V10L21,6L17,2V5H5V11H7V7Z"
+                        IsVisible="{Binding !IsRepeatOne}" />
+              <PathIcon Data="M13,15V9H12L10,10V11H11.5V15H13M17,17H7V14L3,18L7,22V19H19V13H17M7,7H17V10L21,6L17,2V5H5V11H7V7Z"
+                        IsVisible="{Binding IsRepeatOne}" />
+            </Panel>
+          </Button>
+          <Button Classes="closeBtn" Classes.active="{Binding ShuffleOn}" Command="{Binding ToggleShuffleCommand}"
+                  ToolTip.Tip="{playback:PlaybackText Shuffle, 随机播放}"
+                  AutomationProperties.Name="{playback:PlaybackText Shuffle, 随机播放}">
+            <PathIcon Data="M14.83,13.41L13.42,14.82L16.55,17.95L14.5,20H20V14.5L17.96,16.54L14.83,13.41M14.5,4L16.54,6.04L4,18.59L5.41,20L17.96,7.46L20,9.5V4M10.59,9.17L5.41,4L4,5.41L9.17,10.58L10.59,9.17Z" />
+          </Button>
+          <Button x:Name="CloseQueueButton" Classes="closeBtn" Command="{Binding CloseQueueDrawerCommand}"
+                  ToolTip.Tip="{playback:PlaybackText Close, 关闭}"
+                  AutomationProperties.Name="{playback:PlaybackText 'Close queue', 关闭队列}">
           <PathIcon Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
-                    Width="16" Height="16" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-        </Button>
+                    Width="16" Height="16" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+          </Button>
+        </StackPanel>
       </Grid>
 
       <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Spacing="20">
           <!-- Now Playing Card -->
           <StackPanel Spacing="8">
-            <TextBlock x:Name="NowPlayingHeader" Text="Now Playing" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
-            <Border Background="{StaticResource MusesWhiteOverlay14Brush}" CornerRadius="8" Padding="10">
+            <TextBlock x:Name="NowPlayingHeader" Text="Now Playing" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+            <TextBlock Text="{playback:PlaybackText 'Choose a song to start listening', 选择歌曲开始收听}"
+                       IsVisible="{Binding !HasTrack}" Margin="4,5" FontSize="12"
+                       Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+            <Button x:Name="NowPlayingQueueButton" Classes="queueRow"
+                    Background="{DynamicResource MusesSurfaceBrush}" CornerRadius="8" Padding="8"
+                    IsVisible="{Binding HasTrack}" Command="{Binding TogglePlaybackCommand}"
+                    AutomationProperties.Name="{Binding NowPlayingTitle}" ToolTip.Tip="{Binding PlayLabel}">
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <ctrl:ArtworkControl Width="40" Height="40" CornerRadius="4" GlyphSize="16"
                                      SourceUrl="{Binding NowPlayingArtworkUrl}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,8,0" Spacing="2">
                   <TextBlock Text="{Binding NowPlayingTitle, FallbackValue='Not Playing'}" FontSize="13"
-                             FontWeight="SemiBold" Foreground="{StaticResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                             FontWeight="SemiBold" Foreground="{DynamicResource MusesTextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding NowPlayingArtist, FallbackValue=''}" FontSize="11"
-                             Foreground="{StaticResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                             Foreground="{DynamicResource MusesTextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <PathIcon Grid.Column="2" Data="M8,5.14V19.14L19,12.14L8,5.14Z" Width="12" Height="12"
-                          Foreground="{StaticResource MusesAccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"
+                          Foreground="{DynamicResource MusesAccentBrush}" VerticalAlignment="Center" Margin="0,0,4,0"
                           IsVisible="{Binding IsPlaying}" />
               </Grid>
-            </Border>
+            </Button>
           </StackPanel>
 
           <!-- Up Next Section -->
           <StackPanel Spacing="8">
             <Grid ColumnDefinitions="*,Auto">
-              <TextBlock x:Name="UpNextHeader" Text="Up Next" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+              <TextBlock x:Name="UpNextHeader" Text="Up Next" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
               <Button Grid.Column="1" Classes="clearBtn" Command="{Binding ClearUpNextCommand}">
                 <TextBlock x:Name="ClearLabel" Text="Clear" />
               </Button>
@@ -83,9 +117,15 @@
             <StackPanel x:Name="UpNextContainer" Spacing="2" />
           </StackPanel>
 
+          <StackPanel Spacing="8">
+            <TextBlock x:Name="CollectionHeader" FontSize="11" FontWeight="Bold"
+                       Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+            <StackPanel x:Name="CollectionContainer" Spacing="2" />
+          </StackPanel>
+
           <!-- Queue History Section -->
           <StackPanel Spacing="8">
-            <TextBlock x:Name="HistoryHeader" Text="History" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="HistoryHeader" Text="History" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
             <StackPanel x:Name="HistoryContainer" Spacing="2" />
           </StackPanel>
         </StackPanel>

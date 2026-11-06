@@ -227,12 +227,12 @@ public class ChromeLayoutTests
     }
 
     [Fact]
-    public void Magenta_is_identical_in_light_and_dark()
+    public void Desktop_palette_matches_Polyhymnia()
     {
-        Assert.Equal(BrandColors.Magenta.Dark, BrandColors.Magenta.Light);
-        Assert.Equal("FA586A", BrandColors.Magenta.Dark.ToHexRgb());
-        Assert.Equal("1F1F1F", BrandColors.Background.Dark.ToHexRgb());
-        Assert.Equal("FFFFFF", BrandColors.Background.Light.ToHexRgb());
+        Assert.Equal("DFC28B", BrandColors.Accent.Dark.ToHexRgb());
+        Assert.Equal("86632E", BrandColors.Accent.Light.ToHexRgb());
+        Assert.Equal("211F1B", BrandColors.Background.Dark.ToHexRgb());
+        Assert.Equal("FCFAF6", BrandColors.Background.Light.ToHexRgb());
         Assert.Equal("FF0000", BrandColors.YouTubeRed.ToHexRgb());
     }
 

@@ -14,6 +14,7 @@ public interface IPlaylistRepository
     void AddTrack(Guid playlistId, Guid trackId);
     void RemoveItem(Guid itemId);
     void MoveItem(Guid playlistId, int fromIndex, int toIndex);
+    bool MoveItem(Guid playlistId, Guid itemId, int offset);
     void TogglePin(Guid id);
     IReadOnlyList<PlaylistEntity> GetPinned();
 }

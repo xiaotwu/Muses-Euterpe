@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using Muses.App.Controls;
 using Muses.App.ViewModels;
 using Muses.Core.Domain;
+using Muses.Core.L10n;
 using Muses.Core.Queue;
 using Muses.Core.Recommendation;
 using Muses.App.Theme;
@@ -19,6 +20,11 @@ public partial class NewView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        PropertyChanged += (_, change) =>
+        {
+            if (change.Property == IsVisibleProperty && IsVisible)
+                UpdateNewView();
+        };
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -33,52 +39,26 @@ public partial class NewView : UserControl
         UpdateNewView();
     }
 
-    private void UpdateNewView()
+    internal void UpdateNewView()
     {
-        if (_vm?.Library is null) return;
+        if (!IsVisible || _vm?.Library is null) return;
 
         var allTracks = _vm.Library.AllTracks()
             .Where(t => !string.IsNullOrEmpty(t.YouTubeId))
+            .OrderByDescending(t => t.AddedAt)
             .Select(t => t.ToSnapshot())
             .ToList();
+        EmptyDiscovery.IsVisible = allTracks.Count == 0;
+        EmptyDiscoveryText.Text = L10n.Tr("Save a song to start exploring your library.", "保存一首歌曲，开始探索你的资料库。");
 
         // 1. Editorial Cards (540 × 309)
         EditorialContainer.Children.Clear();
         var featured = allTracks.Take(3).ToList();
-        if (featured.Count == 0 && _vm.HomeDiscovery is not null)
+        foreach (var track in featured)
         {
-            var ytCards = _vm.HomeDiscovery.Sections
-                .SelectMany(s => s.Items)
-                .OfType<Core.Discovery.DiscoveryItem.YouTube>()
-                .Take(3)
-                .ToList();
-
-            foreach (var cardItem in ytCards)
-            {
-                var card = BuildEditorialCard("YouTube Music", cardItem.Card.Title, cardItem.Card.Uploader ?? "YouTube Music", cardItem.Card.ThumbnailUrl, () =>
-                {
-                    var snap = _vm.Library?.UpsertFromYouTube(
-                        cardItem.Card.Id,
-                        cardItem.Card.Title,
-                        cardItem.Card.Uploader ?? "Unknown",
-                        cardItem.Card.Duration ?? 0,
-                        cardItem.Card.ThumbnailUrl);
-                    if (snap is not null)
-                        _vm.Playback?.PlayTrack(snap, [snap], QueueSource.Search);
-                });
-                EditorialContainer.Children.Add(card);
-            }
-        }
-        else
-        {
-            foreach (var track in featured)
-            {
-                var card = BuildEditorialCard("Featured Song", track.Title, track.Artist, track.ArtworkUrl, () =>
-                {
-                    _vm.Playback?.PlayTrack(track, featured, QueueSource.Album);
-                });
-                EditorialContainer.Children.Add(card);
-            }
+            var card = BuildEditorialCard(L10n.Tr("Featured Song", "精选歌曲"), track.Title, track.Artist, track.ArtworkUrl,
+                () => _vm?.Playback?.PlayTrack(track, featured, QueueSource.Search));
+            EditorialContainer.Children.Add(card);
         }
         EditorialSection.IsVisible = EditorialContainer.Children.Count > 0;
 

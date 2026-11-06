@@ -36,12 +36,12 @@
         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
           <TextBlock x:Name="TitleText"
                      FontSize="14" FontWeight="Medium"
-                     Foreground="{StaticResource MusesTextPrimaryBrush}"
+                     Foreground="{DynamicResource MusesTextPrimaryBrush}"
                      TextTrimming="CharacterEllipsis"
                      MaxLines="1" />
           <TextBlock x:Name="ArtistText"
                      FontSize="12"
-                     Foreground="{StaticResource MusesTextSecondaryBrush}"
+                     Foreground="{DynamicResource MusesTextSecondaryBrush}"
                      TextTrimming="CharacterEllipsis"
                      MaxLines="1" />
         </StackPanel>
@@ -50,14 +50,14 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="8,0,4,0">
           <PathIcon x:Name="NowPlayingIcon"
                     Data="M12,4L9.91,6.09L12,8.18M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18.03,19.86 21,16.28 21,12C21,7.72 18.03,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"
-                    Width="14" Height="14" Foreground="{StaticResource MusesAccentBrush}"
+                    Width="14" Height="14" Foreground="{DynamicResource MusesAccentBrush}"
                     IsVisible="False" />
           <ctrl:YouTubeMark MarkSize="13" />
         </StackPanel>
       </Grid>
 
       <!-- Bottom Hairline Separator -->
-      <Border Height="1" Background="{StaticResource MusesWhiteOverlay14Brush}" VerticalAlignment="Bottom" />
+      <Border Height="1" Background="{DynamicResource MusesWhiteOverlay14Brush}" VerticalAlignment="Bottom" />
     </Panel>
   </Border>
 </UserControl>

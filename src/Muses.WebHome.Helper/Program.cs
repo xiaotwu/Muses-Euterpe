@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using Muses.Core.Advanced;
 using Muses.WebHome;
@@ -7,6 +6,7 @@ namespace Muses.WebHome.Helper;
 
 public static class Program
 {
+    private const int MaximumRequestBytes = 64 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -20,18 +20,27 @@ public static class Program
         try
         {
             using var stdin = Console.OpenStandardInput();
-            using var ms = new MemoryStream();
-            await stdin.CopyToAsync(ms).ConfigureAwait(false);
-            if (ms.Length == 0 || ms.Length > 64 * 1024)
+            var input = await ReadRequestAsync(stdin).ConfigureAwait(false);
+            var request = input is null ? null : JsonSerializer.Deserialize<WebHomeRequest>(input, JsonOptions);
+            if (request?.WorkspaceId is not Guid workspaceId || workspaceId == Guid.Empty)
             {
-                response = WebHomeResponse.Unavailable("malformedResponse", "Request body missing or too large.");
+                response = WebHomeResponse.Unavailable("malformedResponse");
             }
             else
             {
-                var request = JsonSerializer.Deserialize<WebHomeRequest>(ms.ToArray(), JsonOptions)
-                              ?? throw new InvalidOperationException("null request");
-                response = await WebHomeProbeCommand.ExecuteAsync(request).ConfigureAwait(false);
+                using var cancellation = new CancellationTokenSource();
+                _ = Task.Run(() => CancelOnInputClosedAsync(stdin, cancellation));
+                response = await WebHomeProbeCommand.ExecuteAsync(request, cancellationToken: cancellation.Token)
+                    .ConfigureAwait(false);
             }
+        }
+        catch (JsonException)
+        {
+            response = WebHomeResponse.Unavailable("malformedResponse");
+        }
+        catch (OperationCanceledException)
+        {
+            response = WebHomeResponse.Unavailable("cancelled");
         }
         catch (Exception ex)
         {
@@ -41,5 +50,37 @@ public static class Program
         var output = JsonSerializer.SerializeToUtf8Bytes(response, JsonOptions);
         await Console.OpenStandardOutput().WriteAsync(output).ConfigureAwait(false);
         return 0;
+    }
+
+    private static async Task<byte[]?> ReadRequestAsync(Stream stdin)
+    {
+        using var request = new MemoryStream();
+        var buffer = new byte[4096];
+        while (true)
+        {
+            var count = await stdin.ReadAsync(buffer).ConfigureAwait(false);
+            if (count == 0) return null;
+
+            var newline = Array.IndexOf(buffer, (byte)'\n', 0, count);
+            var length = newline >= 0 ? newline : count;
+            if (request.Length + length > MaximumRequestBytes) return null;
+            request.Write(buffer, 0, length);
+            if (newline >= 0)
+                return newline == count - 1 && request.Length > 0 ? request.ToArray() : null;
+        }
+    }
+
+    private static async Task CancelOnInputClosedAsync(Stream stdin, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            // The caller keeps stdin open during the request and closes it to cancel.
+            await stdin.ReadAsync(new byte[1]).ConfigureAwait(false);
+        }
+        catch (IOException) { }
+        catch (ObjectDisposedException) { return; }
+
+        try { cancellation.Cancel(); }
+        catch (ObjectDisposedException) { }
     }
 }

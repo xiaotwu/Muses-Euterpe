@@ -82,6 +82,13 @@ public sealed class PlaylistService
         PlaylistsChanged?.Invoke();
     }
 
+    public bool MoveItem(Guid playlistId, Guid itemId, int offset)
+    {
+        if (!_repository.MoveItem(playlistId, itemId, offset)) return false;
+        PlaylistsChanged?.Invoke();
+        return true;
+    }
+
     public void TogglePin(PlaylistEntity playlist)
     {
         _repository.TogglePin(playlist.Id);

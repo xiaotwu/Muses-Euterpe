@@ -8,6 +8,7 @@ using Muses.App.Controls;
 using Muses.App.ViewModels;
 using Muses.Core.Catalog;
 using Muses.Core.Domain;
+using Muses.Core.L10n;
 using Muses.Core.Preferences;
 using Muses.Core.Queue;
 using Muses.Core.Search;
@@ -17,92 +18,46 @@ using Muses.App.Theme;
 
 namespace Muses.App.Views;
 
-public partial class SearchWindow : Window
+public partial class SearchView : UserControl
 {
-    private static SearchWindow? _activeInstance;
+    private ShellViewModel? _vm;
 
-    private readonly ShellViewModel _vm;
-    private readonly GlobalSearchService _search;
-
-    public static void ShowOrActivate(Window owner, ShellViewModel vm, string? initialQuery = null, GlobalSearchScope? initialScope = null)
+    public SearchView()
     {
-        if (_activeInstance is not null)
-        {
-            if (initialScope is not null) _activeInstance.SetScope(initialScope.Value);
-            if (initialQuery is not null) _activeInstance.SetQuery(initialQuery);
-            _activeInstance.Activate();
-            _activeInstance.SearchBox.SelectAll();
-            _activeInstance.SearchBox.Focus();
-            return;
-        }
-
-        if (vm.GlobalSearch is null) return;
-        var win = new SearchWindow(vm, vm.GlobalSearch);
-        _activeInstance = win;
-
-        if (initialScope is not null) win.SetScope(initialScope.Value);
-        if (initialQuery is not null) win.SetQuery(initialQuery);
-
-        win.Closed += (_, _) => _activeInstance = null;
-        win.Show();
-        win.SearchBox.SelectAll();
-        win.SearchBox.Focus();
-    }
-
-    public SearchWindow() : this(new ShellViewModel(), new GlobalSearchService(new Core.Library.LibraryService(Muses.Persistence.SqliteStore.Open(inMemory: true))))
-    {
-    }
-
-    public SearchWindow(ShellViewModel vm, GlobalSearchService search)
-    {
-        _vm = vm;
-        _search = search;
         InitializeComponent();
-
-        _search.Changed += OnSearchChanged;
-        KeyDown += OnWindowKeyDown;
-        Loaded += (_, _) => SearchBox.Focus();
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        base.OnClosed(e);
-        _search.Changed -= OnSearchChanged;
-        _search.Reset();
-    }
-
-    public void SetQuery(string query)
-    {
-        SearchBox.Text = query;
-    }
-
-    public void SetScope(GlobalSearchScope scope)
-    {
-        _search.Scope = scope;
-        UpdateScopeButtons();
-    }
-
-    private void OnHeaderPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        Loaded += (_, _) => SetViewModel(DataContext as ShellViewModel);
+        Unloaded += (_, _) => SetViewModel(null);
+        DataContextChanged += (_, _) =>
         {
-            BeginMoveDrag(e);
-        }
+            if (IsLoaded) SetViewModel(DataContext as ShellViewModel);
+        };
     }
 
-    private void OnCloseClicked(object? sender, RoutedEventArgs e)
+    private void SetViewModel(ShellViewModel? vm)
     {
-        Close();
-    }
+        if (ReferenceEquals(vm, _vm)) return;
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape)
+        if (_vm is not null)
         {
-            Close();
-            e.Handled = true;
+            _vm.SearchFocusRequested -= OnSearchFocusRequested;
+            if (_vm.GlobalSearch is { } previousSearch) previousSearch.Changed -= OnSearchChanged;
         }
+
+        _vm = vm;
+        if (_vm is not null)
+        {
+            _vm.SearchFocusRequested += OnSearchFocusRequested;
+            if (_vm.GlobalSearch is { } search) search.Changed += OnSearchChanged;
+        }
+        RenderSearchResults();
     }
+
+    private void OnSearchFocusRequested() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_vm?.IsSearch != true || _vm.SettingsOpen) return;
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    });
 
     private void OnSearchBoxKeyDown(object? sender, KeyEventArgs e)
     {
@@ -115,42 +70,35 @@ public partial class SearchWindow : Window
 
     private void PlayTopResult()
     {
-        if (_search.TrackResults.Count > 0)
+        if (_vm is not { GlobalSearch: { } search } vm) return;
+
+        if (search.TrackResults.Count > 0)
         {
-            var top = _search.TrackResults[0];
-            _vm.Playback?.PlayTrack(top, _search.TrackResults, QueueSource.Search);
-            Close();
+            vm.Playback?.PlayTrack(search.TrackResults[0], search.TrackResults, QueueSource.Search);
+            vm.ReturnFromSearch();
             return;
         }
 
-        if (_search.YouTubeResults.Count > 0)
+        if (search.YouTubeResults.Count > 0)
         {
-            var top = _search.YouTubeResults[0];
-            PlayYouTubeEntry(top);
-            Close();
+            PlayYouTubeEntry(search.YouTubeResults[0]);
             return;
         }
 
-        if (_search.ReleaseResults.Count > 0)
+        if (search.ReleaseResults.Count > 0)
         {
-            _vm.SelectRelease(_search.ReleaseResults[0]);
-            Close();
+            vm.SelectRelease(search.ReleaseResults[0]);
             return;
         }
 
-        if (_search.CatalogArtistResults.Count > 0)
-        {
-            _vm.SelectArtist(_search.CatalogArtistResults[0]);
-            Close();
-            return;
-        }
+        if (search.CatalogArtistResults.Count > 0) vm.SelectArtist(search.CatalogArtistResults[0]);
     }
 
     private void OnSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
         var text = SearchBox.Text ?? "";
         ClearBtn.IsVisible = !string.IsNullOrEmpty(text);
-        _search.Query = text;
+        if (_vm?.GlobalSearch is { } search) search.Query = text;
     }
 
     private void OnClearClicked(object? sender, RoutedEventArgs e)
@@ -163,11 +111,9 @@ public partial class SearchWindow : Window
     private void OnScopeLibrary(object? sender, RoutedEventArgs e) => SetScope(GlobalSearchScope.Library);
     private void OnScopeYouTube(object? sender, RoutedEventArgs e) => SetScope(GlobalSearchScope.YouTube);
 
-    private void UpdateScopeButtons()
+    private void SetScope(GlobalSearchScope scope)
     {
-        ScopeAllBtn.Classes.Set("selected", _search.Scope == GlobalSearchScope.All);
-        ScopeLibraryBtn.Classes.Set("selected", _search.Scope == GlobalSearchScope.Library);
-        ScopeYouTubeBtn.Classes.Set("selected", _search.Scope == GlobalSearchScope.YouTube);
+        if (_vm?.GlobalSearch is { } search) search.Scope = scope;
     }
 
     private void OnSearchChanged()
@@ -177,9 +123,15 @@ public partial class SearchWindow : Window
 
     private void RenderSearchResults()
     {
-        SearchSpinner.IsVisible = _search.IsSearchingYouTube;
+        if (_vm?.GlobalSearch is not { } search) return;
 
-        var hasQuery = !string.IsNullOrWhiteSpace(_search.Query);
+        if (SearchBox.Text != search.Query) SearchBox.Text = search.Query;
+        ScopeAllBtn.Classes.Set("selected", search.Scope == GlobalSearchScope.All);
+        ScopeLibraryBtn.Classes.Set("selected", search.Scope == GlobalSearchScope.Library);
+        ScopeYouTubeBtn.Classes.Set("selected", search.Scope == GlobalSearchScope.YouTube);
+        SearchSpinner.IsVisible = search.IsSearchingYouTube;
+
+        var hasQuery = !string.IsNullOrWhiteSpace(search.Query);
         LandingPanel.IsVisible = !hasQuery;
         ResultsPanel.IsVisible = hasQuery;
 
@@ -187,37 +139,38 @@ public partial class SearchWindow : Window
 
         // 1. Songs Group
         SongsResultsContainer.Children.Clear();
-        foreach (var track in _search.TrackResults.Take(8))
+        var tracks = search.TrackResults;
+        foreach (var track in tracks.Take(8))
         {
-            SongsResultsContainer.Children.Add(BuildSongRow(track, _search.TrackResults));
+            SongsResultsContainer.Children.Add(BuildSongRow(track, tracks));
         }
-        SongsGroup.IsVisible = _search.TrackResults.Count > 0;
+        SongsGroup.IsVisible = tracks.Count > 0;
 
         // 2. Albums Group
         AlbumsResultsContainer.Children.Clear();
-        foreach (var rel in _search.ReleaseResults.Take(10))
+        foreach (var rel in search.ReleaseResults.Take(10))
         {
             AlbumsResultsContainer.Children.Add(BuildReleaseCard(rel));
         }
-        AlbumsGroup.IsVisible = _search.ReleaseResults.Count > 0;
+        AlbumsGroup.IsVisible = search.ReleaseResults.Count > 0;
 
         // 3. Artists Group
         ArtistsResultsContainer.Children.Clear();
-        foreach (var artist in _search.CatalogArtistResults.Take(10))
+        foreach (var artist in search.CatalogArtistResults.Take(10))
         {
             ArtistsResultsContainer.Children.Add(BuildArtistCard(artist));
         }
-        ArtistsGroup.IsVisible = _search.CatalogArtistResults.Count > 0;
+        ArtistsGroup.IsVisible = search.CatalogArtistResults.Count > 0;
 
         // 4. YouTube Music Group
         YouTubeResultsContainer.Children.Clear();
-        foreach (var yt in _search.YouTubeResults.Take(12))
+        foreach (var yt in search.YouTubeResults.Take(12))
         {
             YouTubeResultsContainer.Children.Add(BuildYouTubeRow(yt));
         }
-        YouTubeGroup.IsVisible = _search.YouTubeResults.Count > 0;
+        YouTubeGroup.IsVisible = search.YouTubeResults.Count > 0;
 
-        NoResultsPanel.IsVisible = !_search.HasResults && !_search.IsSearchingYouTube;
+        NoResultsPanel.IsVisible = !search.HasResults && !search.IsSearchingYouTube;
     }
 
     private Button BuildSongRow(TrackSnapshot track, IReadOnlyList<TrackSnapshot> context)
@@ -266,8 +219,8 @@ public partial class SearchWindow : Window
         btn.Content = grid;
         btn.Click += (_, _) =>
         {
-            _vm.Playback?.PlayTrack(track, context, QueueSource.Search);
-            Close();
+            _vm?.Playback?.PlayTrack(track, context, QueueSource.Search);
+            _vm?.ReturnFromSearch();
         };
         return btn;
     }
@@ -303,11 +256,7 @@ public partial class SearchWindow : Window
         });
 
         btn.Content = stack;
-        btn.Click += (_, _) =>
-        {
-            _vm.SelectRelease(release);
-            Close();
-        };
+        btn.Click += (_, _) => _vm?.SelectRelease(release);
         return btn;
     }
 
@@ -338,16 +287,12 @@ public partial class SearchWindow : Window
         });
         stack.Children.Add(new TextBlock
         {
-            Text = $"{artist.Tracks.Count} songs", FontSize = 10,
+            Text = L10n.Tr($"{artist.Tracks.Count} songs", $"{artist.Tracks.Count} 首歌曲"), FontSize = 10,
             Foreground = ThemeBrushes.TextSecondaryBrush, HorizontalAlignment = HorizontalAlignment.Center
         });
 
         btn.Content = stack;
-        btn.Click += (_, _) =>
-        {
-            _vm.SelectArtist(artist);
-            Close();
-        };
+        btn.Click += (_, _) => _vm?.SelectArtist(artist);
         return btn;
     }
 
@@ -390,41 +335,35 @@ public partial class SearchWindow : Window
         grid.Children.Add(ytMark);
 
         btn.Content = grid;
-        btn.Click += (_, _) =>
-        {
-            PlayYouTubeEntry(entry);
-            Close();
-        };
+        btn.Click += (_, _) => PlayYouTubeEntry(entry);
         return btn;
     }
 
     private void PlayYouTubeEntry(YTDlpPlaylistEntry entry)
     {
-        if (_vm.Library is null || _vm.Playback is null) return;
-        var snap = _vm.Library.UpsertFromYouTube(
+        if (_vm is not { Library: { } library, Playback: { } playback } vm) return;
+        var snap = library.UpsertFromYouTube(
             entry.Id,
             entry.Title,
             entry.Uploader ?? "YouTube Music",
             entry.Duration ?? 0,
             $"https://i.ytimg.com/vi/{entry.Id}/hqdefault.jpg");
-        _vm.Playback.PlayTrack(snap, [snap], QueueSource.Search);
+        playback.PlayTrack(snap, [snap], QueueSource.Search);
+        vm.ReturnFromSearch();
     }
 
     private void OnBrowseSongs(object? sender, RoutedEventArgs e)
     {
-        _vm.SelectCommand.Execute(SidebarSection.Songs);
-        Close();
+        _vm?.SelectCommand.Execute(SidebarSection.Songs);
     }
 
     private void OnBrowseAlbums(object? sender, RoutedEventArgs e)
     {
-        _vm.SelectCommand.Execute(SidebarSection.Albums);
-        Close();
+        _vm?.SelectCommand.Execute(SidebarSection.Albums);
     }
 
     private void OnBrowseArtists(object? sender, RoutedEventArgs e)
     {
-        _vm.SelectCommand.Execute(SidebarSection.Artists);
-        Close();
+        _vm?.SelectCommand.Execute(SidebarSection.Artists);
     }
 }

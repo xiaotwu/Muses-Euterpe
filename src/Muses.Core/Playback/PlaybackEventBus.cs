@@ -11,7 +11,10 @@ public enum PlaybackEventKind
     TrackCompleted,
     TrackSkipped,
     TrackStopped,
-    QueueChanged
+    QueueChanged,
+    TrackLoading,
+    TrackLoadFailed,
+    TrackReady
 }
 
 public sealed record PlaybackEvent(

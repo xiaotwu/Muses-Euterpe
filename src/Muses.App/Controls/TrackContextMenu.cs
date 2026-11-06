@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
 using Muses.Core.Domain;
 using Muses.Core.L10n;
 using Muses.Core.Library;
@@ -17,7 +18,9 @@ public static class TrackContextMenu
         TrackEntity? track = null,
         Action? onPlay = null,
         Action? onRemoveFromContainer = null,
-        Action? onNewPlaylist = null)
+        Action? onNewPlaylist = null,
+        Action? onMoveEarlier = null,
+        Action? onMoveLater = null)
     {
         var menu = new ContextMenu();
 
@@ -88,13 +91,13 @@ public static class TrackContextMenu
         }
 
         // Persistent track items
-        var resolvedTrack = track;
+        var resolvedTrack = track ?? library?.Get(snapshot.Id) ?? library?.TrackByYouTubeId(snapshot.YouTubeId);
         if (resolvedTrack is not null || library is not null)
         {
             menu.Items.Add(new Separator());
 
             // Like / Unlike
-            var isLiked = snapshot.Liked;
+            var isLiked = resolvedTrack?.Liked ?? snapshot.Liked;
             var likeItem = new MenuItem
             {
                 Header = isLiked ? L10n.Tr("Unlike", "取消收藏") : L10n.Tr("Like", "收藏"),
@@ -102,8 +105,21 @@ public static class TrackContextMenu
                     ? "M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z"
                     : "M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z")
             };
-            likeItem.Click += (_, _) => library?.ToggleLike(snapshot.Id);
+            likeItem.Click += (_, _) =>
+            {
+                if (library is null) return;
+                var persisted = resolvedTrack?.Id ?? library.UpsertFromYouTube(snapshot.YouTubeId, snapshot.Title,
+                    snapshot.Artist, snapshot.DurationSeconds, snapshot.ArtworkUrl, albumTitle: snapshot.AlbumTitle).Id;
+                library.ToggleLike(persisted);
+            };
             menu.Items.Add(likeItem);
+
+            if (library is not null && resolvedTrack?.LibraryMember != true && !string.IsNullOrWhiteSpace(snapshot.YouTubeId))
+            {
+                var saveItem = new MenuItem { Header = L10n.Tr("Save to Library", "保存到资料库") };
+                saveItem.Click += (_, _) => library.Save(snapshot);
+                menu.Items.Add(saveItem);
+            }
 
             // Add to playlist
             if (playlistService is not null)
@@ -137,23 +153,21 @@ public static class TrackContextMenu
                     var targetPl = pl;
                     plItem.Click += (_, _) =>
                     {
-                        var t = resolvedTrack ?? new TrackEntity
-                        {
-                            Id = snapshot.Id,
-                            Title = snapshot.Title,
-                            Artist = snapshot.Artist,
-                            AlbumTitle = snapshot.AlbumTitle,
-                            DurationMs = (int)Math.Round(snapshot.DurationSeconds * 1000),
-                            YouTubeId = snapshot.YouTubeId,
-                            ArtworkUrl = snapshot.ArtworkUrl
-                        };
-                        playlistService.AddTrack(targetPl, t);
+                        var saved = library is not null ? TrackEntity.FromSnapshot(library.Save(snapshot)) : resolvedTrack;
+                        if (saved is not null) playlistService.AddTrack(targetPl, saved);
                     };
                     addToPlaylistItem.Items.Add(plItem);
                 }
 
                 menu.Items.Add(addToPlaylistItem);
             }
+        }
+
+        if (onMoveEarlier is not null || onMoveLater is not null)
+        {
+            menu.Items.Add(new Separator());
+            AddMoveItem(L10n.Tr("Move Earlier", "上移"), onMoveEarlier);
+            AddMoveItem(L10n.Tr("Move Later", "下移"), onMoveLater);
         }
 
         // Remove from container
@@ -171,6 +185,13 @@ public static class TrackContextMenu
         }
 
         return menu;
+
+        void AddMoveItem(string label, Action? move)
+        {
+            var item = new MenuItem { Header = label, IsEnabled = move is not null };
+            item.Click += (_, _) => move?.Invoke();
+            menu.Items.Add(item);
+        }
     }
 
     private static PathIcon CreatePathIcon(string data) => new()

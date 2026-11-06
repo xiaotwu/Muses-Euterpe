@@ -14,12 +14,7 @@ public sealed class ArtworkCache
         Directory.CreateDirectory(_directory);
     }
 
-    public static string DefaultDirectory()
-    {
-        var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var folder = OperatingSystem.IsMacOS() ? "MusesEuterpe" : "Muses";
-        return Path.Combine(root, folder, "artwork");
-    }
+    public static string DefaultDirectory() => Path.Combine(LocalDataMaintenance.ArtworkCacheRoot(), "artwork");
 
     public string? GetPathForUrl(string url)
     {

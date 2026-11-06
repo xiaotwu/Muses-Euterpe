@@ -1,7 +1,6 @@
 namespace Muses.Core.Chrome;
 
 /// <summary>
-/// Apple Music near-black in dark mode and a restrained light palette.
 /// RGB channels are 0–1. Appearance is applied by the UI host.
 /// </summary>
 public readonly record struct Rgba(double R, double G, double B, double A = 1.0)
@@ -31,16 +30,16 @@ public readonly record struct ThemePair(Rgba Dark, Rgba Light)
 public static class BrandColors
 {
     public static readonly ThemePair Background = new(
-        Rgba.FromRgb(AppleMusicTokens.DarkPageRgb.R, AppleMusicTokens.DarkPageRgb.G, AppleMusicTokens.DarkPageRgb.B),
-        Rgba.FromRgb(AppleMusicTokens.LightPageRgb.R, AppleMusicTokens.LightPageRgb.G, AppleMusicTokens.LightPageRgb.B));
+        Rgba.FromBytes(0x21, 0x1F, 0x1B),
+        Rgba.FromBytes(0xFC, 0xFA, 0xF6));
 
     public static readonly ThemePair Surface = new(
-        Rgba.FromRgb(0.15, 0.15, 0.17),
-        Rgba.FromRgb(0.92, 0.92, 0.94));
+        Rgba.FromBytes(0x30, 0x2B, 0x23),
+        Rgba.FromBytes(0xF0, 0xEC, 0xE4));
 
-    public static readonly ThemePair Magenta = new(
-        Rgba.FromRgb(AppleMusicTokens.KeyColorRgb.R, AppleMusicTokens.KeyColorRgb.G, AppleMusicTokens.KeyColorRgb.B),
-        Rgba.FromRgb(AppleMusicTokens.KeyColorRgb.R, AppleMusicTokens.KeyColorRgb.G, AppleMusicTokens.KeyColorRgb.B));
+    public static readonly ThemePair Accent = new(
+        Rgba.FromBytes(0xDF, 0xC2, 0x8B),
+        Rgba.FromBytes(0x86, 0x63, 0x2E));
 
     public static readonly ThemePair TextPrimary = new(
         Rgba.FromRgb(0.94, 0.94, 0.94),

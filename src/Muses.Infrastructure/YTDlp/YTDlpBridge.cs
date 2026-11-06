@@ -17,24 +17,58 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
     };
 
     private readonly string? _binaryPath;
+    private readonly string? _javaScriptRuntimePath;
     private readonly YTDlpRunner _runner;
     private readonly StreamUrlCache _cache;
+    private readonly object _audioContext = new();
     private string? _resolvedBinary;
 
-    public YTDlpBridge(string? binaryPath = null, YTDlpRunner? runner = null, StreamUrlCache? cache = null)
+    public YTDlpBridge(string? binaryPath = null, YTDlpRunner? runner = null, StreamUrlCache? cache = null,
+        string? javaScriptRuntimePath = null)
     {
-        _binaryPath = binaryPath;
+        _binaryPath = binaryPath ?? Environment.GetEnvironmentVariable("MUSES_YTDLP_PATH");
+        _javaScriptRuntimePath = javaScriptRuntimePath ?? Environment.GetEnvironmentVariable("MUSES_DENO_PATH");
         _runner = runner ?? new YTDlpRunner();
         _cache = cache ?? new StreamUrlCache();
     }
 
+    public async Task<ResolvedAudioStream> ResolveAudioStreamAsync(
+        string videoId, string quality, TimeSpan timeout, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (videoId.Length != 11 || !videoId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+            throw new YTDlpException("Invalid video identity");
+        if (_cache.GetAudio(_audioContext, videoId, quality) is { } cached)
+            return cached;
+
+        var binary = ResolveBinary();
+        var args = CommandOptions(binary, ignoreConfig: true);
+        args.AddRange(["--no-cookies", "--no-cookies-from-browser", "--no-plugin-dirs", "--no-remote-components",
+            "--socket-timeout", "5", "--extractor-retries", "0", "--retries", "0",
+            "--skip-download", "--no-playlist", "--dump-single-json", "--check-formats",
+            "--format-sort-force", "-S", "abr,asr", "-f", AudioFormat(quality), "--", $"https://youtu.be/{videoId}"]);
+        var stdout = await _runner.RunAudioAsync(binary, args, timeout, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        var stream = AudioStreamJsonParser.Parse(stdout, videoId, DateTimeOffset.UtcNow);
+        _cache.SetAudio(_audioContext, videoId, quality, stream);
+        return stream;
+    }
+
+    public void InvalidateAudioStream(string videoId, string quality, ResolvedAudioStream stream) =>
+        _cache.InvalidateAudio(_audioContext, videoId, quality, stream);
+
+    private static string AudioFormat(string quality) => quality switch
+    {
+        "256k" or "128k" or "64k" => QualityMap[quality],
+        _ => "bestaudio"
+    };
+
     public async Task<Uri> ResolveStreamUrlAsync(string videoId, string quality, TimeSpan timeout, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
         if (_cache.TryGet(videoId, quality, out var cached)) return cached;
-        var binary = await ResolveBinaryAsync().ConfigureAwait(false);
         var format = QualityMap.GetValueOrDefault(quality, QualityMap["bestaudio"]);
-        var args = new List<string> { "-f", format, "-g", "--no-playlist", "--", videoId };
-        var (stdout, _) = await _runner.RunAsync(binary, args, timeout, ct).ConfigureAwait(false);
+        var (stdout, _) = await RunAsync(["-f", format, "-g", "--no-playlist", "--", videoId], timeout, ct).ConfigureAwait(false);
         var line = stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .LastOrDefault();
         if (string.IsNullOrWhiteSpace(line) || !Uri.TryCreate(line, UriKind.Absolute, out var url))
@@ -45,9 +79,8 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
 
     public async Task<IReadOnlyList<YTDlpPlaylistEntry>> FetchPlaylistAsync(string url, TimeSpan timeout, CancellationToken ct = default)
     {
-        var binary = await ResolveBinaryAsync().ConfigureAwait(false);
-        var args = new[] { "--flat-playlist", "--dump-json", "--no-warnings", "--", url };
-        var (stdout, _) = await _runner.RunAsync(binary, args, timeout, ct).ConfigureAwait(false);
+        var (stdout, _) = await RunAsync(["--flat-playlist", "--dump-json", "--no-warnings", "--", url], timeout, ct)
+            .ConfigureAwait(false);
         return ParseNdjson(stdout);
     }
 
@@ -68,9 +101,8 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
 
     public async Task<IReadOnlyList<YTDlpPlaylistEntry>> SearchAsync(string query, int limit, TimeSpan timeout, CancellationToken ct = default)
     {
-        var binary = await ResolveBinaryAsync().ConfigureAwait(false);
-        var args = new[] { "--flat-playlist", "--dump-json", "--no-warnings", $"ytsearch{limit}:{query}" };
-        var (stdout, _) = await _runner.RunAsync(binary, args, timeout, ct).ConfigureAwait(false);
+        var (stdout, _) = await RunAsync(["--flat-playlist", "--dump-json", "--no-warnings", $"ytsearch{limit}:{query}"],
+            timeout, ct).ConfigureAwait(false);
         return ParseNdjson(stdout);
     }
 
@@ -78,8 +110,7 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
     {
         try
         {
-            var binary = await ResolveBinaryAsync().ConfigureAwait(false);
-            var (stdout, _) = await _runner.RunAsync(binary, ["--version"], TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+            var (stdout, _) = await RunAsync(["--version"], TimeSpan.FromSeconds(8)).ConfigureAwait(false);
             return stdout.Trim();
         }
         catch
@@ -90,56 +121,72 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
 
     public async Task<YTDlpPlaylistEntry?> FetchVideoMetadataAsync(string videoId, TimeSpan timeout, CancellationToken ct = default)
     {
-        var binary = await ResolveBinaryAsync().ConfigureAwait(false);
-        var args = new[] { "--dump-json", "--no-playlist", "--no-warnings", "--", videoId };
-        var (stdout, _) = await _runner.RunAsync(binary, args, timeout, ct).ConfigureAwait(false);
+        var (stdout, _) = await RunAsync(["--dump-json", "--no-playlist", "--no-warnings", "--", videoId], timeout, ct)
+            .ConfigureAwait(false);
         return ParseNdjson(stdout).FirstOrDefault() ?? ParseSingle(stdout);
     }
 
-    private async Task<string> ResolveBinaryAsync()
+    private Task<(string Stdout, string Stderr)> RunAsync(string[] command, TimeSpan timeout, CancellationToken ct = default)
+    {
+        var binary = ResolveBinary();
+        var ignoreConfig = Path.IsPathFullyQualified(Environment.GetEnvironmentVariable("MUSES_CACHE_HOME") ?? "") ||
+                           Path.IsPathFullyQualified(Environment.GetEnvironmentVariable("MUSES_DATA_HOME") ?? "");
+        var args = CommandOptions(binary, ignoreConfig);
+        args.AddRange(command);
+        return _runner.RunAsync(binary, args, timeout, ct);
+    }
+
+    private List<string> CommandOptions(string binary, bool ignoreConfig)
+    {
+        var args = new List<string> { "--cache-dir", Path.Combine(LocalDataMaintenance.LocalCacheRoot(), "yt-dlp") };
+        if (ignoreConfig)
+            args.Add("--ignore-config");
+
+        var name = ExecutableName("deno");
+        var deno = !string.IsNullOrWhiteSpace(_javaScriptRuntimePath)
+            ? Path.GetFullPath(_javaScriptRuntimePath)
+            : FindExecutable(name, Path.GetDirectoryName(binary));
+        if (deno is not null)
+        {
+            if (!File.Exists(deno))
+                throw new YTDlpException("Configured Deno binary not found");
+            args.AddRange(["--js-runtimes", $"deno:{deno}"]);
+        }
+        return args;
+    }
+
+    private string ResolveBinary()
     {
         if (_resolvedBinary is not null) return _resolvedBinary;
-        var candidates = new List<string>();
-        if (!string.IsNullOrEmpty(_binaryPath)) candidates.Add(_binaryPath);
-        candidates.Add(Path.Combine(AppContext.BaseDirectory, "yt-dlp"));
-        candidates.Add(Path.Combine(AppContext.BaseDirectory, "yt-dlp.exe"));
-        var repo = FindRepoYtDlp();
-        if (repo is not null) candidates.Add(repo);
-        foreach (var which in new[] { "yt-dlp", "yt-dlp.exe" })
+        if (!string.IsNullOrWhiteSpace(_binaryPath))
         {
-            var found = FindOnPath(which);
-            if (found is not null) candidates.Add(found);
+            if (!File.Exists(_binaryPath))
+                throw new YTDlpException("Configured yt-dlp binary not found");
+            return _resolvedBinary = Path.GetFullPath(_binaryPath);
         }
-
-        foreach (var path in candidates.Distinct())
-        {
-            if (File.Exists(path))
-            {
-                _resolvedBinary = path;
-                return path;
-            }
-        }
-        throw new YTDlpException("yt-dlp binary not found");
+        return _resolvedBinary = FindExecutable(ExecutableName("yt-dlp"))
+            ?? throw new YTDlpException("yt-dlp binary not found");
     }
 
-    private static string? FindRepoYtDlp()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            var mac = Path.Combine(dir.FullName, "resources", "yt-dlp");
-            var win = Path.Combine(dir.FullName, "resources", "yt-dlp.exe");
-            if (File.Exists(mac)) return mac;
-            if (File.Exists(win)) return win;
-            dir = dir.Parent;
-        }
-        return null;
-    }
+    private static string ExecutableName(string name) => OperatingSystem.IsWindows() ? name + ".exe" : name;
 
-    private static string? FindOnPath(string name)
+    private static string? FindExecutable(string name, string? preferredDirectory = null)
     {
-        var paths = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator);
-        return paths.Select(p => Path.Combine(p, name)).FirstOrDefault(File.Exists);
+        if (preferredDirectory is not null && File.Exists(Path.Combine(preferredDirectory, name)))
+            return Path.Combine(preferredDirectory, name);
+
+        var bundled = Path.Combine(AppContext.BaseDirectory, name);
+        if (File.Exists(bundled)) return bundled;
+
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "resources", name);
+            if (File.Exists(candidate)) return candidate;
+        }
+
+        var paths = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
+        var path = paths.Select(p => Path.Combine(p, name)).FirstOrDefault(File.Exists);
+        return path is null ? null : Path.GetFullPath(path);
     }
 
     private static IReadOnlyList<YTDlpPlaylistEntry> ParseNdjson(string stdout)

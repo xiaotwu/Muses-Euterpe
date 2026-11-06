@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Muses.Core.Update;
 
@@ -10,17 +11,34 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
     private readonly HttpClient _httpClient;
     private readonly string _repoSlug;
     private readonly string _currentVersion;
+    private readonly OSPlatform _platform;
+    private readonly Architecture _architecture;
 
     public string CurrentVersion => _currentVersion;
+    public static string InstalledVersion { get; } = GetCurrentAssemblyVersion();
 
     public GitHubUpdateChecker(
         HttpClient? httpClient = null,
         string repoSlug = "xiaotwu/Muses-Euterpe",
         string? currentVersion = null)
+        : this(
+            OperatingSystem.IsWindows() ? OSPlatform.Windows : OperatingSystem.IsLinux() ? OSPlatform.Linux : OSPlatform.OSX,
+            RuntimeInformation.ProcessArchitecture, httpClient, repoSlug, currentVersion)
     {
+    }
+
+    internal GitHubUpdateChecker(
+        OSPlatform platform,
+        Architecture architecture,
+        HttpClient? httpClient = null,
+        string repoSlug = "xiaotwu/Muses-Euterpe",
+        string? currentVersion = null)
+    {
+        _platform = platform;
+        _architecture = architecture;
         _httpClient = httpClient ?? new HttpClient();
         _repoSlug = string.IsNullOrWhiteSpace(repoSlug) ? "xiaotwu/Muses-Euterpe" : repoSlug;
-        _currentVersion = currentVersion ?? GetCurrentAssemblyVersion();
+        _currentVersion = currentVersion ?? InstalledVersion;
     }
 
     private static string GetCurrentAssemblyVersion()
@@ -79,22 +97,29 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
 
         JsonElement? targetRelease = null;
         string? targetTag = null;
+        string? targetAsset = null;
 
         foreach (var release in doc.RootElement.EnumerateArray())
         {
-            if (release.TryGetProperty("draft", out var draftProp) && draftProp.GetBoolean())
+            if (release.ValueKind != JsonValueKind.Object ||
+                (release.TryGetProperty("draft", out var draftProp) && draftProp.ValueKind == JsonValueKind.True))
                 continue;
 
-            var isPrerelease = release.TryGetProperty("prerelease", out var preProp) && preProp.GetBoolean();
+            var isPrerelease = release.TryGetProperty("prerelease", out var preProp) && preProp.ValueKind == JsonValueKind.True;
             if (isPrerelease && !includePrereleases)
                 continue;
 
-            if (release.TryGetProperty("tag_name", out var tagProp))
-            {
-                targetRelease = release;
-                targetTag = tagProp.GetString();
-                break;
-            }
+            var tag = ReadString(release, "tag_name");
+            if (string.IsNullOrWhiteSpace(tag) || (targetTag is not null && CompareSemVer(tag, targetTag) <= 0))
+                continue;
+
+            var (asset, hasPackages) = FindPlatformAsset(release);
+            if (hasPackages && asset is null)
+                continue;
+
+            targetRelease = release;
+            targetTag = tag;
+            targetAsset = asset;
         }
 
         if (targetRelease == null || string.IsNullOrWhiteSpace(targetTag))
@@ -111,52 +136,14 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
 
         var rel = targetRelease.Value;
         var cleanTag = targetTag.TrimStart('v', 'V');
-        var title = rel.TryGetProperty("name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString())
-            ? nameProp.GetString()!
-            : targetTag;
-        var body = rel.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() ?? "" : "";
-        DateTimeOffset? publishedAt = rel.TryGetProperty("published_at", out var pubProp) && pubProp.TryGetDateTimeOffset(out var dto)
+        var title = ReadString(rel, "name");
+        var body = ReadString(rel, "body") ?? "";
+        DateTimeOffset? publishedAt = rel.TryGetProperty("published_at", out var pubProp) &&
+            pubProp.ValueKind == JsonValueKind.String && pubProp.TryGetDateTimeOffset(out var dto)
             ? dto
             : null;
 
-        var htmlUrl = rel.TryGetProperty("html_url", out var htmlProp)
-            ? htmlProp.GetString() ?? $"https://github.com/{_repoSlug}/releases"
-            : $"https://github.com/{_repoSlug}/releases";
-
-        var downloadUrl = htmlUrl;
-
-        // Search for windows asset (.msix, .msixbundle, .exe, .zip)
-        if (rel.TryGetProperty("assets", out var assetsProp) && assetsProp.ValueKind == JsonValueKind.Array)
-        {
-            string? msixUrl = null;
-            string? exeUrl = null;
-            string? zipUrl = null;
-
-            foreach (var asset in assetsProp.EnumerateArray())
-            {
-                if (asset.TryGetProperty("name", out var assetNameProp) &&
-                    asset.TryGetProperty("browser_download_url", out var assetDlProp))
-                {
-                    var name = assetNameProp.GetString() ?? "";
-                    var dl = assetDlProp.GetString() ?? "";
-                    if (name.EndsWith(".msix", StringComparison.OrdinalIgnoreCase) ||
-                        name.EndsWith(".msixbundle", StringComparison.OrdinalIgnoreCase))
-                    {
-                        msixUrl = dl;
-                    }
-                    else if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        exeUrl = dl;
-                    }
-                    else if (name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                    {
-                        zipUrl = dl;
-                    }
-                }
-            }
-
-            downloadUrl = msixUrl ?? exeUrl ?? zipUrl ?? htmlUrl;
-        }
+        var downloadUrl = targetAsset ?? ReadString(rel, "html_url") ?? $"https://github.com/{_repoSlug}/releases";
 
         var hasUpdate = CompareSemVer(cleanTag, _currentVersion) > 0;
 
@@ -164,11 +151,97 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
             CurrentVersion: _currentVersion,
             LatestVersion: cleanTag,
             HasUpdate: hasUpdate,
-            ReleaseTitle: title,
+            ReleaseTitle: string.IsNullOrWhiteSpace(title) ? targetTag : title,
             ReleaseNotes: body,
             DownloadUrl: downloadUrl,
             PublishedAt: publishedAt);
     }
+
+    private (string? Url, bool HasPackages) FindPlatformAsset(JsonElement release)
+    {
+        if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
+            return (null, false);
+
+        string? bestUrl = null;
+        var bestPriority = int.MaxValue;
+        var hasPackages = false;
+        foreach (var asset in assets.EnumerateArray())
+        {
+            if (ReadString(asset, "name") is not { Length: > 0 } name)
+                continue;
+
+            var extension = Path.GetExtension(name).ToLowerInvariant();
+            if (extension is not (".msix" or ".msixbundle" or ".exe" or ".msi" or ".zip" or
+                ".deb" or ".appimage" or ".rpm" or ".dmg" or ".pkg" or ".ipa" or ".apk"))
+                continue;
+
+            hasPackages = true;
+            var url = ReadString(asset, "browser_download_url");
+            if (string.IsNullOrWhiteSpace(url))
+                continue;
+
+            var tokens = name.ToLowerInvariant()
+                .Replace("x86_64", "x64", StringComparison.Ordinal)
+                .Replace("x86-64", "x64", StringComparison.Ordinal)
+                .Split(['-', '_', '.'], StringSplitOptions.RemoveEmptyEntries);
+            var formatPriority = PackagePriority(extension, tokens);
+            if (formatPriority is null)
+                continue;
+
+            var architectures = tokens.Select(ParseArchitecture).OfType<Architecture>().ToArray();
+            if (architectures.Length > 0 && !architectures.Contains(_architecture))
+                continue;
+
+            var priority = formatPriority.Value * 2 + (architectures.Length == 0 ? 1 : 0);
+            if (priority >= bestPriority)
+                continue;
+
+            bestPriority = priority;
+            bestUrl = url;
+        }
+
+        return (bestUrl, hasPackages);
+    }
+
+    private static string? ReadString(JsonElement element, string key) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(key, out var property) &&
+        property.ValueKind == JsonValueKind.String ? property.GetString() : null;
+
+    private int? PackagePriority(string extension, string[] tokens)
+    {
+        if (_platform == OSPlatform.Linux)
+        {
+            return extension switch
+            {
+                ".deb" => 0,
+                ".appimage" => 1,
+                _ => null
+            };
+        }
+
+        if (_platform == OSPlatform.Windows)
+        {
+            return extension switch
+            {
+                ".msix" or ".msixbundle" => 0,
+                ".exe" => 1,
+                ".msi" => 2,
+                ".zip" when !tokens.Any(token => token is "linux" or "ubuntu" or "debian" or "mac" or "macos" or "osx" or "darwin") => 3,
+                _ => null
+            };
+        }
+
+        return null;
+    }
+
+    private static Architecture? ParseArchitecture(string token) => token switch
+    {
+        "amd64" or "x64" => Architecture.X64,
+        "i386" or "i686" or "x86" => Architecture.X86,
+        "aarch64" or "arm64" => Architecture.Arm64,
+        "armhf" or "armv7l" or "arm" => Architecture.Arm,
+        _ => null
+    };
 
     public static int CompareSemVer(string v1, string v2)
     {

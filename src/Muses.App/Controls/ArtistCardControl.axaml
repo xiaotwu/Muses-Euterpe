@@ -28,7 +28,7 @@
       </Setter>
     </Style>
     <Style Selector="Border.playPill:pointerover, Border.playPill.playing">
-      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MusesAccentBrush}" />
     </Style>
   </UserControl.Styles>
 
@@ -36,8 +36,8 @@
           Classes="artistCard"
           Width="200" Height="264"
           CornerRadius="20"
-          Background="{StaticResource MusesSurfaceBrush}"
-          BorderBrush="{StaticResource MusesHairlineBrush}"
+          Background="{DynamicResource MusesSurfaceBrush}"
+          BorderBrush="{DynamicResource MusesHairlineBrush}"
           BorderThickness="1"
           ClipToBounds="True"
           BoxShadow="0 8 18 0 #40000000">

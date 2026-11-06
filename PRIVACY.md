@@ -1,43 +1,15 @@
-# Muses Privacy Policy & Security Principles
+# Muses desktop privacy
 
-Muses is built from the ground up to respect your privacy and provide an uncompromised, local-first listening experience.
+Muses keeps your library, listening history, queue, bookmarks, notes, equalizer presets and preferences in a local SQLite database. The Windows database is under `%APPDATA%\Muses`. Linux uses `$XDG_DATA_HOME/Muses` or `~/.local/share/Muses` and can continue to use an existing database under the previous XDG configuration directory. The database filename is `muses-youtube-native.sqlite`.
 
-## Core Commitments
+Optional Google sign-in uses Windows Credential Manager or the Linux desktop's Secret Service. Older local credential files can be read for one-way migration. A development run with an explicit data directory uses credentials only for the current session.
 
-1. **Zero Telemetry & Zero Analytics**
-   - Muses collects no analytics, telemetry, diagnostic logs, or usage metrics.
-   - We do not operate remote telemetry servers, tracking pixels, or heartbeat pingers.
-   - No crash reports or personal data are sent to any remote servers without explicit user initiation.
+The optional YouTube Music Home requires consent to use the named browser's session. A separate helper checks that the browser and Muses are signed in to the same YouTube channel before fetching recommendations. The helper keeps session cookies in its isolated workspace. Muses keeps the displayed account recommendations in memory and clears them on sign-out or consent removal.
 
-2. **Local-First Architecture**
-   - Your listening history, playlists, queue, tracks, bookmarks, notes, equalizer presets, and automation rules reside strictly on your device in a local SQLite database.
-   - Default database path (see `SqliteStore.DefaultPath`):
-     - Windows: `%APPDATA%\Muses\muses-youtube-native.sqlite`
-     - macOS (dev checkout): `~/Library/Application Support/MusesEuterpe/muses-youtube-native.sqlite`
-   - Cache data (lyrics, artwork, stream URL cache) stays under the same app-data root.
+## Network requests
 
-3. **Secure Credential Storage**
-   - Account tokens (optional Google OAuth) are stored in the platform's native secure storage (Windows Credential Locker / DPAPI; macOS Keychain when available).
-   - Plaintext passwords or raw session tokens are never logged or stored in plain JSON/text files under app data.
+Muses has no analytics or telemetry service. Search, artwork, imports, and playback contact YouTube or its media servers. The locally installed yt-dlp resolves audio and the embedded YouTube player handles video. Lyrics lookup sends the track and artist names to LRCLIB. Checking for updates requests public Muses release metadata from GitHub.
 
-4. **Isolated Web Home Helper**
-   - Web Home helper runs as a separate process (`MusesWebHomeHelper`) with its own volatile ephemeral session directory under the OS temp root (`muses-web-home-helper/…`).
-   - Session cookies live only in that permission-restricted jar and are deleted when the helper exits.
-   - The Avalonia UI process does not scrape YouTube Home or hold Web Home cookies.
-   - Web Home is **off by default** and requires explicit consent (`PrefKey.WebHomeEnabled` / consent version).
+## Local data removal
 
-5. **Direct Media Resolving**
-   - Streaming URLs are resolved locally via bundled open-source `yt-dlp` directly to YouTube media servers.
-   - Stream traffic flows between your machine and YouTube CDNs without a Muses-operated proxy.
-
-6. **Automatic Updates**
-   - When the user checks for updates, Muses contacts GitHub's public API (`api.github.com/repos/xiaotwu/Muses-Euterpe/releases`) only.
-   - No personal identifiers, machine IDs, or unique device fingerprints are sent.
-
-## Data Removal
-
-Delete application data by removing the app-data folder:
-- Windows: `%APPDATA%\Muses` (and `%LOCALAPPDATA%\Muses` if present)
-- macOS (dev): `~/Library/Application Support/MusesEuterpe`
-
-Settings → General includes **Clear Cache** (artwork + Home feed cache) and **Reset Data** (deletes the SQLite library, caches, signs out of Credential Manager, then quits). Reset is irreversible.
+**Clear Cache** in Settings removes Muses-managed caches, including artwork and temporary media resolver data. **Reset Data** requests sign-out from the system credential store, clears the SQLite library and caches, then quits. Reset is irreversible.

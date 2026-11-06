@@ -11,6 +11,8 @@ namespace Muses.Infrastructure.Advanced;
 /// </summary>
 public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposable
 {
+    private const int MaximumRequestBytes = 64 * 1024;
+    private static readonly TimeSpan CleanupGracePeriod = TimeSpan.FromSeconds(1);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -21,8 +23,8 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
     private readonly string _helperPath;
     private readonly int _maximumOutputBytes;
     private readonly object _gate = new();
-    private Process? _active;
-    private int _disposed;
+    private ActiveRequest? _active;
+    private bool _disposed;
 
     public ProcessWebHomeHelperClient(string? helperPath = null, int maximumOutputBytes = 10 * 1024 * 1024)
     {
@@ -32,22 +34,27 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
 
     public async Task<WebHomeResponse> ExecuteAsync(WebHomeRequest request, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(_helperPath) || !File.Exists(_helperPath))
             return WebHomeResponse.Unavailable("helperMissing", "Web Home helper binary was not found.");
 
         if (request.ProtocolVersion != WebHomeProtocolVersion.Current)
             return WebHomeResponse.Unavailable("protocolMismatch");
 
+        var workspaceId = Guid.NewGuid();
         byte[] requestBytes;
         try
         {
-            requestBytes = JsonSerializer.SerializeToUtf8Bytes(request, JsonOptions);
+            requestBytes = JsonSerializer.SerializeToUtf8Bytes(request with { WorkspaceId = workspaceId }, JsonOptions);
         }
         catch
         {
             return WebHomeResponse.Unavailable("malformedResponse");
         }
+        if (requestBytes.Length > MaximumRequestBytes)
+            return WebHomeResponse.Unavailable("malformedResponse");
+        Array.Resize(ref requestBytes, requestBytes.Length + 1);
+        requestBytes[^1] = (byte)'\n';
 
         var psi = new ProcessStartInfo
         {
@@ -55,14 +62,18 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = true,
+            StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
 
         Process process;
+        ActiveRequest active;
         lock (_gate)
         {
-            if (_active is { HasExited: false })
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_active is not null)
                 return WebHomeResponse.Unavailable("helperBusy", "A Web Home helper request is already in flight.");
             try
             {
@@ -70,35 +81,23 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
             }
             catch (Exception ex)
             {
-                return WebHomeResponse.Unavailable("helperCrashed", ex.Message);
+                return WebHomeResponse.Unavailable("helperCrashed", ex.GetType().Name);
             }
-            _active = process;
+            _active = active = new ActiveRequest();
         }
 
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Clamp(request.TimeoutMs, 1000, 12000)));
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, active.Stop.Token, timeout.Token);
+        var ct = lifetime.Token;
         try
         {
-            await process.StandardInput.BaseStream.WriteAsync(requestBytes, cancellationToken).ConfigureAwait(false);
-            await process.StandardInput.BaseStream.FlushAsync(cancellationToken).ConfigureAwait(false);
-            process.StandardInput.Close();
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1000, request.TimeoutMs)));
-
-            var stdoutTask = ReadLimitedAsync(process.StandardOutput.BaseStream, _maximumOutputBytes, cts.Token);
-            _ = ReadLimitedAsync(process.StandardError.BaseStream, 64 * 1024, CancellationToken.None);
-
-            try
-            {
-                await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                TryKill(process);
-                if (cancellationToken.IsCancellationRequested)
-                    throw;
-                return WebHomeResponse.Unavailable("timedOut", "Web Home helper timed out.");
-            }
-
+            var stdoutTask = ReadLimitedAsync(process.StandardOutput.BaseStream, _maximumOutputBytes, ct);
+            var stderrTask = ReadLimitedAsync(process.StandardError.BaseStream, 0, ct);
+            await process.StandardInput.BaseStream.WriteAsync(requestBytes, ct).ConfigureAwait(false);
+            await process.StandardInput.BaseStream.FlushAsync(ct).ConfigureAwait(false);
+            await process.WaitForExitAsync(ct).ConfigureAwait(false);
+            await Task.WhenAll(stdoutTask, stderrTask).WaitAsync(ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
             var (data, exceeded) = await stdoutTask.ConfigureAwait(false);
             if (exceeded)
                 return WebHomeResponse.Unavailable("responseTooLarge");
@@ -114,44 +113,104 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
                     return WebHomeResponse.Unavailable("protocolMismatch");
                 return response;
             }
-            catch
+            catch (JsonException)
             {
                 return WebHomeResponse.Unavailable("malformedResponse");
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return WebHomeResponse.Unavailable(active.Stop.IsCancellationRequested ? "cancelled" : "timedOut");
+        }
+        catch (IOException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return WebHomeResponse.Unavailable("helperCrashed");
+        }
         finally
         {
-            lock (_gate)
+            try
             {
-                if (ReferenceEquals(_active, process))
-                    _active = null;
+                if (await StopProcessAsync(process).ConfigureAwait(false))
+                    DeleteWorkspace(workspaceId);
             }
-            try { process.Dispose(); } catch { /* ignore */ }
+            finally
+            {
+                process.Dispose();
+                lock (_gate)
+                {
+                    _active = null;
+                    active.Stop.Dispose();
+                }
+                active.Completed.TrySetResult();
+            }
         }
     }
 
     public Task CancelAsync()
     {
-        Process? proc;
-        lock (_gate) { proc = _active; }
-        if (proc is not null) TryKill(proc);
-        return Task.CompletedTask;
+        lock (_gate)
+        {
+            if (_active is not { } active) return Task.CompletedTask;
+            active.Stop.Cancel();
+            return active.Completed.Task;
+        }
     }
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _ = CancelAsync();
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
+        CancelAsync().GetAwaiter().GetResult();
     }
 
-    private static void TryKill(Process process)
+    private static async Task<bool> StopProcessAsync(Process process)
+    {
+        // Closing stdin is the helper's cancellation signal. Give it time to dispose the jar.
+        try { process.StandardInput.Close(); }
+        catch (IOException) { }
+        if (process.HasExited) return true;
+
+        using var grace = new CancellationTokenSource(CleanupGracePeriod);
+        try
+        {
+            await process.WaitForExitAsync(grace.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException) when (grace.IsCancellationRequested)
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { }
+            catch (System.ComponentModel.Win32Exception) { }
+        }
+
+        using var killWait = new CancellationTokenSource(CleanupGracePeriod);
+        try
+        {
+            await process.WaitForExitAsync(killWait.Token).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException) when (killWait.IsCancellationRequested)
+        {
+            return process.HasExited;
+        }
+    }
+
+    private static void DeleteWorkspace(Guid id)
     {
         try
         {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
+            var workspace = new DirectoryInfo(WebHomeWorkspace.GetPath(id));
+            if (workspace.Exists && !workspace.Attributes.HasFlag(FileAttributes.ReparsePoint)
+                && !workspace.Parent!.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                workspace.Delete(recursive: true);
         }
-        catch { /* ignore */ }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private static async Task<(byte[] Data, bool Exceeded)> ReadLimitedAsync(Stream stream, int limit, CancellationToken ct)
@@ -166,7 +225,15 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
             {
                 read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+            catch (IOException)
             {
                 break;
             }
@@ -177,6 +244,12 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
                 exceeded = true;
         }
         return (ms.ToArray(), exceeded);
+    }
+
+    private sealed class ActiveRequest
+    {
+        public CancellationTokenSource Stop { get; } = new();
+        public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     internal static string? LocateHelper()

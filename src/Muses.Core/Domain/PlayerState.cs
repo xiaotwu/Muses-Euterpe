@@ -32,6 +32,7 @@ public interface IPlayerEngine
     PlayerState State { get; }
     Action? OnCompletion { get; set; }
     Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default);
+    Task LoadPausedAsync(TrackSnapshot track, CancellationToken cancellationToken = default);
     Task PrepareAsync(TrackSnapshot track, CancellationToken cancellationToken = default);
     bool PlayPrepared();
     void Play();

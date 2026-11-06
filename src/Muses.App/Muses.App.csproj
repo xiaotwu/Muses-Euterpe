@@ -10,16 +10,14 @@
     <Product>Muses</Product>
     <Authors>xiaotwu</Authors>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
-    <WebView2EnableWpf>false</WebView2EnableWpf>
-    <WebView2EnableWinForms>false</WebView2EnableWinForms>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.2" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.2" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.2" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.2" />
+    <PackageReference Include="Avalonia" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Controls.WebView" Version="12.1.1" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.5" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="FluentAvaloniaUI" Version="2.3.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
   </ItemGroup>
   <ItemGroup>
@@ -27,9 +25,11 @@
     <ProjectReference Include="..\Muses.Persistence\Muses.Persistence.csproj" />
     <ProjectReference Include="..\Muses.Infrastructure\Muses.Infrastructure.csproj" />
     <ProjectReference Include="..\Muses.Platform.Windows\Muses.Platform.Windows.csproj" />
+    <ProjectReference Include="..\Muses.Platform.Linux\Muses.Platform.Linux.csproj" />
     <ProjectReference Include="..\Muses.WebHome.Helper\Muses.WebHome.Helper.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>
+      <OutputItemType>_WebHomeHelperTarget</OutputItemType>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
@@ -39,15 +39,19 @@
     <None Include="..\..\resources\mpv.exe" Link="mpv.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\mpv.exe')" />
     <None Include="..\..\resources\d3dcompiler_43.dll" Link="d3dcompiler_43.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\d3dcompiler_43.dll')" />
   </ItemGroup>
-  <Target Name="CopyWebHomeHelper" AfterTargets="Build">
+  <Target Name="KeepCoreWebView2References" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="'%(Reference.Filename)' == 'Microsoft.Web.WebView2.Wpf' Or '%(Reference.Filename)' == 'Microsoft.Web.WebView2.WinForms'" />
+    </ItemGroup>
+  </Target>
+  <Target Name="CopyWebHomeHelper" AfterTargets="Build" Condition="'@(_WebHomeHelperTarget)' != ''">
     <PropertyGroup>
-      <_HelperOut>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\Muses.WebHome.Helper\bin\$(Configuration)\$(TargetFramework)\'))</_HelperOut>
-      <_HelperDest>$(OutputPath)Helpers\</_HelperDest>
+      <_HelperOut>@(_WebHomeHelperTarget->'%(RootDir)%(Directory)')</_HelperOut>
     </PropertyGroup>
     <ItemGroup>
-      <_HelperFiles Include="$(_HelperOut)**\*.*" Condition="Exists('$(_HelperOut)')" />
+      <_HelperFiles Include="$(_HelperOut)**\*" />
     </ItemGroup>
-    <MakeDir Directories="$(_HelperDest)" Condition="'@(_HelperFiles)' != ''" />
-    <Copy SourceFiles="@(_HelperFiles)" DestinationFolder="$(_HelperDest)%(RecursiveDir)" SkipUnchangedFiles="true" Condition="'@(_HelperFiles)' != ''" />
+    <Copy SourceFiles="@(_HelperFiles)" DestinationFolder="$(TargetDir)Helpers\%(RecursiveDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

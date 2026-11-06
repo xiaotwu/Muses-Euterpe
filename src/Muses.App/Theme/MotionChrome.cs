@@ -9,7 +9,7 @@ namespace Muses.App.Theme;
 /// <summary>
 /// Keeps App.axaml <c>MusesMotion*</c> TimeSpan resources in sync with
 /// <see cref="MusesMotion"/> and zeros them when the OS asks for reduced motion.
-/// Avalonia 11.3 <see cref="Avalonia.Platform.IPlatformSettings"/> does not expose
+/// Avalonia <see cref="Avalonia.Platform.IPlatformSettings"/> does not expose
 /// PrefersReducedMotion, so we read platform accessibility settings directly.
 /// </summary>
 public static class MotionChrome
@@ -53,6 +53,15 @@ public static class MotionChrome
     {
         PreferReducedMotion = DetectPreferReducedMotion();
         SyncResources(app.Resources);
+    }
+
+    internal static bool Refresh(Application app)
+    {
+        var reduced = DetectPreferReducedMotion();
+        if (PreferReducedMotion == reduced) return false;
+        PreferReducedMotion = reduced;
+        SyncResources(app.Resources);
+        return true;
     }
 
     public static void SyncResources(IResourceDictionary res)

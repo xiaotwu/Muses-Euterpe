@@ -30,6 +30,8 @@ public sealed class HomeDiscoveryService
     private readonly HomeFeedCache _cache;
     private readonly LibraryService _library;
     private readonly Func<bool> _enabledProvider;
+    private readonly TimeProvider _timeProvider;
+    private readonly object _refreshGate = new();
     private CancellationTokenSource? _refreshCts;
 
     public event Action? Changed;
@@ -46,12 +48,14 @@ public sealed class HomeDiscoveryService
         IHomeDiscoveryProvider provider,
         HomeFeedCache cache,
         LibraryService library,
-        Func<bool>? enabledProvider = null)
+        Func<bool>? enabledProvider = null,
+        TimeProvider? timeProvider = null)
     {
         _provider = provider;
         _cache = cache;
         _library = library;
         _enabledProvider = enabledProvider ?? (() => true);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public void Load()
@@ -69,104 +73,122 @@ public sealed class HomeDiscoveryService
         if (!IsEnabled) return;
 
         var input = BuildInput();
-        ActiveScope = input.Scope;
-
         var cached = _cache.Get(input, HomeFeedCache.Layer.Baseline);
         var isFresh = cached is not null && _cache.IsFresh(cached, HomeFeedCache.Layer.Baseline);
+        var cts = forceReload || !isFresh ? new CancellationTokenSource() : null;
 
-        if (!forceReload && cached is not null)
+        CancellationTokenSource? previous;
+        lock (_refreshGate)
         {
-            var baselineReason = isFresh ? null : "expired";
-            Sections = cached.Value.Sections.Select(s => s.PresentedFromCache(baselineReason)).ToList();
-            LastUpdatedAt = cached.Value.FetchedAt;
-            IsShowingStale = !isFresh;
-            Changed?.Invoke();
+            previous = _refreshCts;
+            _refreshCts = cts;
+            ActiveScope = input.Scope;
+            IsRefreshing = cts is not null;
+            LastRefreshError = null;
 
-            if (isFresh) return;
+            if (cached is not null)
+            {
+                Sections = cached.Value.Sections.Select(s => s.PresentedFromCache(isFresh ? null : "expired")).ToList();
+                LastUpdatedAt = cached.FetchedAt;
+                IsShowingStale = !isFresh;
+            }
+            else if (!forceReload || Sections.Count == 0)
+            {
+                Sections = LoadingPlaceholders(input);
+                LastUpdatedAt = null;
+                IsShowingStale = false;
+            }
         }
-        else if (Sections.Count == 0)
-        {
-            Sections = LoadingPlaceholders(input);
-            IsShowingStale = false;
-            Changed?.Invoke();
-        }
-
-        await RefreshAsync(input).ConfigureAwait(false);
+        previous?.Cancel();
+        Changed?.Invoke();
+        if (cts is not null)
+            await RefreshAsync(input, cached, cts).ConfigureAwait(false);
     }
 
     public void Cancel()
     {
-        _refreshCts?.Cancel();
-        _refreshCts = null;
-        IsRefreshing = false;
+        CancellationTokenSource? previous;
+        lock (_refreshGate)
+        {
+            previous = _refreshCts;
+            _refreshCts = null;
+            IsRefreshing = false;
+        }
+        previous?.Cancel();
         Changed?.Invoke();
     }
 
-    private async Task RefreshAsync(HomeDiscoveryInput input)
+    private async Task RefreshAsync(
+        HomeDiscoveryInput input, HomeFeedCache.CachedSnapshot? cached, CancellationTokenSource cts)
     {
-        _refreshCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _refreshCts = cts;
-
-        IsRefreshing = true;
-        Changed?.Invoke();
-
         try
         {
+            cts.Token.ThrowIfCancellationRequested();
             var result = await _provider.FetchAsync(input, cts.Token).ConfigureAwait(false);
-            if (cts.Token.IsCancellationRequested) return;
 
-            var cachedBaseline = _cache.Get(input, HomeFeedCache.Layer.Baseline);
-            var previous = (cachedBaseline?.Value.Sections ?? Sections)
-                .ToDictionary(s => s.Id, s => s);
-
-            string? firstFailure = null;
-            var merged = result.BaselineSnapshot.Sections.Select(section =>
+            lock (_refreshGate)
             {
-                if (section.Status is SectionStatus.Failed failed)
+                if (_refreshCts != cts) return;
+
+                var previous = (cached?.Value.Sections ?? []).ToDictionary(s => s.Id);
+                var failure = result.Failures.FirstOrDefault(f => f.Layer == "baseline");
+                string? sectionError = null;
+                var merged = result.BaselineSnapshot.Sections.Select(section =>
                 {
-                    firstFailure ??= failed.Message;
-                    if (previous.TryGetValue(section.Id, out var prev) && prev.Items.Count > 0)
-                    {
-                        return new HomeSection(
-                            prev.Id, prev.Title, prev.Subtitle, prev.Kind,
-                            prev.Items, new SectionStatus.Loaded(),
-                            HomeSource.Cached, prev.Source,
-                            failed.Message ?? prev.StaleReason,
-                            prev.FetchedAt);
-                    }
-                }
-                return section;
-            }).ToList();
+                    if (section.Status is not SectionStatus.Failed failed) return section;
+                    sectionError ??= failed.Message;
+                    return previous.TryGetValue(section.Id, out var saved) && saved.Items.Count > 0
+                        ? saved.PresentedFromCache(failed.Message ?? "refresh failed")
+                        : section;
+                }).ToList();
 
-            if (result.StoreBaseline)
-            {
-                _cache.Set(result.BaselineSnapshot, input, HomeFeedCache.Layer.Baseline);
+                if (merged.Count == 0 && failure is not null && cached is not null)
+                    merged = cached.Value.Sections.Select(s => s.PresentedFromCache(failure.Message ?? failure.Code)).ToList();
+
+                if (result.StoreBaseline)
+                    _cache.Set(result.BaselineSnapshot, input, HomeFeedCache.Layer.Baseline);
+
+                Sections = merged;
+                LastRefreshError = failure?.Message ?? sectionError;
+                IsShowingStale = merged.Any(s => s.Source == HomeSource.Cached || s.StaleReason is not null);
+                LastUpdatedAt = result.StoreBaseline ? result.BaselineSnapshot.FetchedAt : cached?.FetchedAt;
             }
-
-            Sections = merged;
-            LastRefreshError = result.Failures.FirstOrDefault()?.Message ?? firstFailure;
-            IsShowingStale = merged.Any(s => s.Source == HomeSource.Cached || s.StaleReason is not null);
-            LastUpdatedAt = result.BaselineSnapshot.FetchedAt;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             // Cancelled
         }
         catch (Exception ex)
         {
-            LastRefreshError = ex.Message;
+            lock (_refreshGate)
+            {
+                if (_refreshCts != cts) return;
+
+                LastRefreshError = ex.Message;
+                Sections = cached?.Value.Sections.Select(s => s.PresentedFromCache(ex.Message)).ToList() ?? [];
+                LastUpdatedAt = cached?.FetchedAt;
+                IsShowingStale = cached is not null && Sections.Count > 0;
+            }
         }
         finally
         {
-            IsRefreshing = false;
-            Changed?.Invoke();
+            bool wasActive;
+            lock (_refreshGate)
+            {
+                wasActive = _refreshCts == cts;
+                if (wasActive)
+                {
+                    _refreshCts = null;
+                    IsRefreshing = false;
+                }
+            }
+            if (wasActive) Changed?.Invoke();
         }
     }
 
     public HomeDiscoveryInput BuildInput()
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetLocalNow();
         var hour = now.Hour;
         var band = hour switch
         {
@@ -185,7 +207,8 @@ public sealed class HomeDiscoveryService
             .Select(g => g.Key)
             .ToList();
 
-        var recent = _library.RecentlyPlayedTracks(50)
+        var recentTracks = _library.RecentlyPlayedTracks(50);
+        var recent = recentTracks
             .Where(t => !string.IsNullOrWhiteSpace(t.Artist))
             .Select(t => t.Artist.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -199,10 +222,10 @@ public sealed class HomeDiscoveryService
             .Take(5)
             .ToList();
 
-        var seedVideoIds = _library.RecentlyPlayedTracks(20)
+        var seedVideoIds = recentTracks.Take(20)
             .Where(t => !string.IsNullOrWhiteSpace(t.YouTubeId))
             .Select(t => t.YouTubeId.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Distinct(StringComparer.Ordinal)
             .Take(4)
             .ToList();
 

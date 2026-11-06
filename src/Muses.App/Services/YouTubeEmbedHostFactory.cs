@@ -5,9 +5,7 @@ using Muses.Core.YouTube;
 namespace Muses.App.Services;
 
 /// <summary>
-/// Creates an iframe client for the video overlay. Win11 hosts WebView2 Evergreen
-/// inside the overlay only — never for Home/Search/capsule audio. macOS-dev and CI
-/// get a degraded client (no live WebView).
+/// Creates an iframe client used only by the video overlay.
 /// </summary>
 public static class YouTubeEmbedHostFactory
 {
@@ -15,12 +13,14 @@ public static class YouTubeEmbedHostFactory
     {
         if (OperatingSystem.IsWindows() && WindowsWebView2YouTubeIFrameClient.TryCreate(out var win))
             return win!;
+        if (OperatingSystem.IsLinux() && LinuxWebKitYouTubeIFrameClient.TryCreate() is { } linux)
+            return linux;
 
         return new DegradedYouTubeIFrameClient(
             available: false,
-            reason: OperatingSystem.IsMacOS()
-                ? "macOS-dev: Avalonia WebView/WebView2 host not wired for this TFM"
-                : "WebView2 runtime unavailable on this platform/build");
+            reason: OperatingSystem.IsLinux()
+                ? "WebKitGTK or X11 is unavailable"
+                : "WebView2 runtime is unavailable");
     }
 }
 
@@ -57,10 +57,15 @@ public sealed class DegradedYouTubeIFrameClient : IYouTubeIFrameClient
     }
 }
 
+internal interface IHostedYouTubeIFrameClient : IYouTubeIFrameClient
+{
+    Control HostControl { get; }
+}
+
 /// <summary>
 /// Windows WebView2 iframe surface hosted exclusively in YouTubeVideoOverlay.EmbedHost.
 /// </summary>
-public sealed class WindowsWebView2YouTubeIFrameClient : IYouTubeIFrameClient
+public sealed class WindowsWebView2YouTubeIFrameClient : IHostedYouTubeIFrameClient
 {
     private readonly WebView2NativeHost _host;
     private string? _lastVideoId;

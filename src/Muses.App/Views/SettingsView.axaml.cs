@@ -1,95 +1,114 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Muses.App.ViewModels;
+using Muses.Core.L10n;
 
 namespace Muses.App.Views;
 
 public partial class SettingsView : UserControl
 {
     private ShellViewModel? _vm;
+    private string? _webHomeConsentChannel;
 
     public SettingsView()
     {
         InitializeComponent();
-        DataContextChanged += (_, _) => _vm = DataContext as ShellViewModel;
+        DataContextChanged += (_, _) => SetViewModel(DataContext as ShellViewModel);
+        AttachedToVisualTree += (_, _) => SetViewModel(DataContext as ShellViewModel);
+        DetachedFromVisualTree += (_, _) => SetViewModel(null);
     }
 
-    private void HideAllPages()
+    private void SetViewModel(ShellViewModel? vm)
     {
-        PageGeneral.IsVisible = false;
-        PagePlayback.IsVisible = false;
-        PageQuality.IsVisible = false;
-        PageAppearance.IsVisible = false;
-        PageYouTube.IsVisible = false;
-        PageLyrics.IsVisible = false;
-        PageDesktop.IsVisible = false;
-        PageAbout.IsVisible = false;
-
-        CatGeneralBtn.Classes.Remove("selected");
-        CatPlaybackBtn.Classes.Remove("selected");
-        CatQualityBtn.Classes.Remove("selected");
-        CatAppearanceBtn.Classes.Remove("selected");
-        CatYouTubeBtn.Classes.Remove("selected");
-        CatLyricsBtn.Classes.Remove("selected");
-        CatDesktopBtn.Classes.Remove("selected");
-        CatAboutBtn.Classes.Remove("selected");
+        if (ReferenceEquals(_vm, vm)) return;
+        if (_vm is not null)
+            _vm.PropertyChanged -= OnSettingsChanged;
+        _vm = vm;
+        if (_vm is not null)
+            _vm.PropertyChanged += OnSettingsChanged;
+        CloseWebHomeConsent();
     }
 
-    private void OnSelectGeneral(object? sender, RoutedEventArgs e)
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        HideAllPages();
-        PageGeneral.IsVisible = true;
-        CatGeneralBtn.Classes.Add("selected");
+        if (_vm is { SettingsOpen: true, IsSettingsYouTube: true, IsAccountSignedIn: true, WebHomeEnabled: false } vm &&
+            vm.Account?.Profile?.ChannelId == _webHomeConsentChannel)
+            return;
+        CloseWebHomeConsent();
     }
 
-    private void OnSelectPlayback(object? sender, RoutedEventArgs e)
+    private void OnReviewWebHomeConsent(object? sender, RoutedEventArgs e)
     {
-        HideAllPages();
-        PagePlayback.IsVisible = true;
-        CatPlaybackBtn.Classes.Add("selected");
+        if (_vm is not { CanSelectAccountHome: true, IsAccountSignedIn: true, WebHomeEnabled: false } vm ||
+            vm.Account?.Profile?.ChannelId is not { Length: > 0 } channel) return;
+
+        _webHomeConsentChannel = channel;
+        WebHomeConsentPanel.IsVisible = true;
+        ReviewWebHomeConsent.IsVisible = false;
+        CancelWebHomeConsent.Focus();
     }
 
-    private void OnSelectQuality(object? sender, RoutedEventArgs e)
+    private void OnCancelWebHomeConsent(object? sender, RoutedEventArgs e)
     {
-        HideAllPages();
-        PageQuality.IsVisible = true;
-        CatQualityBtn.Classes.Add("selected");
+        CloseWebHomeConsent();
+        ReviewWebHomeConsent.Focus();
     }
 
-    private void OnSelectAppearance(object? sender, RoutedEventArgs e)
+    private void OnWebHomeConsentKeyDown(object? sender, KeyEventArgs e)
     {
-        HideAllPages();
-        PageAppearance.IsVisible = true;
-        CatAppearanceBtn.Classes.Add("selected");
+        if (e.Key != Key.Escape) return;
+        e.Handled = true;
+        OnCancelWebHomeConsent(sender, e);
     }
 
-    private void OnSelectYouTube(object? sender, RoutedEventArgs e)
+    private void OnConfirmWebHomeConsent(object? sender, RoutedEventArgs e)
     {
-        HideAllPages();
-        PageYouTube.IsVisible = true;
-        CatYouTubeBtn.Classes.Add("selected");
+        if (!WebHomeConsentPanel.IsVisible ||
+            _vm is not { CanSelectAccountHome: true, IsAccountSignedIn: true, WebHomeEnabled: false } vm ||
+            vm.Account?.Profile?.ChannelId != _webHomeConsentChannel)
+            return;
+
+        CloseWebHomeConsent();
+        vm.EnableWebHomeCommand.Execute(null);
+        CheckWebHomeSession.Focus();
     }
 
-    private void OnSelectLyrics(object? sender, RoutedEventArgs e)
+    private void CloseWebHomeConsent()
     {
-        HideAllPages();
-        PageLyrics.IsVisible = true;
-        CatLyricsBtn.Classes.Add("selected");
+        if (!WebHomeConsentPanel.IsVisible) return;
+        _webHomeConsentChannel = null;
+        WebHomeConsentPanel.IsVisible = false;
+        ReviewWebHomeConsent.IsVisible = true;
     }
 
-    private void OnSelectDesktop(object? sender, RoutedEventArgs e)
+    private async void OnImportMacLibrary(object? sender, RoutedEventArgs e)
     {
-        HideAllPages();
-        PageDesktop.IsVisible = true;
-        CatDesktopBtn.Classes.Add("selected");
+        if (_vm is { } vm)
+        {
+            await vm.ImportMacLibraryAsync(SelectMacLibraryBackupAsync);
+        }
     }
 
-    private void OnSelectAbout(object? sender, RoutedEventArgs e)
+    private async Task<string?> SelectMacLibraryBackupAsync()
     {
-        HideAllPages();
-        PageAbout.IsVisible = true;
-        CatAboutBtn.Classes.Add("selected");
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { CanOpen: true } storage)
+        {
+            throw new NotSupportedException("File picker is unavailable.");
+        }
+
+        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = L10n.Tr("Choose a Muses for Mac library backup", "选择 Mac 版 Muses 曲库备份"),
+            FileTypeFilter = [new FilePickerFileType(L10n.Tr("SQLite backup", "SQLite 备份")) { Patterns = ["*.sqlite"] }]
+        });
+        if (files.Count == 0) return null;
+
+        using var file = files[0];
+        return file.TryGetLocalPath() ?? throw new IOException("The selected file has no local path.");
     }
 
     private void OnOpenMiniPlayer(object? sender, RoutedEventArgs e)

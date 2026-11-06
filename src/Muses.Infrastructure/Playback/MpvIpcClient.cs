@@ -12,6 +12,7 @@ namespace Muses.Infrastructure.Playback;
 internal sealed class MpvIpcClient : IDisposable
 {
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonDocument>> _pending = new();
+    private readonly SemaphoreSlim _writeLock = new(1);
     private int _nextRequestId;
     private Stream? _stream;
     private StreamWriter? _writer;
@@ -27,7 +28,12 @@ internal sealed class MpvIpcClient : IDisposable
         if (windowsNamedPipe)
         {
             var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
-            await pipe.ConnectAsync(5000, cancellationToken).ConfigureAwait(false);
+            try { await pipe.ConnectAsync(5000, cancellationToken).ConfigureAwait(false); }
+            catch
+            {
+                pipe.Dispose();
+                throw;
+            }
             _stream = pipe;
         }
         else
@@ -43,7 +49,12 @@ internal sealed class MpvIpcClient : IDisposable
                 throw new IOException($"mpv IPC socket was not created: {endpoint}");
 
             var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint), cancellationToken).ConfigureAwait(false);
+            try { await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint), cancellationToken).ConfigureAwait(false); }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
             _stream = new NetworkStream(socket, ownsSocket: true);
         }
 
@@ -73,7 +84,9 @@ internal sealed class MpvIpcClient : IDisposable
 
         try
         {
-            await _writer.WriteLineAsync(payload.AsMemory(), cancellationToken).ConfigureAwait(false);
+            await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try { await _writer.WriteLineAsync(payload.AsMemory(), cancellationToken).ConfigureAwait(false); }
+            finally { _writeLock.Release(); }
         }
         catch
         {
@@ -86,7 +99,7 @@ internal sealed class MpvIpcClient : IDisposable
         {
             using var doc = await tcs.Task.ConfigureAwait(false);
             if (!doc.RootElement.TryGetProperty("error", out var err) || err.GetString() != "success")
-                return null;
+                throw new IOException("mpv rejected the " + command[0] + " command.");
             return doc.RootElement.TryGetProperty("data", out var data) ? data.Clone() : null;
         }
         finally
@@ -118,9 +131,7 @@ internal sealed class MpvIpcClient : IDisposable
                 if (root.TryGetProperty("request_id", out var rid) && rid.ValueKind == JsonValueKind.Number)
                 {
                     var id = rid.GetInt32();
-                    if (_pending.TryRemove(id, out var tcs))
-                        tcs.TrySetResult(doc);
-                    else
+                    if (!_pending.TryRemove(id, out var tcs) || !tcs.TrySetResult(doc))
                         doc.Dispose();
                     continue;
                 }
@@ -143,7 +154,7 @@ internal sealed class MpvIpcClient : IDisposable
             foreach (var kv in _pending)
             {
                 if (_pending.TryRemove(kv.Key, out var tcs))
-                    tcs.TrySetCanceled();
+                    tcs.TrySetException(new IOException("mpv IPC disconnected."));
             }
             try { Disconnected?.Invoke(); } catch { /* ignore */ }
         }

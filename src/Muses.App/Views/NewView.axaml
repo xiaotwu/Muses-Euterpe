@@ -66,9 +66,16 @@
       <StackPanel Spacing="6">
         <TextBlock Text="{Binding DiscoverLabel}"
                    FontSize="34" FontWeight="Heavy"
-                   Foreground="{StaticResource MusesTextPrimaryBrush}" />
+                   Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <TextBlock Text="{Binding DiscoverSubtitle}"
                    FontSize="13" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+      </StackPanel>
+
+      <StackPanel x:Name="EmptyDiscovery" Spacing="10" IsVisible="False">
+        <TextBlock x:Name="EmptyDiscoveryText" TextWrapping="Wrap"
+                   Foreground="{DynamicResource MusesTextSecondaryBrush}" />
+        <Button HorizontalAlignment="Left" Content="{Binding SearchLabel}"
+                Command="{Binding OpenSearchWindowCommand}" />
       </StackPanel>
 
       <!-- Editorial Landscape Cards -->

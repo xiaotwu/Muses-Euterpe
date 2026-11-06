@@ -25,15 +25,15 @@ public sealed class QueueService
     public List<QueueGroup> Groups { get; } = [];
     public bool ReplacementLocked { get; set; }
 
-    private List<QueueItem> _originalOrder = [];
+    private List<Guid> _originalOrder = [];
+    private QueueItem? _insertedCurrent;
 
-    public QueueItem? Current()
-    {
-        if (CurrentIndex < 0 || CurrentIndex >= Items.Count) return null;
-        return Items[CurrentIndex];
-    }
+    public QueueItem? Current() => _insertedCurrent ?? CollectionCurrent();
 
-    public void Play(TrackSnapshot track, IReadOnlyList<TrackSnapshot> context, QueueSource from)
+    private QueueItem? CollectionCurrent() =>
+        CurrentIndex >= 0 && CurrentIndex < Items.Count ? Items[CurrentIndex] : null;
+
+    public void Play(TrackSnapshot track, IReadOnlyList<TrackSnapshot> context, QueueSource from, int? selectedIndex = null)
     {
         if (ReplacementLocked)
         {
@@ -41,6 +41,7 @@ public sealed class QueueService
             if (existing >= 0)
             {
                 CurrentIndex = existing;
+                _insertedCurrent = null;
                 Persist();
                 return;
             }
@@ -48,16 +49,41 @@ public sealed class QueueService
             return;
         }
 
+        _insertedCurrent = null;
         Items.Clear();
         foreach (var t in context)
         {
             Items.Add(new QueueItem { Track = t, FromContext = from });
         }
-        _originalOrder = [.. Items];
-        CurrentIndex = context.ToList().FindIndex(t => t.Id == track.Id);
+        _originalOrder = Items.Select(item => item.Id).ToList();
+        CurrentIndex = selectedIndex is { } index && index >= 0 && index < context.Count && context[index].Id == track.Id
+            ? index : Items.FindIndex(item => item.Track.Id == track.Id);
         if (CurrentIndex < 0) CurrentIndex = 0;
         UpNext.Clear();
         Persist();
+    }
+
+    /// <summary>Selects a queue occurrence while keeping the collection and other manual insertions.</summary>
+    public QueueItem? ActivateItem(Guid id)
+    {
+        if (Current() is { } current && current.Id == id) return current;
+
+        var collectionIndex = Items.FindIndex(item => item.Id == id);
+        if (collectionIndex >= 0)
+        {
+            CurrentIndex = collectionIndex;
+            _insertedCurrent = null;
+        }
+        else
+        {
+            var upNextIndex = UpNext.FindIndex(item => item.Id == id);
+            if (upNextIndex < 0) return null;
+            _insertedCurrent = UpNext[upNextIndex];
+            UpNext.RemoveAt(upNextIndex);
+        }
+
+        Persist();
+        return Current();
     }
 
     public void PlayNext(TrackSnapshot track)
@@ -84,21 +110,25 @@ public sealed class QueueService
         SortUpNextByPriority();
         if (UpNext.Count > 0)
         {
-            var popped = UpNext[0];
+            _insertedCurrent = UpNext[0];
             UpNext.RemoveAt(0);
             Persist();
-            return popped;
+            return _insertedCurrent;
         }
 
+        if (RepeatMode == RepeatMode.One)
+        {
+            Persist();
+            return Current();
+        }
         if (Items.Count == 0) return null;
         switch (RepeatMode)
         {
-            case RepeatMode.One:
-                return Current();
             case RepeatMode.All:
                 if (CurrentIndex >= Items.Count)
                 {
                     CurrentIndex = 0;
+                    _insertedCurrent = null;
                     Persist();
                     return Current();
                 }
@@ -106,16 +136,19 @@ public sealed class QueueService
                 if (allNext < Items.Count)
                 {
                     CurrentIndex = allNext;
+                    _insertedCurrent = null;
                     Persist();
                     return Current();
                 }
                 CurrentIndex = allNext;
+                _insertedCurrent = null;
                 Persist();
                 return null;
             default:
                 var next = CurrentIndex + 1;
                 if (next >= Items.Count) return null;
                 CurrentIndex = next;
+                _insertedCurrent = null;
                 Persist();
                 return Current();
         }
@@ -127,10 +160,27 @@ public sealed class QueueService
         {
             var h = History[0];
             History.RemoveAt(0);
+            if (_insertedCurrent is { } inserted && inserted.Id != h.Id)
+                UpNext.Insert(0, inserted);
             var idx = Items.FindIndex(i => i.Id == h.Id);
-            if (idx >= 0) CurrentIndex = idx;
+            if (idx >= 0)
+            {
+                CurrentIndex = idx;
+                _insertedCurrent = null;
+            }
+            else
+            {
+                _insertedCurrent = h;
+            }
             Persist();
             return h;
+        }
+        if (_insertedCurrent is { } currentInsertion && CollectionCurrent() is { } anchor)
+        {
+            UpNext.Insert(0, currentInsertion);
+            _insertedCurrent = null;
+            Persist();
+            return anchor;
         }
         if (CurrentIndex <= 0) return Current();
         CurrentIndex--;
@@ -149,8 +199,8 @@ public sealed class QueueService
         Shuffle = !Shuffle;
         if (Shuffle)
         {
-            _originalOrder = [.. Items];
-            var cur = Current();
+            _originalOrder = Items.Select(item => item.Id).ToList();
+            var cur = CollectionCurrent();
             ShuffleUnlockedItems();
             if (cur is not null)
             {
@@ -160,9 +210,10 @@ public sealed class QueueService
         }
         else
         {
-            var cur = Current();
-            Items.Clear();
-            Items.AddRange(_originalOrder);
+            var cur = CollectionCurrent();
+            var positions = _originalOrder.Select((id, index) => (id, index))
+                .ToDictionary(entry => entry.id, entry => entry.index);
+            Replace(Items, Items.OrderBy(item => positions.GetValueOrDefault(item.Id, int.MaxValue)).ToList());
             if (cur is not null)
             {
                 var idx = Items.FindIndex(i => i.Id == cur.Id);
@@ -186,7 +237,7 @@ public sealed class QueueService
     public void Move(int from, int to)
     {
         if (from < 0 || from >= Items.Count) return;
-        var curId = Current()?.Id;
+        var curId = CollectionCurrent()?.Id;
         MoveList(Items, from, to);
         if (curId is { } id)
         {
@@ -217,6 +268,8 @@ public sealed class QueueService
             CurrentTrackId = CurrentTrackId,
             LastPositionMs = LastPositionMs,
             GroupsJson = JsonSerializer.Serialize(Groups, Json),
+            InsertedCurrentJson = _insertedCurrent is { } inserted ? JsonSerializer.Serialize(inserted, Json) : null,
+            OriginalOrderJson = JsonSerializer.Serialize(_originalOrder, Json),
             SavedAt = DateTimeOffset.UtcNow
         });
     }
@@ -224,6 +277,7 @@ public sealed class QueueService
     public void Restore()
     {
         if (Store?.Load() is not { } row) return;
+        _insertedCurrent = Deserialize<QueueItem>(row.InsertedCurrentJson);
         Replace(Items, Deserialize<List<QueueItem>>(row.ItemsJson) ?? []);
         Replace(UpNext, Deserialize<List<QueueItem>>(row.UpNextJson) ?? []);
         Replace(History, Deserialize<List<QueueItem>>(row.HistoryJson) ?? []);
@@ -234,7 +288,8 @@ public sealed class QueueService
         Shuffle = row.Shuffle;
         CurrentTrackId = row.CurrentTrackId;
         LastPositionMs = row.LastPositionMs;
-        _originalOrder = [.. Items];
+        _originalOrder = Deserialize<List<Guid>>(row.OriginalOrderJson)?.Distinct().ToList()
+            ?? Items.Select(item => item.Id).ToList();
     }
 
     public void CheckpointPosition(Guid? currentTrackId, double? lastPositionMs)
@@ -270,10 +325,6 @@ public sealed class QueueService
     public void ClearUpNext()
     {
         UpNext.Clear();
-        if (CurrentIndex >= 0 && CurrentIndex < Items.Count - 1)
-        {
-            Items.RemoveRange(CurrentIndex + 1, Items.Count - (CurrentIndex + 1));
-        }
         Persist();
     }
 
@@ -312,8 +363,9 @@ public sealed class QueueService
         target.AddRange(source);
     }
 
-    private static T? Deserialize<T>(string json)
+    private static T? Deserialize<T>(string? json)
     {
+        if (json is null) return default;
         try { return JsonSerializer.Deserialize<T>(json, Json); }
         catch { return default; }
     }

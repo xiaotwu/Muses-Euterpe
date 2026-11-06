@@ -6,7 +6,6 @@ using Avalonia.Media;
 using Muses.Core.Domain;
 using Muses.Core.L10n;
 using Muses.Core.Library;
-using Muses.Core.Playback;
 using Muses.App.Theme;
 
 namespace Muses.App.Controls.Collection;
@@ -50,12 +49,10 @@ public partial class CollectionTrackTable : UserControl
     }
 
     public LibraryService? Library { get; set; }
-    public PlaybackService? Playback { get; set; }
-    public PlaylistService? PlaylistService { get; set; }
+    public Func<CollectionTrackRow, ContextMenu>? TrackMenu { get; set; }
 
     public event Action<CollectionTrackRow>? TrackActivated;
     public event Action? CollapseRequested;
-    public event Action<CollectionTrackRow>? RemoveRequested;
 
     private CollectionColumn? _sortColumn;
     private bool _sortAscending = true;
@@ -244,7 +241,7 @@ public partial class CollectionTrackTable : UserControl
         heartBtn.Click += (s, e) =>
         {
             e.Handled = true;
-            Library?.ToggleLike(row.Id);
+            Library?.ToggleLike(row.Snapshot.Id);
             // Toggle local visual state
             isLiked = !isLiked;
             if (heartBtn.Content is PathIcon p)
@@ -325,15 +322,7 @@ public partial class CollectionTrackTable : UserControl
             if (e.GetCurrentPoint(border).Properties.IsRightButtonPressed)
             {
                 e.Handled = true;
-                var menu = TrackContextMenu.Create(
-                    row.Snapshot,
-                    Playback,
-                    Library,
-                    PlaylistService,
-                    null,
-                    onPlay: () => TrackActivated?.Invoke(row),
-                    onRemoveFromContainer: RemoveRequested != null ? () => RemoveRequested(row) : null);
-                menu.Open(border);
+                TrackMenu?.Invoke(row).Open(border);
                 return;
             }
 

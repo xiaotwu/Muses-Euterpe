@@ -1,60 +1,72 @@
-using System.Diagnostics;
-using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace Muses.WebHome;
 
-/// <summary>
-/// Resolves a YouTube channel id from an ephemeral cookie jar inside the helper.
-/// Uses yt-dlp against the signed-in Liked Videos playlist (LL) — the user's own
-/// cookies after opt-in, never a scrape in the Avalonia process.
-/// </summary>
-public static class WebHomeIdentity
+internal static class WebHomeIdentity
 {
-    private static readonly Regex ChannelId = new(@"UC[\w-]{10,}", RegexOptions.Compiled);
-
-    public static async Task<string?> TryResolveChannelAsync(
-        string ytdlpPath,
-        string cookieFile,
-        CancellationToken cancellationToken = default)
+    public static string? ActiveChannel(JsonElement response)
     {
-        if (string.IsNullOrWhiteSpace(ytdlpPath) || !File.Exists(ytdlpPath)) return null;
-        if (string.IsNullOrWhiteSpace(cookieFile) || !File.Exists(cookieFile)) return null;
+        var channels = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in response.Descendants())
+        {
+            AddExplicitChannels(node.Get("activeAccountHeaderRenderer"), channels);
+            var account = node.Get("accountItemRenderer");
+            if (account.Get("isSelected").ValueKind == JsonValueKind.True)
+                AddExplicitChannels(account, channels);
 
-        var psi = new ProcessStartInfo
-        {
-            FileName = ytdlpPath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
-        foreach (var a in new[]
-                 {
-                     "--ignore-config", "--quiet", "--no-warnings",
-                     "--cookies", cookieFile,
-                     "--flat-playlist", "--playlist-end", "1",
-                     "--print", "%(channel_id,uploader_id,id)s",
-                     "--", "https://www.youtube.com/playlist?list=LL"
-                 })
-            psi.ArgumentList.Add(a);
+            var menu = node.Get("multiPageMenuRenderer");
+            if (menu.Get("header").Get("activeAccountHeaderRenderer").ValueKind != JsonValueKind.Object)
+                continue;
+            foreach (var section in menu.Get("sections").Items())
+            foreach (var item in section.Get("multiPageMenuSectionRenderer").Get("items").Items())
+                AddChannel(item.Get("compactLinkRenderer").Get("navigationEndpoint").Get("browseEndpoint")
+                    .Get("browseId").String(), channels);
+        }
 
-        using var proc = Process.Start(psi);
-        if (proc is null) return null;
-        try
-        {
-            var stdout = await proc.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-            await proc.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            var m = ChannelId.Match(stdout ?? "");
-            return m.Success ? m.Value : null;
-        }
-        catch (OperationCanceledException)
-        {
-            try { proc.Kill(entireProcessTree: true); } catch { /* ignore */ }
-            throw;
-        }
-        catch
-        {
-            return null;
-        }
+        if (channels.Count > 1)
+            throw new WebHomeFailure("accountMismatch");
+        return channels.SingleOrDefault();
     }
+
+    public static string SelectedHandle(JsonElement response)
+    {
+        var selected = response.Descendants()
+            .Select(node => node.Get("accountItem"))
+            .Where(account => account.Get("isSelected").ValueKind == JsonValueKind.True)
+            .Take(2).ToArray();
+        var handle = selected.Length == 1 ? selected[0].Get("channelHandle").Text() : null;
+        if (handle is null || !handle.StartsWith('@') || handle.Length is < 2 or > 100
+            || handle.Skip(1).Any(c => !char.IsLetterOrDigit(c) && c is not '.' and not '_' and not '-' and not '·'))
+            throw new WebHomeFailure("identityUnavailable");
+        return handle;
+    }
+
+    public static string ResolvedChannel(JsonElement response)
+    {
+        var id = response.Get("endpoint").Get("browseEndpoint").Get("browseId").String();
+        if (!IsChannelId(id))
+            throw new WebHomeFailure("identityUnavailable");
+        return id!;
+    }
+
+    private static void AddExplicitChannels(JsonElement node, HashSet<string> channels)
+    {
+        if (node.ValueKind != JsonValueKind.Object)
+            return;
+
+        foreach (var key in new[] { "channelId", "channelID", "browseId" })
+            AddChannel(node.Get(key).String(), channels);
+        AddChannel(node.Get("browseEndpoint").Get("browseId").String(), channels);
+        foreach (var key in new[] { "endpoint", "serviceEndpoint", "navigationEndpoint" })
+            AddExplicitChannels(node.Get(key), channels);
+    }
+
+    private static void AddChannel(string? id, HashSet<string> channels)
+    {
+        if (IsChannelId(id))
+            channels.Add(id!);
+    }
+
+    private static bool IsChannelId(string? id) =>
+        id?.StartsWith("UC", StringComparison.Ordinal) == true && WebHomeJson.IsId(id, 20, 32);
 }

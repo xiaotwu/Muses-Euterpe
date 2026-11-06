@@ -44,7 +44,9 @@ public sealed class YouTubeDiscoveryCard
         Duration = duration;
         ThumbnailUrl = thumbnailUrl;
         BrowseEndpoint = browseEndpoint;
-        PlayEndpoint = playEndpoint ?? new HomeCardEndpoint(HomeCardEndpointKind.Video, id);
+        PlayEndpoint = playEndpoint ?? (browseEndpoint is null
+            ? new HomeCardEndpoint(HomeCardEndpointKind.Video, id)
+            : null);
         Availability = availability;
     }
 
@@ -53,9 +55,7 @@ public sealed class YouTubeDiscoveryCard
         get
         {
             if (Availability != HomeCardAvailability.Available) return null;
-            if (PlayEndpoint is { Kind: HomeCardEndpointKind.Video } play)
-                return play.Identifier;
-            return BrowseEndpoint is null ? Id : null;
+            return PlayEndpoint is { Kind: HomeCardEndpointKind.Video } play ? play.Identifier : null;
         }
     }
 }

@@ -17,6 +17,13 @@
     <ProjectReference Include="..\..\src\Muses.Persistence\Muses.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Muses.Infrastructure\Muses.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Muses.Platform.Windows\Muses.Platform.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Muses.Platform.Linux\Muses.Platform.Linux.csproj" />
     <ProjectReference Include="..\..\src\Muses.WebHome\Muses.WebHome.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\src\Muses.App\Package.appxmanifest"
+          Link="Packaging\Package.appxmanifest" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\Muses.App\Assets\Packaging\*.png"
+          Link="Packaging\Assets\Packaging\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -35,10 +35,14 @@ public sealed class TrackEntity
     public DateTimeOffset? LastPlayedAt { get; set; }
     public int PlayCount { get; set; }
     public bool Liked { get; set; }
+    public bool LibraryMember { get; set; } = true;
 
     public TrackSnapshot ToSnapshot() => new(
         Id, Title, Artist, AlbumTitle, DurationMs / 1000.0, YouTubeId, ArtworkUrl,
-        SampleRate, BitDepth, Codec, IsLossless, Liked, Lyrics, ReplayGain, BitRate, Channels, LyricsOffsetMs);
+        SampleRate, BitDepth, Codec, IsLossless, Liked, Lyrics, ReplayGain, BitRate, Channels, LyricsOffsetMs)
+    {
+        MediaKind = TrackMediaKindCodec.Parse(MediaKindRaw)
+    };
 
     public static TrackEntity FromSnapshot(TrackSnapshot snap) => new()
     {
@@ -48,6 +52,7 @@ public sealed class TrackEntity
         AlbumTitle = snap.AlbumTitle,
         DurationMs = (int)Math.Round(snap.DurationSeconds * 1000),
         YouTubeId = snap.YouTubeId,
+        MediaKindRaw = TrackMediaKindCodec.Wire(snap.MediaKind),
         ArtworkUrl = snap.ArtworkUrl,
         SampleRate = snap.SampleRate,
         BitDepth = snap.BitDepth,
@@ -76,18 +81,22 @@ public sealed class LibraryService
 {
     private readonly ITrackRepository _tracks;
     public int PlayRevision { get; private set; }
+    public event Action? Changed;
 
     public LibraryService(ITrackRepository tracks) => _tracks = tracks;
 
-    public IReadOnlyList<TrackEntity> AllTracks() => _tracks.All();
+    public void NotifyLibraryChanged() => Changed?.Invoke();
+
+    public IReadOnlyList<TrackEntity> AllTracks() => _tracks.All().Where(t => t.LibraryMember).ToList();
 
     public IReadOnlyList<TrackEntity> LikedTracks() => _tracks.All().Where(t => t.Liked).ToList();
 
     public IReadOnlyList<TrackEntity> SearchTracks(string query)
     {
-        if (string.IsNullOrWhiteSpace(query)) return _tracks.All();
+        var tracks = AllTracks();
+        if (string.IsNullOrWhiteSpace(query)) return tracks;
         var q = query.Trim();
-        return _tracks.All().Where(t =>
+        return tracks.Where(t =>
             t.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
             t.Artist.Contains(q, StringComparison.OrdinalIgnoreCase) ||
             (t.AlbumTitle is not null && t.AlbumTitle.Contains(q, StringComparison.OrdinalIgnoreCase))).ToList();
@@ -97,18 +106,48 @@ public sealed class LibraryService
 
     public TrackEntity? Track(Guid id) => _tracks.Get(id);
     public TrackEntity? Get(Guid id) => _tracks.Get(id);
-    public void ToggleLike(Guid id) => _tracks.ToggleLike(id);
-
-    public TrackSnapshot UpsertFromYouTube(string videoId, string title, string artist, double durationSeconds, string? artworkUrl)
+    public void ToggleLike(Guid id)
     {
+        _tracks.ToggleLike(id);
+        Changed?.Invoke();
+    }
+
+    /// <summary>Resolves a persistent playback identity. Only explicit saves add it to the library.</summary>
+    public TrackSnapshot UpsertFromYouTube(
+        string videoId, string title, string artist, double durationSeconds, string? artworkUrl,
+        bool saveToLibrary = false, string? albumTitle = null, TrackMediaKind? mediaKind = null)
+    {
+        var durationMs = durationSeconds is > 0 and <= int.MaxValue / 1000d
+            ? (int)Math.Round(durationSeconds * 1000)
+            : 0;
+        var mediaKindRaw = mediaKind is { } kind ? TrackMediaKindCodec.Wire(kind) : null;
         var existing = _tracks.GetByYouTubeId(videoId);
         if (existing is not null)
         {
-            existing.Title = title;
-            existing.Artist = artist;
-            if (durationSeconds > 0) existing.DurationMs = (int)Math.Round(durationSeconds * 1000);
-            existing.ArtworkUrl = artworkUrl ?? existing.ArtworkUrl;
-            _tracks.Upsert(existing);
+            var enrichedTitle = string.IsNullOrWhiteSpace(existing.Title) || existing.Title == videoId
+                ? title : existing.Title;
+            var enrichedArtist = string.IsNullOrWhiteSpace(existing.Artist) ? artist : existing.Artist;
+            var enrichedDuration = existing.DurationMs > 0 ? existing.DurationMs : durationMs;
+            var enrichedArtwork = existing.ArtworkUrl ?? artworkUrl;
+            var enrichedAlbum = string.IsNullOrWhiteSpace(existing.AlbumTitle) ? albumTitle ?? existing.AlbumTitle : existing.AlbumTitle;
+            var enrichedKind = mediaKindRaw ?? existing.MediaKindRaw;
+            var isMember = existing.LibraryMember || saveToLibrary;
+            if (enrichedTitle != existing.Title || enrichedArtist != existing.Artist ||
+                enrichedDuration != existing.DurationMs || enrichedArtwork != existing.ArtworkUrl ||
+                enrichedAlbum != existing.AlbumTitle || enrichedKind != existing.MediaKindRaw ||
+                isMember != existing.LibraryMember)
+            {
+                var addedToLibrary = isMember && !existing.LibraryMember;
+                existing.Title = enrichedTitle;
+                existing.Artist = enrichedArtist;
+                existing.DurationMs = enrichedDuration;
+                existing.ArtworkUrl = enrichedArtwork;
+                existing.AlbumTitle = enrichedAlbum;
+                existing.MediaKindRaw = enrichedKind;
+                existing.LibraryMember = isMember;
+                _tracks.Upsert(existing);
+                if (addedToLibrary) Changed?.Invoke();
+            }
             return existing.ToSnapshot();
         }
 
@@ -116,18 +155,27 @@ public sealed class LibraryService
         {
             Title = title,
             Artist = artist,
-            DurationMs = (int)Math.Round(durationSeconds * 1000),
+            DurationMs = durationMs,
             YouTubeId = videoId,
-            ArtworkUrl = artworkUrl
+            MediaKindRaw = mediaKindRaw,
+            ArtworkUrl = artworkUrl,
+            AlbumTitle = albumTitle,
+            LibraryMember = saveToLibrary
         };
         _tracks.Upsert(entity);
+        if (saveToLibrary) Changed?.Invoke();
         return entity.ToSnapshot();
     }
+
+    public TrackSnapshot Save(TrackSnapshot track) => UpsertFromYouTube(
+        track.YouTubeId, track.Title, track.Artist, track.DurationSeconds, track.ArtworkUrl,
+        saveToLibrary: true, albumTitle: track.AlbumTitle, mediaKind: track.MediaKind);
 
     public void RecordPlay(Guid trackId)
     {
         _tracks.RecordPlay(trackId);
         PlayRevision++;
+        Changed?.Invoke();
     }
 
     public IReadOnlyList<TrackEntity> RecentlyPlayedTracks(int limit)

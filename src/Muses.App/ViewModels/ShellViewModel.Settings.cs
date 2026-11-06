@@ -1,8 +1,11 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Muses.Core.L10n;
 using Muses.Core.Preferences;
 using Muses.Infrastructure;
 using Muses.Infrastructure.Playback;
+using Muses.Infrastructure.Update;
+using Muses.Persistence;
 
 namespace Muses.App.ViewModels;
 
@@ -96,6 +99,8 @@ public partial class ShellViewModel
                 sys.Preference = value;
             OnPropertyChanged(nameof(LanguagePreference));
             NotifyL10nLabels();
+            OnPropertyChanged(nameof(SaveTrackLabel));
+            RefreshPlayback();
         }
     }
 
@@ -121,7 +126,7 @@ public partial class ShellViewModel
 
     public string ThemePreference
     {
-        get => Preferences.GetString(PrefKey.Theme, "dark");
+        get => Preferences.GetString(PrefKey.Theme, "system");
         set
         {
             if (ThemePreference == value) return;
@@ -172,34 +177,111 @@ public partial class ShellViewModel
         : L10n.Tr($"{CrossfadeSeconds:0.#} s overlap", $"{CrossfadeSeconds:0.#} 秒重叠");
 
     public bool IsWebHomeAvailable => WebHome?.Status == Muses.Core.Advanced.WebHomeSessionStatus.Available;
-    public string WebHomeVerifiedLabel => L10n.Tr(
-        "Web Home session matches this account. Personalized Home stays off until a lawful feed is wired.",
-        "Web Home 会话与此账号匹配。在接入合法信息流之前，个性化首页不会开启。");
+    public string HomeMusesSourceLabel => L10n.Tr("Muses recommendations", "Muses 推荐", "Muses 推薦");
+    public string HomeYouTubeSourceLabel => L10n.Tr("Your YouTube Music account", "你的 YouTube Music 账号", "你的 YouTube Music 帳號");
+    public string HomeAccountSettingsLabel => L10n.Tr("Account Settings", "账号设置", "帳號設定");
+    public string HomeAccountLoadingLabel => L10n.Tr("Loading account recommendations…", "正在加载账号推荐…", "正在載入帳號推薦…");
 
     public string SettingsThemeLightLabel => L10n.Tr("Light", "浅色");
     public string SettingsCrossfadeLabel => L10n.Tr("Crossfade", "交叉淡化");
     public string SettingsCrossfadeBody => L10n.Tr(
         "Overlaps the current and next mpv session. 0 is off. YouTube URLs are not gapless; mpv uses weak gapless when consecutive codecs match.",
         "重叠当前与下一首 mpv 会话。0 为关闭。YouTube 流无法无缝；编码相同时 mpv 使用弱无缝。");
+    public string SettingsImportMacLibraryLabel => L10n.Tr("Import Mac Library", "导入 Mac 曲库");
+    public string SettingsImportMacLibraryBody => L10n.Tr(
+        "Merge songs and playlists from a Muses for Mac SQLite backup (.sqlite). Quit Muses on your Mac before copying ~/.muses/data/muses-youtube-native.sqlite.",
+        "将 Mac 版 Muses 的 SQLite 备份（.sqlite）中的歌曲和歌单合并到本机曲库。复制 ~/.muses/data/muses-youtube-native.sqlite 前，请先退出 Mac 上的 Muses。");
+    public string SettingsChooseMacBackupLabel => L10n.Tr("Choose Backup…", "选择备份…");
     public string SettingsClearCacheLabel => L10n.Tr("Clear Cache", "清除缓存");
     public string SettingsClearCacheBody => L10n.Tr(
-        "Deletes artwork and Home feed caches. Playlists and history stay.",
-        "删除封面与首页缓存。歌单与历史保留。");
+        "Clears cached artwork, Home content, and media resolver files. Playlists and history stay.",
+        "清除封面、首页内容和媒体解析器缓存。歌单与历史保留。");
     public string SettingsResetDataLabel => L10n.Tr("Reset Data", "重置数据");
     public string SettingsResetDataBody => L10n.Tr(
-        "Deletes the local library database and caches, signs out, then quits Muses. Tokens are removed from Credential Manager. This cannot be undone.",
-        "删除本地曲库数据库与缓存，退出登录并关闭 Muses。凭证从凭据管理器删除。此操作不可撤销。");
+        "Deletes the local library database and caches, removes account credentials, and quits Muses. This cannot be undone.",
+        "删除本地曲库数据库、缓存和账号凭据，然后关闭 Muses。此操作不可撤销。");
     public string SettingsResetDataConfirmLabel => ResetDataArmed
         ? L10n.Tr("Click again to erase and quit", "再点一次将清除并退出")
         : L10n.Tr("Reset Data…", "重置数据…");
     public string SettingsCacheStatus { get; private set; } = "";
     public bool ResetOnExit { get; private set; }
     public bool ResetDataArmed { get; private set; }
+    internal PolyhymniaLibraryImporter? PolyhymniaLibraryImporter { get; init; }
+    internal int MacLibraryImportRevision { get; private set; }
+    public bool CanImportMacLibrary => PolyhymniaLibraryImporter is not null && !IsMacLibraryImportBusy;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanImportMacLibrary))]
+    private bool _isMacLibraryImportBusy;
+
+    [ObservableProperty] private string _macLibraryImportStatus = "";
+
+    internal async Task ImportMacLibraryAsync(Func<Task<string?>> selectBackup)
+    {
+        if (PolyhymniaLibraryImporter is not { } importer || IsMacLibraryImportBusy) return;
+
+        IsMacLibraryImportBusy = true;
+        PolyhymniaImportResult result;
+        try
+        {
+            var path = await selectBackup();
+            if (path is null) return;
+
+            MacLibraryImportStatus = L10n.Tr("Importing Mac library…", "正在导入 Mac 曲库…");
+            result = await importer.ImportAsync(path);
+        }
+        catch (InvalidDataException)
+        {
+            MacLibraryImportStatus = L10n.Tr(
+                "This file could not be read as a standalone Muses for Mac library backup. Choose a complete .sqlite backup and try again.",
+                "无法将此文件作为独立的 Mac 版 Muses 曲库备份读取。请选择完整的 .sqlite 备份后重试。");
+            return;
+        }
+        catch (NotSupportedException)
+        {
+            MacLibraryImportStatus = L10n.Tr("The file picker is unavailable.", "文件选择器不可用。");
+            return;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.ExternalException)
+        {
+            MacLibraryImportStatus = L10n.Tr(
+                "The import could not be completed. Check access to the backup and this library, then try again.",
+                "无法完成导入。请检查备份和本机曲库的访问权限后重试。");
+            return;
+        }
+        finally
+        {
+            IsMacLibraryImportBusy = false;
+        }
+
+        var tracksChanged = result.TracksAdded > 0 || result.TracksUpdated > 0;
+        var playlistsChanged = result.PlaylistsAdded > 0 || result.PlaylistEntriesAdded > 0;
+        MacLibraryImportStatus = tracksChanged || playlistsChanged
+            ? string.Format(L10n.Tr(
+                "Import complete. Tracks added ({0:N0}) · Tracks updated ({1:N0}) · Playlists added ({2:N0}) · Playlist entries added ({3:N0})",
+                "导入完成。新增歌曲（{0:N0}）· 更新歌曲（{1:N0}）· 新增歌单（{2:N0}）· 新增歌单条目（{3:N0}）"),
+                result.TracksAdded, result.TracksUpdated, result.PlaylistsAdded, result.PlaylistEntriesAdded)
+            : L10n.Tr("Import complete. There was no new library data in this backup.", "导入完成。此备份没有新增曲库数据。");
+
+        if (tracksChanged)
+        {
+            Library?.NotifyLibraryChanged();
+            RefreshPlayback();
+            MacLibraryImportRevision++;
+            OnPropertyChanged(nameof(MacLibraryImportRevision));
+        }
+        if (playlistsChanged)
+        {
+            RefreshSidebar();
+            PlaylistsChanged?.Invoke();
+        }
+    }
 
     [RelayCommand]
-    public void ClearCache()
+    public async Task ClearCacheAsync()
     {
-        var n = LocalDataMaintenance.ClearCache();
+        HomeDiscovery?.Clear();
+        var n = await Task.Run(LocalDataMaintenance.ClearCache);
         SettingsCacheStatus = L10n.Tr($"Cleared {n} cached files.", $"已清除 {n} 个缓存文件。");
         OnPropertyChanged(nameof(SettingsCacheStatus));
     }
@@ -207,6 +289,8 @@ public partial class ShellViewModel
     [RelayCommand]
     public void ResetData()
     {
+        if (IsMacLibraryImportBusy) return;
+
         if (!ResetDataArmed)
         {
             ResetDataArmed = true;
@@ -284,8 +368,9 @@ public partial class ShellViewModel
     public string SettingsYouTubeTitle => L10n.Tr("YouTube Account", "YouTube 账号");
     public string SettingsGoogleSignInLabel => L10n.Tr("Google Account Sign-In", "Google 账号登录");
     public string SettingsGoogleSignInBody => L10n.Tr(
-        "Sign in to personalize Home and sync your liked tracks and playlists.",
-        "登录后即可个性化首页并同步喜欢的歌曲与歌单。");
+        "Connect your YouTube account to access account features. Personalized Home requires separate browser consent.",
+        "连接 YouTube 账号以使用账号功能。个性化首页需要单独授权访问浏览器。",
+        "連接 YouTube 帳號以使用帳號功能。個人化首頁需要另行授權存取瀏覽器。");
     public string SettingsAudioQualityTitle => L10n.Tr("Audio Quality", "音频质量");
     public string SettingsPreferredStreamLabel => L10n.Tr("Preferred Stream Quality", "首选流质量");
     public string SettingsAppearanceTitle => L10n.Tr("Appearance", "外观");
@@ -310,10 +395,18 @@ public partial class ShellViewModel
     public string SettingsGlobalHotkeysBody => L10n.Tr(
         "When on, Ctrl+P / Ctrl+Left / Ctrl+Right register system-wide (they steal those chords from other apps). In-window chords always work while Muses is focused, even if this is off.",
         "开启后 Ctrl+P / Ctrl+Left / Ctrl+Right 会全局注册（会占用其他应用的这些快捷键）。即使关闭，Muses 聚焦时窗口内快捷键始终可用。");
-    public string SettingsWebHomeTitle => L10n.Tr("Web Home (opt-in)", "Web Home（需同意）");
+    public string SettingsWebHomeTitle => L10n.Tr("Personalized Home", "个性化首页", "個人化首頁");
     public string SettingsWebHomeBody => L10n.Tr(
-        "Uses an isolated helper process with an ephemeral cookie jar deleted on exit. Off by default; requires consent. No scraping runs in the Muses UI process.",
-        "使用隔离的辅助进程与退出即删的临时 Cookie。默认关闭，需同意。Muses UI 进程内不进行抓取。");
+        "Choose your YouTube Music account as the Home source to see account recommendations. Muses recommendations use your local library.",
+        "选择你的 YouTube Music 账号作为首页来源，即可查看账号推荐。Muses 推荐来自本地资料库。",
+        "選擇你的 YouTube Music 帳號作為首頁來源，即可查看帳號推薦。Muses 推薦來自本機資料庫。");
+    public string SettingsWebHomeConsentTitle => L10n.Tr("Allow browser access for Personalized Home?",
+        "允许个性化首页访问浏览器？", "允許個人化首頁存取瀏覽器？");
+    public string SettingsWebHomeConsentBody => string.Format(L10n.Tr(
+        "An isolated helper reads YouTube cookies from {0}. It verifies that the browser is signed in to your connected YouTube channel, then fetches read-only recommendations. The helper removes its temporary cookies when it finishes. You can revoke access here at any time.",
+        "隔离的辅助进程会从 {0} 读取 YouTube Cookie。它会确认浏览器登录了你已连接的 YouTube 频道，再获取只读推荐。辅助进程完成后会移除临时 Cookie。你可以随时在这里撤销访问权限。",
+        "隔離的輔助程序會從 {0} 讀取 YouTube Cookie。它會確認瀏覽器登入了你已連接的 YouTube 頻道，再取得唯讀推薦。輔助程序完成後會移除暫存 Cookie。你可以隨時在這裡撤銷存取權限。"),
+        WebHome?.BrowserDisplayName);
     public string SettingsCatGeneral => L10n.Tr("General", "通用");
     public string SettingsCatPlayback => L10n.Tr("Playback", "播放");
     public string SettingsCatQuality => L10n.Tr("Audio Quality", "音频质量");
@@ -346,19 +439,22 @@ public partial class ShellViewModel
     public string SettingsLyricsAutoScrollNote => L10n.Tr(
         "Synced lyrics auto-scroll with the playhead. That behavior is always on.",
         "逐行歌词随播放进度自动滚动，该行为始终开启。");
-    public string SettingsToggleWebHomeLabel => L10n.Tr("Toggle Web Home", "开关 Web Home");
-    public string SettingsProbeWebHomeLabel => L10n.Tr("Probe Session", "探测会话");
+    public string SettingsReviewWebHomeLabel => L10n.Tr("Review Browser Access", "查看浏览器访问说明", "查看瀏覽器存取說明");
+    public string SettingsAllowWebHomeLabel => L10n.Tr("Allow Browser Access", "允许访问浏览器", "允許存取瀏覽器");
+    public string SettingsDisableWebHomeLabel => L10n.Tr("Turn Off Personalized Home", "关闭个性化首页", "關閉個人化首頁");
+    public string SettingsProbeWebHomeLabel => L10n.Tr("Check Browser Session", "检查浏览器会话", "檢查瀏覽器工作階段");
     public string SettingsOpenMiniPlayerLabel => L10n.Tr("Open Mini Player", "打开迷你播放器");
     public string SettingsToggleDesktopLyricsLabel => L10n.Tr("Toggle Desktop Lyrics", "开关桌面歌词");
     public string SettingsInWindowShortcutsTitle => L10n.Tr("In-window shortcuts", "窗口内快捷键");
-    public string SettingsShortcutSearch => L10n.Tr("• Ctrl + F : Open Search Window", "• Ctrl + F : 打开搜索窗口");
+    public string SettingsShortcutSearch => L10n.Tr("• Ctrl + F  Open Search", "• Ctrl + F  打开搜索");
     public string SettingsShortcutPlay => L10n.Tr("• Ctrl + P / Space : Play / Pause (when Muses is focused)", "• Ctrl + P / 空格 : 播放 / 暂停（Muses 聚焦时）");
     public string SettingsShortcutNext => L10n.Tr("• Ctrl + Right : Next Track", "• Ctrl + Right : 下一首");
     public string SettingsShortcutPrev => L10n.Tr("• Ctrl + Left : Previous Track", "• Ctrl + Left : 上一首");
     public string SettingsAboutTagline => L10n.Tr(
         "A native desktop YouTube-native music application. Display name Muses, repo/solution Euterpe. Built with C# / .NET 10 and Avalonia.",
         "原生桌面 YouTube 音乐应用。显示名 Muses，仓库/解决方案 Euterpe。使用 C# / .NET 10 与 Avalonia 构建。");
-    public string SettingsAboutVersion => L10n.Tr("Version 0.1.0 (Windows 11)", "版本 0.1.0（Windows 11）");
+    public string SettingsAboutVersion => string.Format(L10n.Tr("Version {0} ({1})", "版本 {0}（{1}）"),
+        GitHubUpdateChecker.InstalledVersion, OperatingSystem.IsWindows() ? "Windows" : OperatingSystem.IsLinux() ? "Linux" : "macOS");
     public string SettingsAboutAuthor => L10n.Tr("Author: xiaotwu", "作者：xiaotwu");
     public string SettingsSoftwareUpdateTitle => L10n.Tr("Software Update", "软件更新");
     public string SettingsSoftwareUpdateBody => L10n.Tr(
@@ -412,7 +508,9 @@ public partial class ShellViewModel
         OnPropertyChanged(nameof(SettingsReduceMotionNote));
         OnPropertyChanged(nameof(SettingsLyricsProviderNote));
         OnPropertyChanged(nameof(SettingsLyricsAutoScrollNote));
-        OnPropertyChanged(nameof(SettingsToggleWebHomeLabel));
+        OnPropertyChanged(nameof(SettingsReviewWebHomeLabel));
+        OnPropertyChanged(nameof(SettingsAllowWebHomeLabel));
+        OnPropertyChanged(nameof(SettingsDisableWebHomeLabel));
         OnPropertyChanged(nameof(SettingsProbeWebHomeLabel));
         OnPropertyChanged(nameof(SettingsOpenMiniPlayerLabel));
         OnPropertyChanged(nameof(SettingsToggleDesktopLyricsLabel));
@@ -424,6 +522,8 @@ public partial class ShellViewModel
         OnPropertyChanged(nameof(SettingsGlobalHotkeysBody));
         OnPropertyChanged(nameof(SettingsWebHomeTitle));
         OnPropertyChanged(nameof(SettingsWebHomeBody));
+        OnPropertyChanged(nameof(SettingsWebHomeConsentTitle));
+        OnPropertyChanged(nameof(SettingsWebHomeConsentBody));
         OnPropertyChanged(nameof(SettingsTokensPrivacyLabel));
         OnPropertyChanged(nameof(SettingsAboutTagline));
         OnPropertyChanged(nameof(SettingsAboutVersion));
@@ -444,11 +544,17 @@ public partial class ShellViewModel
         OnPropertyChanged(nameof(SettingsCrossfadeLabel));
         OnPropertyChanged(nameof(SettingsCrossfadeBody));
         OnPropertyChanged(nameof(CrossfadeLabel));
+        OnPropertyChanged(nameof(SettingsImportMacLibraryLabel));
+        OnPropertyChanged(nameof(SettingsImportMacLibraryBody));
+        OnPropertyChanged(nameof(SettingsChooseMacBackupLabel));
         OnPropertyChanged(nameof(SettingsClearCacheLabel));
         OnPropertyChanged(nameof(SettingsClearCacheBody));
         OnPropertyChanged(nameof(SettingsResetDataLabel));
         OnPropertyChanged(nameof(SettingsResetDataBody));
         OnPropertyChanged(nameof(SettingsResetDataConfirmLabel));
-        OnPropertyChanged(nameof(WebHomeVerifiedLabel));
+        OnPropertyChanged(nameof(HomeMusesSourceLabel));
+        OnPropertyChanged(nameof(HomeYouTubeSourceLabel));
+        OnPropertyChanged(nameof(HomeAccountSettingsLabel));
+        OnPropertyChanged(nameof(HomeAccountLoadingLabel));
     }
 }

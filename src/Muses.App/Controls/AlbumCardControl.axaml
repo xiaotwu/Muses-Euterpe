@@ -29,7 +29,7 @@
       </Setter>
     </Style>
     <Style Selector="Border.playPill:pointerover, Border.playPill.playing">
-      <Setter Property="Background" Value="{StaticResource MusesAccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MusesAccentBrush}" />
     </Style>
 
     <!-- Hover Play Overlay -->
@@ -88,12 +88,12 @@
       </Panel>
       <TextBlock x:Name="StandardTitle"
                  FontSize="13" FontWeight="SemiBold"
-                 Foreground="{StaticResource MusesTextPrimaryBrush}"
+                 Foreground="{DynamicResource MusesTextPrimaryBrush}"
                  TextTrimming="CharacterEllipsis"
                  MaxLines="1" />
       <TextBlock x:Name="StandardSubtitle"
                  FontSize="11"
-                 Foreground="{StaticResource MusesTextSecondaryBrush}"
+                 Foreground="{DynamicResource MusesTextSecondaryBrush}"
                  TextTrimming="CharacterEllipsis"
                  MaxLines="1" />
     </StackPanel>
@@ -102,8 +102,8 @@
     <Border x:Name="HomeContainer"
             Classes="interactiveCard"
             CornerRadius="12"
-            Background="{StaticResource MusesSurfaceBrush}"
-            BorderBrush="{StaticResource MusesHairlineBrush}"
+            Background="{DynamicResource MusesSurfaceBrush}"
+            BorderBrush="{DynamicResource MusesHairlineBrush}"
             BorderThickness="1"
             ClipToBounds="True"
             IsVisible="False"
@@ -136,16 +136,16 @@
                                 Margin="8" />
         </Panel>
         <!-- 72pt Footer -->
-        <Border Height="72" Background="{StaticResource MusesSurfaceBrush}" Padding="12,10">
+        <Border Height="72" Background="{DynamicResource MusesSurfaceBrush}" Padding="12,10">
           <StackPanel Spacing="3">
             <TextBlock x:Name="HomeTitle"
                        FontSize="13" FontWeight="SemiBold"
-                       Foreground="{StaticResource MusesTextPrimaryBrush}"
+                       Foreground="{DynamicResource MusesTextPrimaryBrush}"
                        TextTrimming="CharacterEllipsis"
                        MaxLines="2" />
             <TextBlock x:Name="HomeSubtitle"
                        FontSize="11"
-                       Foreground="{StaticResource MusesTextSecondaryBrush}"
+                       Foreground="{DynamicResource MusesTextSecondaryBrush}"
                        TextTrimming="CharacterEllipsis"
                        MaxLines="2" />
           </StackPanel>
@@ -157,8 +157,8 @@
     <Border x:Name="HeroContainer"
             Classes="interactiveCard"
             CornerRadius="20"
-            Background="{StaticResource MusesSurfaceBrush}"
-            BorderBrush="{StaticResource MusesHairlineBrush}"
+            Background="{DynamicResource MusesSurfaceBrush}"
+            BorderBrush="{DynamicResource MusesHairlineBrush}"
             BorderThickness="1"
             ClipToBounds="True"
             IsVisible="False"

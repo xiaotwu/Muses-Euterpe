@@ -1,6 +1,9 @@
+using System.ComponentModel;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -17,7 +20,7 @@ namespace Muses.App.Views;
 public partial class QueueDrawerView : UserControl
 {
     private ShellViewModel? _vm;
-    private Action<PlaybackEvent>? _eventHandler;
+    private PlaybackService? _subscribedPlayback;
     private Point? _dragStart;
     private int _dragFromUpNext = -1;
 
@@ -25,6 +28,7 @@ public partial class QueueDrawerView : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        AddHandler(KeyDownEvent, OnQueueKeyDown, RoutingStrategies.Tunnel);
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -53,12 +57,19 @@ public partial class QueueDrawerView : UserControl
     {
         base.OnPropertyChanged(change);
         if (change.Property == IsVisibleProperty && IsVisible)
+        {
             UpdateQueue();
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (IsEffectivelyVisible && !IsKeyboardFocusWithin)
+                    CloseQueueButton.Focus(NavigationMethod.Directional);
+            }, DispatcherPriority.Loaded);
+        }
     }
 
     private void ApplyLocalizedChrome()
     {
-        QueueTitle.Text = L10n.Tr("Queue", "队列");
+        QueueTitle.Text = L10n.Tr("Playing Next", "接下来播放");
         NowPlayingHeader.Text = L10n.Tr("Now Playing", "正在播放");
         HistoryHeader.Text = L10n.Tr("History", "历史记录");
         ClearLabel.Text = L10n.Tr("Clear", "清空");
@@ -66,100 +77,174 @@ public partial class QueueDrawerView : UserControl
 
     private void Subscribe()
     {
-        if (_vm?.Playback is null || _eventHandler is not null) return;
-        _eventHandler = _ => Dispatcher.UIThread.Post(UpdateQueue);
-        _vm.Playback.EventBus.EventPosted += _eventHandler;
+        if (_vm is null) return;
+        _vm.PropertyChanged -= OnShellChanged;
+        _vm.PropertyChanged += OnShellChanged;
+        ConnectPlayback();
     }
 
     private void Unsubscribe()
     {
-        if (_vm?.Playback is null || _eventHandler is null) return;
-        _vm.Playback.EventBus.EventPosted -= _eventHandler;
-        _eventHandler = null;
+        if (_vm is not null)
+            _vm.PropertyChanged -= OnShellChanged;
+        if (_subscribedPlayback is not null)
+            _subscribedPlayback.EventBus.EventPosted -= OnPlaybackEvent;
+        _subscribedPlayback = null;
+    }
+
+    private void ConnectPlayback()
+    {
+        if (ReferenceEquals(_subscribedPlayback, _vm?.Playback)) return;
+        if (_subscribedPlayback is not null)
+            _subscribedPlayback.EventBus.EventPosted -= OnPlaybackEvent;
+        _subscribedPlayback = _vm?.Playback;
+        if (_subscribedPlayback is not null)
+            _subscribedPlayback.EventBus.EventPosted += OnPlaybackEvent;
+    }
+
+    private void OnShellChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ShellViewModel.Playback) or nameof(ShellViewModel.ShuffleOn))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                ConnectPlayback();
+                UpdateQueue();
+            });
+        }
+    }
+
+    private void OnPlaybackEvent(PlaybackEvent e)
+    {
+        if (e.Kind is PlaybackEventKind.TrackStarted or PlaybackEventKind.TrackCompleted
+            or PlaybackEventKind.TrackSkipped or PlaybackEventKind.TrackStopped or PlaybackEventKind.QueueChanged)
+            Dispatcher.UIThread.Post(UpdateQueue);
+    }
+
+    private IEnumerable<Button> UpcomingButtons() =>
+        UpNextContainer.Children.Concat(CollectionContainer.Children).OfType<Button>();
+
+    private void OnQueueKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.None || e.Key is not (Key.Up or Key.Down or Key.Home or Key.End))
+            return;
+
+        var rows = UpcomingButtons().Prepend(NowPlayingQueueButton)
+            .Where(row => row.IsEffectivelyVisible && row.IsEffectivelyEnabled).ToList();
+        if (rows.Count == 0) return;
+
+        var focused = rows.FindIndex(row => row.IsKeyboardFocusWithin);
+        var target = e.Key switch
+        {
+            Key.Home => 0,
+            Key.End => rows.Count - 1,
+            Key.Up => focused < 0 ? rows.Count - 1 : Math.Max(0, focused - 1),
+            _ => Math.Min(rows.Count - 1, focused + 1),
+        };
+        if (rows[target].Focus(NavigationMethod.Directional))
+        {
+            rows[target].BringIntoView();
+            e.Handled = true;
+        }
     }
 
     public void UpdateQueue()
     {
-        if (_vm?.Playback is null) return;
+        if (_vm?.Playback is null || !IsVisible) return;
         var queue = _vm.Playback.Queue;
+        var previousRows = UpcomingButtons().ToList();
+        var focusedIndex = previousRows.FindIndex(row => row.IsKeyboardFocusWithin);
+        var focusedRow = focusedIndex >= 0 ? previousRows[focusedIndex].Tag as QueuePresentationRow : null;
 
         UpNextContainer.Children.Clear();
+        CollectionContainer.Children.Clear();
         HistoryContainer.Children.Clear();
 
         var upcoming = QueuePresentation.BuildUpcoming(queue);
-        UpNextHeader.Text = $"{L10n.Tr("Up Next", "下一首")} ({upcoming.Count})";
+        UpNextHeader.Text = $"{L10n.Tr("Up Next", "下一首")} ({queue.UpNext.Count})";
+        CollectionHeader.Text = $"{L10n.Tr("From Current Collection", "来自当前集合")} ({upcoming.Count - queue.UpNext.Count})";
 
         foreach (var row in upcoming)
         {
             var captured = row;
             var btn = BuildQueueRow(
                 captured.Item.Track,
-                onPlay: () => PlayKeepingCollectionContext(captured),
+                onPlay: () => _vm?.Playback?.PlayQueueItem(captured.Item.Id),
                 onRemove: () =>
                 {
-                    _vm.RemoveUpcomingRow(captured);
-                    Dispatcher.UIThread.Post(UpdateQueue);
+                    var items = captured.Kind == QueuePresentationKind.UpNext ? queue.UpNext : queue.Items;
+                    var index = items.FindIndex(item => item.Id == captured.Item.Id);
+                    if (index >= 0)
+                        _vm.RemoveUpcomingRow(captured with { SourceIndex = index });
                 },
-                upNextIndex: captured.Kind == QueuePresentationKind.UpNext ? captured.SourceIndex : null);
-            UpNextContainer.Children.Add(btn);
+                queueRow: captured);
+            var section = captured.Kind == QueuePresentationKind.UpNext ? UpNextContainer : CollectionContainer;
+            section.Children.Add(btn);
         }
 
-        if (upcoming.Count == 0)
+        if (queue.UpNext.Count == 0)
         {
             UpNextContainer.Children.Add(new TextBlock
             {
-                Text = L10n.Tr("No upcoming tracks", "没有即将播放的曲目"),
+                Text = L10n.Tr("Choose Play Next from any track menu", "在曲目菜单中选择「下一首播放」"),
                 FontSize = 12,
-                Foreground = ThemeBrushes.WhiteOverlay59,
+                Foreground = ThemeBrushes.TextSecondaryBrush,
                 Margin = new Thickness(4, 6)
             });
         }
 
-        var histList = QueuePresentation.BuildHistory(queue, take: 10);
-        foreach (var row in histList)
+        if (CollectionContainer.Children.Count == 0)
         {
-            var captured = row;
-            var btn = BuildQueueRow(captured.Item.Track, () =>
+            CollectionContainer.Children.Add(new TextBlock
             {
-                _vm.Playback.PlayTrack(captured.Item.Track, [captured.Item.Track], captured.Item.FromContext);
-            }, null, upNextIndex: null);
+                Text = L10n.Tr("No more tracks in the collection", "当前集合没有剩余曲目"),
+                FontSize = 12,
+                Foreground = ThemeBrushes.TextSecondaryBrush,
+                Margin = new Thickness(4, 6)
+            });
+        }
+
+        var histList = queue.History.Take(10).ToArray();
+        foreach (var item in histList)
+        {
+            var btn = BuildQueueRow(item.Track, () =>
+            {
+                _vm.Playback.PlayTrack(item.Track, [item.Track], item.FromContext);
+            }, null);
             HistoryContainer.Children.Add(btn);
         }
 
-        if (histList.Count == 0)
+        if (histList.Length == 0)
         {
             HistoryContainer.Children.Add(new TextBlock
             {
                 Text = L10n.Tr("No recent tracks", "没有最近曲目"),
                 FontSize = 12,
-                Foreground = ThemeBrushes.WhiteOverlay59,
+                Foreground = ThemeBrushes.TextSecondaryBrush,
                 Margin = new Thickness(4, 6)
             });
         }
+
+        if (focusedRow is not null)
+        {
+            var rows = UpcomingButtons().ToList();
+            var target = rows.FirstOrDefault(row => row.Tag is QueuePresentationRow entry
+                && entry.Item.Id == focusedRow.Item.Id);
+            if (target is null && queue.Current()?.Id == focusedRow.Item.Id && NowPlayingQueueButton.IsEffectivelyVisible)
+                target = NowPlayingQueueButton;
+            target ??= rows.Count > 0 ? rows[Math.Min(focusedIndex, rows.Count - 1)] : CloseQueueButton;
+            target.Focus(NavigationMethod.Directional);
+        }
     }
 
-    private void PlayKeepingCollectionContext(QueuePresentationRow row)
-    {
-        if (_vm?.Playback is null) return;
-        var queue = _vm.Playback.Queue;
-        // Always prefer the live collection Items as play context so tapping a
-        // drawer row does not invent a one-track queue that drops the album/playlist.
-        var context = queue.Items.Select(i => i.Track).ToList();
-        if (context.Count == 0 || context.TrueForAll(t => t.Id != row.Item.Track.Id))
-            context = [row.Item.Track, ..context];
-        var from = row.Item.FromContext != QueueSource.Songs
-            ? row.Item.FromContext
-            : (queue.Current()?.FromContext ?? row.Item.FromContext);
-        _vm.Playback.PlayTrack(row.Item.Track, context, from);
-    }
-
-    private Button BuildQueueRow(TrackSnapshot track, Action onPlay, Action? onRemove, int? upNextIndex)
+    private Button BuildQueueRow(TrackSnapshot track, Action onPlay, Action? onRemove, QueuePresentationRow? queueRow = null)
     {
         var btn = new Button
         {
             Classes = { "queueRow" },
-            Tag = upNextIndex
+            Tag = queueRow
         };
+        AutomationProperties.SetName(btn, track.Title);
 
         var grid = new Grid
         {
@@ -220,6 +305,7 @@ public partial class QueueDrawerView : UserControl
                 }
             };
             ToolTip.SetTip(removeBtn, L10n.Tr("Remove", "移除"));
+            AutomationProperties.SetName(removeBtn, L10n.Tr("Remove from queue", "从队列移除"));
             removeBtn.Click += (_, e) =>
             {
                 e.Handled = true;
@@ -232,15 +318,15 @@ public partial class QueueDrawerView : UserControl
         btn.Content = grid;
         btn.Click += (_, _) => onPlay();
 
-        if (upNextIndex is int fromIdx)
+        if (queueRow is { Kind: QueuePresentationKind.UpNext, SourceIndex: var fromIdx })
         {
-            btn.PointerPressed += (_, e) =>
+            btn.AddHandler(PointerPressedEvent, (_, e) =>
             {
                 if (!e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed) return;
                 _dragStart = e.GetPosition(this);
                 _dragFromUpNext = fromIdx;
-            };
-            btn.PointerReleased += (_, e) =>
+            }, RoutingStrategies.Bubble, handledEventsToo: true);
+            btn.AddHandler(PointerReleasedEvent, (_, e) =>
             {
                 if (_dragStart is null || _dragFromUpNext < 0)
                 {
@@ -249,27 +335,21 @@ public partial class QueueDrawerView : UserControl
                     return;
                 }
 
-                var y = e.GetPosition(UpNextContainer).Y;
-                var rowH = 44.0;
-                var count = _vm?.Playback?.Queue.UpNext.Count ?? 0;
-                if (count <= 0)
-                {
-                    _dragStart = null;
-                    _dragFromUpNext = -1;
-                    return;
-                }
-
-                var to = (int)Math.Clamp(Math.Floor(y / rowH), 0, count - 1);
-                if (to != _dragFromUpNext)
-                {
-                    _vm?.MoveUpNextRow(_dragFromUpNext, to);
-                    Dispatcher.UIThread.Post(UpdateQueue);
-                    e.Handled = true;
-                }
-
+                var start = _dragStart.Value;
+                var from = _dragFromUpNext;
                 _dragStart = null;
                 _dragFromUpNext = -1;
-            };
+                if (Math.Abs(e.GetPosition(this).Y - start.Y) < 5) return;
+
+                var y = e.GetPosition(UpNextContainer).Y;
+                var target = UpNextContainer.Children.OfType<Button>()
+                    .Where(row => row.Tag is QueuePresentationRow)
+                    .MinBy(row => Math.Abs(y - row.Bounds.Center.Y));
+                if (target?.Tag is not QueuePresentationRow { SourceIndex: var to } || to == from) return;
+
+                _vm?.MoveUpNextRow(from, to);
+                e.Handled = true;
+            }, RoutingStrategies.Tunnel);
         }
 
         return btn;

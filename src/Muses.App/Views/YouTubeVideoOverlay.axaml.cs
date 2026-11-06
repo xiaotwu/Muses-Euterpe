@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -20,12 +21,24 @@ public partial class YouTubeVideoOverlay : UserControl
         InitializeComponent();
         DataContextChanged += (_, _) =>
         {
+            if (_vm is not null)
+                _vm.PropertyChanged -= OnViewModelPropertyChanged;
             _vm = DataContext as ShellViewModel;
+            if (_vm is not null)
+                _vm.PropertyChanged += OnViewModelPropertyChanged;
             ApplyLocalizedChrome();
             SyncEmbedSurface();
         };
         KeyDown += OnUserControlKeyDown;
         PropertyChanged += OnControlPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ShellViewModel.IsVideoEmbedAvailable))
+            SyncEmbedSurface();
+        if (e.PropertyName == nameof(ShellViewModel.VideoEmbedUnavailableMessage))
+            ApplyLocalizedChrome();
     }
 
     private void OnControlPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -43,29 +56,29 @@ public partial class YouTubeVideoOverlay : UserControl
             "Native audio playback is suspended while the video stage is active.",
             "视频舞台打开时，原生音频已暂停。");
         OpenInYouTubeLabel.Text = L10n.Tr("Open in YouTube", "在 YouTube 中打开");
+        var close = L10n.Tr("Close video", "关闭视频");
+        ToolTip.SetTip(CloseButton, close);
+        Avalonia.Automation.AutomationProperties.SetName(CloseButton, close);
     }
 
     private void SyncEmbedSurface()
     {
-        var available = _vm?.IsVideoEmbedAvailable == true && IsVisible;
+        var host = (_vm?.VideoIFrameClient as IHostedYouTubeIFrameClient)?.HostControl;
+        var available = IsVisible && host is not null && _vm?.IsVideoEmbedAvailable == true;
         DegradedPanel.IsVisible = !available;
         EmbedHost.IsVisible = available;
 
-        if (!available)
+        if (!available || host is null)
         {
             DetachHost();
             return;
         }
 
-        if (_vm?.VideoIFrameClient is WindowsWebView2YouTubeIFrameClient win)
+        if (!ReferenceEquals(_attachedHost, host))
         {
-            if (!ReferenceEquals(_attachedHost, win.HostControl))
-            {
-                DetachHost();
-                EmbedHost.Children.Clear();
-                EmbedHost.Children.Add(win.HostControl);
-                _attachedHost = win.HostControl;
-            }
+            DetachHost();
+            EmbedHost.Children.Add(host);
+            _attachedHost = host;
         }
     }
 

@@ -1,146 +1,177 @@
-using System;
 using System.ComponentModel;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Media.Transformation;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Muses.App.Controls.Playback;
+using Muses.App.Theme;
 using Muses.App.ViewModels;
 
 namespace Muses.App.Views;
 
 public partial class PlayerBarView : UserControl
 {
-    private bool _isDraggingScrubber;
+    private static readonly TransformOperations PlayingScale = TransformOperations.Parse("scale(1.04)");
+    internal Rect? GetArtworkFrame(Visual relativeTo) =>
+        DockArtwork.IsEffectivelyVisible ? CoverArtworkMorph.GetFrame(DockArtwork, relativeTo) : null;
+
+    internal void RestoreArtworkFocus() => ArtworkButton.Focus(NavigationMethod.Tab);
+
     private ShellViewModel? _vm;
+    private IPointer? _scrubPointer;
+    private Guid? _scrubTrack;
 
     public PlayerBarView()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
+        DockArtwork.RenderTransform = TransformOperations.Identity;
+        RefreshMotionPreference();
+        DataContextChanged += (_, _) => ConnectViewModel();
+        SizeChanged += (_, _) => Classes.Set("compact", Bounds.Width < 510);
+        ProgressTrackContainer.SizeChanged += (_, _) => UpdateProgress();
     }
 
-    private void OnDataContextChanged(object? sender, EventArgs e)
+    internal void RefreshMotionPreference()
     {
-        if (_vm is not null)
-        {
-            _vm.PropertyChanged -= OnViewModelPropertyChanged;
-        }
+        var animate = !MotionChrome.PreferReducedMotion;
+        Classes.Set("motionEnabled", animate);
+        DockArtwork.Transitions = animate
+            ? [new TransformOperationsTransition
+            {
+                Property = RenderTransformProperty,
+                Duration = MotionChrome.OverlayDuration,
+                Easing = new SineEaseInOut(),
+            }]
+            : null;
+        UpdateArtworkScale();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        ConnectViewModel();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        DisconnectViewModel();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void ConnectViewModel()
+    {
+        DisconnectViewModel();
+        if (!this.IsAttachedToVisualTree()) return;
 
         _vm = DataContext as ShellViewModel;
-
         if (_vm is not null)
-        {
             _vm.PropertyChanged += OnViewModelPropertyChanged;
-            UpdateProgress();
-        }
+        UpdateArtworkScale();
+        UpdateProgress();
+    }
+
+    private void DisconnectViewModel()
+    {
+        if (_vm is not null)
+            _vm.PropertyChanged -= OnViewModelPropertyChanged;
+        _vm = null;
+        _scrubPointer?.Capture(null);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ShellViewModel.CurrentPositionSeconds) or nameof(ShellViewModel.CurrentDurationSeconds) or nameof(ShellViewModel.ProgressFraction))
-        {
-            if (!_isDraggingScrubber)
-            {
-                Dispatcher.UIThread.Post(UpdateProgress);
-            }
-        }
+        if (e.PropertyName is nameof(ShellViewModel.ProgressFraction) or nameof(ShellViewModel.HasTrack))
+            Dispatcher.UIThread.Post(UpdateProgress);
+        else if (e.PropertyName == nameof(ShellViewModel.IsPlaying))
+            Dispatcher.UIThread.Post(UpdateArtworkScale);
     }
+
+    private void UpdateArtworkScale() => DockArtwork.RenderTransform =
+        _vm?.IsPlaying == true && !MotionChrome.PreferReducedMotion ? PlayingScale : TransformOperations.Identity;
 
     private void UpdateProgress()
     {
-        if (_vm is null || ProgressTrackContainer is null) return;
+        if (_scrubPointer is not null) return;
 
-        var totalWidth = ProgressTrackContainer.Bounds.Width;
-        if (totalWidth <= 0) totalWidth = 612; // default fallback width
-
-        var fraction = _vm.ProgressFraction;
-        var fillWidth = Math.Clamp(fraction * totalWidth, 0, totalWidth);
-
-        ProgressTrackFill.Width = fillWidth;
-        ProgressThumb.Margin = new Thickness(Math.Max(0, fillWidth - 4), -2.5, 0, 0);
+        SetProgress(_vm?.ProgressFraction ?? 0);
+        Timing.Text = _vm is { HasTrack: true } vm
+            ? $"{FormatTime(vm.CurrentPositionSeconds)} / −{FormatTime(vm.CurrentDurationSeconds - vm.CurrentPositionSeconds)}"
+            : "— / —";
     }
 
-    private void OnProgressPointerEntered(object? sender, PointerEventArgs e)
+    private void SetProgress(double fraction)
     {
-        ProgressTrackBg.Height = 4.5;
-        ProgressTrackFill.Height = 4.5;
-        ProgressThumb.IsVisible = true;
+        var width = ProgressTrackContainer.Bounds.Width;
+        var fill = Math.Clamp(fraction * width, 0, width);
+        ProgressTrackFill.Width = fill;
+        ProgressThumb.Margin = new Thickness(Math.Max(0, fill - 4), -2.5, 0, 0);
     }
 
-    private void OnProgressPointerExited(object? sender, PointerEventArgs e)
+    private void SetScrubberEmphasis(bool emphasized)
     {
-        if (!_isDraggingScrubber)
-        {
-            ProgressTrackBg.Height = 3;
-            ProgressTrackFill.Height = 3;
-            ProgressThumb.IsVisible = false;
-        }
+        ProgressTrackBg.Height = emphasized ? 4.5 : 3;
+        ProgressTrackFill.Height = ProgressTrackBg.Height;
+        ProgressThumb.IsVisible = emphasized;
     }
+
+    private void OnProgressPointerEntered(object? sender, PointerEventArgs e) =>
+        SetScrubberEmphasis(_vm is { CurrentDurationSeconds: > 0 });
+
+    private void OnProgressPointerExited(object? sender, PointerEventArgs e) =>
+        SetScrubberEmphasis(_scrubPointer is not null);
 
     private void OnProgressPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.GetCurrentPoint(ProgressTrackContainer).Properties.IsLeftButtonPressed)
-        {
-            _isDraggingScrubber = true;
-            e.Pointer.Capture(ProgressTrackContainer);
-            ProgressTrackBg.Height = 4.5;
-            ProgressTrackFill.Height = 4.5;
-            ProgressThumb.IsVisible = true;
-            SeekFromPointer(e.GetPosition(ProgressTrackContainer).X);
-        }
+        if (_vm is not { CurrentDurationSeconds: > 0 } || _scrubPointer is not null
+            || !e.GetCurrentPoint(ProgressTrackContainer).Properties.IsLeftButtonPressed)
+            return;
+
+        _scrubTrack = _vm.Playback?.State.Track?.Id;
+        _scrubPointer = e.Pointer;
+        e.Pointer.Capture(ProgressTrackContainer);
+        SetScrubberEmphasis(true);
+        SetProgress(FractionAt(e));
+        e.Handled = true;
     }
 
     private void OnProgressPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_isDraggingScrubber)
-        {
-            SeekFromPointer(e.GetPosition(ProgressTrackContainer).X);
-        }
+        if (e.Pointer == _scrubPointer)
+            SetProgress(FractionAt(e));
     }
 
     private void OnProgressPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (_isDraggingScrubber)
-        {
-            SeekFromPointer(e.GetPosition(ProgressTrackContainer).X, commit: true);
-            _isDraggingScrubber = false;
-            e.Pointer.Capture(null);
+        if (e.Pointer != _scrubPointer) return;
 
-            var pos = e.GetPosition(ProgressTrackContainer);
-            if (pos.X < 0 || pos.X > ProgressTrackContainer.Bounds.Width || pos.Y < 0 || pos.Y > ProgressTrackContainer.Bounds.Height)
-            {
-                ProgressTrackBg.Height = 3;
-                ProgressTrackFill.Height = 3;
-                ProgressThumb.IsVisible = false;
-            }
-        }
+        if (_vm is { CurrentDurationSeconds: > 0 } vm && _scrubTrack == vm.Playback?.State.Track?.Id)
+            vm.SeekToSeconds(FractionAt(e) * vm.CurrentDurationSeconds);
+
+        e.Pointer.Capture(null);
+        e.Handled = true;
     }
 
     private void OnProgressPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
-        _isDraggingScrubber = false;
-        ProgressTrackBg.Height = 3;
-        ProgressTrackFill.Height = 3;
-        ProgressThumb.IsVisible = false;
+        _scrubPointer = null;
+        _scrubTrack = null;
+        SetScrubberEmphasis(false);
         UpdateProgress();
     }
 
-    private void SeekFromPointer(double x, bool commit = false)
+    private double FractionAt(PointerEventArgs e)
     {
-        if (_vm is null || ProgressTrackContainer is null) return;
+        var width = ProgressTrackContainer.Bounds.Width;
+        return width > 0 ? Math.Clamp(e.GetPosition(ProgressTrackContainer).X / width, 0, 1) : 0;
+    }
 
-        var totalWidth = ProgressTrackContainer.Bounds.Width;
-        if (totalWidth <= 0) return;
-
-        var fraction = Math.Clamp(x / totalWidth, 0, 1);
-        var fillWidth = fraction * totalWidth;
-
-        ProgressTrackFill.Width = fillWidth;
-        ProgressThumb.Margin = new Thickness(Math.Max(0, fillWidth - 4), -2.5, 0, 0);
-
-        if (commit && _vm.CurrentDurationSeconds > 0)
-        {
-            _vm.SeekToSeconds(fraction * _vm.CurrentDurationSeconds);
-        }
+    private static string FormatTime(double seconds)
+    {
+        var wholeSeconds = (int)Math.Max(0, seconds);
+        return $"{wholeSeconds / 60}:{wholeSeconds % 60:D2}";
     }
 }

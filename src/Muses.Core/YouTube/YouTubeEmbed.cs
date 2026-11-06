@@ -26,9 +26,22 @@ public static class YouTubeEmbed
     /// Matches Muses <c>YouTubeEmbed.pageHTML</c> (youtube-nocookie, autoplay, rel=0,
     /// modestbranding, playsinline, enablejsapi).
     /// </summary>
-    public static string PageHtml(string videoId)
+    public static string PageHtml(string videoId, Uri? clientOrigin = null)
     {
         var id = SanitizeId(videoId) ?? "";
+        var origin = clientOrigin is null ? "" :
+            "&origin=" + Uri.EscapeDataString(clientOrigin.GetLeftPart(UriPartial.Authority));
+        var playerEvents = clientOrigin is null ? "" : """
+            <script>
+            function onYouTubeIframeAPIReady() {
+              new YT.Player('player', { events: {
+                onReady: () => window.invokeCSharpAction?.('muses-video-ready'),
+                onError: event => window.invokeCSharpAction?.('muses-video-error:' + event.data)
+              }});
+            }
+            </script>
+            <script src="https://www.youtube.com/iframe_api"></script>
+            """;
         return $$"""
             <!DOCTYPE html><html><head>
             <meta charset="utf-8">
@@ -37,8 +50,9 @@ public static class YouTubeEmbed
             html,body{margin:0;background:#000;height:100%;overflow:hidden}
             iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
             </style></head><body>
-            <iframe src="https://www.youtube-nocookie.com/embed/{{id}}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"
+            <iframe id="player" src="https://www.youtube-nocookie.com/embed/{{id}}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1{{origin}}"
                     allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+            {{playerEvents}}
             </body></html>
             """;
     }

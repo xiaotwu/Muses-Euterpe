@@ -5,7 +5,7 @@
   <Button x:Name="PlayBtn"
           Width="30" Height="30"
           CornerRadius="15"
-          Background="{StaticResource MusesAccentBrush}"
+          Background="{DynamicResource MusesAccentBrush}"
           BorderThickness="0"
           Padding="0"
           Cursor="Hand"

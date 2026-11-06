@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Muses.Core.Domain;
 
 public sealed record TrackSnapshot(
@@ -19,6 +21,9 @@ public sealed record TrackSnapshot(
     int? Channels = null,
     int? LyricsOffsetMs = null)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public TrackMediaKind MediaKind { get; init; }
+
     public static TrackSnapshot Test(string title, string youTubeId = "test-video", double durationSeconds = 1) =>
         new(Guid.NewGuid(), title, "a", null, durationSeconds, youTubeId, null);
 }

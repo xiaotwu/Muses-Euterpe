@@ -22,14 +22,20 @@ public sealed class FakePlayerEngine : IPlayerEngine
     public IReadOnlyList<EqBand>? LastEqBands { get; private set; }
     public bool SupportsEq { get; set; } = true;
 
-    public Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default)
+    public Task LoadAsync(TrackSnapshot track, CancellationToken cancellationToken = default) =>
+        Load(track, playing: true);
+
+    public Task LoadPausedAsync(TrackSnapshot track, CancellationToken cancellationToken = default) =>
+        Load(track, playing: false);
+
+    private Task Load(TrackSnapshot track, bool playing)
     {
         LoadCallCount++;
         LastLoadedTrack = track;
         State.Track = track;
         State.Duration = track.DurationSeconds;
         State.Position = 0;
-        State.IsPlaying = true;
+        State.IsPlaying = playing;
         State.Error = null;
         return Task.CompletedTask;
     }

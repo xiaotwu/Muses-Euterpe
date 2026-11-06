@@ -15,15 +15,15 @@
       <Setter Property="Cursor" Value="Hand" />
     </Style>
     <Style Selector="Button.chromeBtn PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextMutedBrush}" />
       <Setter Property="Width" Value="14" />
       <Setter Property="Height" Value="14" />
     </Style>
     <Style Selector="Button.chromeBtn:pointerover /template/ ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource MusesHairlineBrush}" />
+      <Setter Property="Background" Value="{DynamicResource MusesHairlineBrush}" />
     </Style>
     <Style Selector="Button.chromeBtn:pointerover PathIcon">
-      <Setter Property="Foreground" Value="{StaticResource MusesTextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MusesTextPrimaryBrush}" />
     </Style>
     <Style Selector="Button.discRow">
       <Setter Property="Background" Value="{StaticResource MusesWhiteOverlay0ABrush}" />
@@ -53,8 +53,8 @@
                                CornerRadius="60" GlyphSize="48" Margin="0,0,24,0" />
 
           <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
-            <TextBlock x:Name="ArtistNameText" FontSize="34" FontWeight="Heavy" Foreground="{StaticResource MusesTextPrimaryBrush}" />
-            <TextBlock x:Name="ArtistStatsText" FontSize="13" Foreground="{StaticResource MusesTextSecondaryBrush}" />
+            <TextBlock x:Name="ArtistNameText" FontSize="34" FontWeight="Heavy" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
+            <TextBlock x:Name="ArtistStatsText" FontSize="13" Foreground="{DynamicResource MusesTextSecondaryBrush}" />
           </StackPanel>
 
           <!-- Action Buttons -->
@@ -71,13 +71,13 @@
 
       <!-- Top Songs Section -->
       <StackPanel x:Name="TopSongsSection" Spacing="13">
-        <TextBlock Text="Top Songs" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="Top Songs" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <StackPanel x:Name="TopSongsContainer" Spacing="4" />
       </StackPanel>
 
       <!-- Albums Section -->
       <StackPanel x:Name="AlbumsSection" Spacing="13">
-        <TextBlock Text="Albums" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="Albums" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
           <StackPanel x:Name="AlbumsContainer" Orientation="Horizontal" Spacing="18" />
         </ScrollViewer>
@@ -85,7 +85,7 @@
 
       <!-- Singles & EPs Section -->
       <StackPanel x:Name="SinglesSection" Spacing="13">
-        <TextBlock Text="Singles &amp; EPs" FontSize="22" FontWeight="Bold" Foreground="{StaticResource MusesTextPrimaryBrush}" />
+        <TextBlock Text="Singles &amp; EPs" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
         <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
           <StackPanel x:Name="SinglesContainer" Orientation="Horizontal" Spacing="18" />
         </ScrollViewer>

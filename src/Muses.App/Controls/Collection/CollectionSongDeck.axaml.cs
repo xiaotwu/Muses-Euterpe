@@ -53,7 +53,7 @@ public partial class CollectionSongDeck : UserControl
 
     public event Action<CollectionTrackRow>? TrackActivated;
     public event Action? ExpandRequested;
-    public event Action<CollectionTrackRow>? RemoveRequested;
+    public Func<CollectionTrackRow, ContextMenu>? TrackMenu { get; set; }
 
     private double _position = 0;
     private int? _hoveredIndex;
@@ -528,17 +528,7 @@ public partial class CollectionSongDeck : UserControl
 
     private void ShowContextMenu(CollectionTrackRow row, Control target)
     {
-        // Construct and open TrackContextMenu
-        var menu = TrackContextMenu.Create(
-            row.Snapshot,
-            null, // Handled via callback or shell
-            null,
-            null,
-            null,
-            onPlay: () => TrackActivated?.Invoke(row),
-            onRemoveFromContainer: RemoveRequested != null ? () => RemoveRequested(row) : null);
-
-        menu.Open(target);
+        TrackMenu?.Invoke(row).Open(target);
     }
 
     private void RenderScrubber()

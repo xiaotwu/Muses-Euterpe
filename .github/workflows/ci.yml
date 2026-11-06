@@ -2,15 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, euterpe/avalonia12-rebuild]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_VERSION: "0.1.1"
+  SMOKE_BASELINE_VERSION: "0.1.0"
 
 jobs:
   build-test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-2025]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -18,9 +26,47 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
-      - name: Restore
-        run: dotnet restore Muses.slnx
       - name: Build
-        run: dotnet build Muses.slnx -c Release --no-restore
+        run: dotnet build Muses.slnx -c Release --artifacts-path "${{ runner.temp }}/muses-build"
       - name: Test
-        run: dotnet test Muses.slnx -c Release --no-build --verbosity normal
+        env:
+          MUSES_DATA_HOME: ${{ runner.temp }}/muses-suite-data
+          MUSES_CACHE_HOME: ${{ runner.temp }}/muses-suite-cache
+        run: dotnet test Muses.slnx -c Release --no-build --artifacts-path "${{ runner.temp }}/muses-build"
+      - name: Build and check unsigned x64 MSIX
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/package-msix.ps1 -Version $env:CANDIDATE_VERSION -OutputDir (Join-Path $env:RUNNER_TEMP 'muses-candidate')
+      - name: Build Ubuntu x64 packages
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash scripts/package-deb.sh "$SMOKE_BASELINE_VERSION" "$RUNNER_TEMP/muses-baseline"
+          bash scripts/package-deb.sh "$CANDIDATE_VERSION" "$RUNNER_TEMP/muses-candidate"
+      - name: Install, launch, upgrade legacy XDG data and remove the Debian package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dbus xvfb xauth python3-xlib
+          xvfb-run -a dbus-run-session -- bash scripts/test-deb.sh \
+            "$RUNNER_TEMP/muses-candidate/Muses-$CANDIDATE_VERSION-linux-x64.deb"
+          xvfb-run -a dbus-run-session -- bash scripts/test-deb.sh \
+            "$RUNNER_TEMP/muses-candidate/Muses-$CANDIDATE_VERSION-linux-x64.deb" \
+            "$RUNNER_TEMP/muses-baseline/Muses-$SMOKE_BASELINE_VERSION-linux-x64.deb"
+      - name: Upload unsigned MSIX candidate
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: muses-win-x64-unsigned-ci
+          path: ${{ runner.temp }}/muses-candidate/Muses-${{ env.CANDIDATE_VERSION }}-win-x64.msix
+          if-no-files-found: error
+          compression-level: 0
+      - name: Upload Debian candidate
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: muses-ubuntu-24.04-x64-ci
+          path: ${{ runner.temp }}/muses-candidate/Muses-${{ env.CANDIDATE_VERSION }}-linux-x64.deb
+          if-no-files-found: error
+          compression-level: 0

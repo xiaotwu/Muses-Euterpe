@@ -58,8 +58,17 @@ public sealed class YouTubeAccountService
 
     public void SignOut()
     {
-        _credentials.Delete(TokensAccount);
-        _credentials.Delete(ProfileAccount);
+        var tokensRemoved = _credentials.Delete(TokensAccount);
+        var profileRemoved = _credentials.Delete(ProfileAccount);
+        if (!tokensRemoved || !profileRemoved)
+        {
+            _errorMessage = L10n.Tr(
+                "Couldn’t remove the YouTube account from the system credential store. Check that it’s available and unlocked, then try again.",
+                "无法从系统凭据存储中移除 YouTube 账号。请确认凭据存储可用并已解锁，再重试。");
+            Changed?.Invoke();
+            return;
+        }
+
         _profile = null;
         _state = YouTubeAccountState.SignedOut;
         _errorMessage = null;
@@ -162,10 +171,20 @@ public sealed class YouTubeAccountService
             }
 
             var tokens = await ExchangeCodeAsync(config, code, verifier, redirect, ct).ConfigureAwait(false);
-            PersistTokens(tokens);
             var profile = await FetchProfileAsync(tokens.AccessToken, ct).ConfigureAwait(false);
+            if (!PersistTokens(tokens))
+            {
+                SetCredentialStorageError();
+                return;
+            }
+            if (!PersistProfile(profile))
+            {
+                _credentials.Delete(TokensAccount);
+                SetCredentialStorageError();
+                return;
+            }
+
             _profile = profile;
-            PersistProfile(profile);
             _state = YouTubeAccountState.SignedIn;
             _errorMessage = null;
             Changed?.Invoke();
@@ -212,17 +231,21 @@ public sealed class YouTubeAccountService
         }
     }
 
-    private void PersistTokens(YouTubeAuthTokens tokens)
+    private bool PersistTokens(YouTubeAuthTokens tokens)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(tokens);
-        _credentials.Set(TokensAccount, bytes);
+        return _credentials.Set(TokensAccount, bytes);
     }
 
-    private void PersistProfile(YouTubeUserProfile profile)
+    private bool PersistProfile(YouTubeUserProfile profile)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(profile);
-        _credentials.Set(ProfileAccount, bytes);
+        return _credentials.Set(ProfileAccount, bytes);
     }
+
+    private void SetCredentialStorageError() => SetError(L10n.Tr(
+        "Couldn’t save the YouTube account in the system credential store. Check that it’s available and unlocked, then try again.",
+        "无法将 YouTube 账号保存到系统凭据存储。请确认凭据存储可用并已解锁，再重试。"));
 
     private void SetError(string message)
     {

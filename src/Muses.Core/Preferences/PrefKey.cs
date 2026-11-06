@@ -15,6 +15,7 @@ public static class PrefKey
     public const string CloseToTray = "muses.desktop.closeToTray";
     public const string WebHomeEnabled = "muses.webHome.enabled";
     public const string WebHomeConsentVersion = "muses.webHome.consentVersion";
+    public const string HomeRecommendationMode = "muses.home.recommendationMode";
     public const string FfTray = "muses.ff.tray";
     public const string FfMiniPlayer = "muses.ff.miniPlayer";
     public const string FfDesktopLyrics = "muses.ff.desktopLyrics";
@@ -84,5 +85,6 @@ public enum SidebarSection
     Artists,
     Playlists,
     History,
-    Inbox
+    Inbox,
+    Podcasts
 }
