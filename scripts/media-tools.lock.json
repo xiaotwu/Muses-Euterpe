@@ -33,17 +33,20 @@
   "yt-dlp-license": {
     "url": "https://raw.githubusercontent.com/yt-dlp/yt-dlp/2026.10.26/LICENSE",
     "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c",
-    "file": "Notices/yt-dlp-source-LICENSE.txt"
+    "file": "Notices/yt-dlp-source-LICENSE.txt",
+    "local": "media-notices/yt-dlp-source-LICENSE.txt"
   },
   "yt-dlp-binary-license": {
     "url": "https://www.gnu.org/licenses/gpl-3.0.txt",
     "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
     "source": "https://github.com/yt-dlp/yt-dlp/blob/2026.10.26/README.md#license",
-    "file": "Notices/yt-dlp-binary-GPL-3.0.txt"
+    "file": "Notices/yt-dlp-binary-GPL-3.0.txt",
+    "local": "media-notices/yt-dlp-binary-GPL-3.0.txt"
   },
   "deno-license": {
     "url": "https://raw.githubusercontent.com/denoland/deno/v2.9.8/LICENSE.md",
     "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
-    "file": "Notices/deno-LICENSE.md"
+    "file": "Notices/deno-LICENSE.md",
+    "local": "media-notices/deno-LICENSE.md"
   }
 }

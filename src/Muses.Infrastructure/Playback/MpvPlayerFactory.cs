@@ -192,7 +192,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
             _windows = windows;
             _ipc.EventReceived += OnEvent;
             _ipc.Disconnected += OnDisconnected;
-            _process.Exited += (_, _) => OnDisconnected();
+            _process.Exited += OnProcessExited;
             _process.EnableRaisingEvents = true;
         }
 
@@ -284,10 +284,16 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
             try { EndOfFile?.Invoke(); } catch { /* ignore */ }
         }
 
+        private void OnProcessExited(object? sender, EventArgs e)
+        {
+            // Process raises Exited under its own lock. Listeners can dispose this session.
+            ThreadPool.QueueUserWorkItem(static session => session.OnDisconnected(), this, preferLocal: false);
+        }
+
         private void OnDisconnected()
         {
             _fileLoaded.TrySetResult(false);
-            if (Interlocked.Exchange(ref _exited, 1) != 0) return;
+            if (Interlocked.Exchange(ref _exited, 1) != 0 || Volatile.Read(ref _disposed) != 0) return;
             try { Exited?.Invoke(); } catch { /* ignore */ }
         }
 
@@ -303,6 +309,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
             if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             _ipc.EventReceived -= OnEvent;
             _ipc.Disconnected -= OnDisconnected;
+            _process.Exited -= OnProcessExited;
             try { _ipc.Dispose(); } catch { /* ignore */ }
             try
             {

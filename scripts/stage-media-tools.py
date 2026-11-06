@@ -45,9 +45,9 @@ def verified_asset(asset, cache):
                 with urllib.request.urlopen(request, timeout=45) as response, incoming.open("wb") as output:
                     shutil.copyfileobj(response, output, 1024 * 1024)
                 break
-            except (OSError, urllib.error.URLError):
+            except (OSError, urllib.error.URLError) as error:
                 if attempt == 2:
-                    raise
+                    raise OSError(f"{url}: {error}") from error
                 time.sleep(attempt + 1)
         if digest(incoming) != expected:
             raise ValueError(f"SHA-256 mismatch for {url}")
@@ -56,7 +56,12 @@ def verified_asset(asset, cache):
 
 
 def stage_asset(asset, cache, destination):
-    path = verified_asset(asset, cache)
+    if "local" in asset:
+        path = LOCK.parent / asset["local"]
+        if digest(path) != asset["sha256"]:
+            raise ValueError(f"SHA-256 mismatch for {path}")
+    else:
+        path = verified_asset(asset, cache)
     if "files" in asset:
         with zipfile.ZipFile(path) as archive:
             for filename, member in asset["files"].items():
@@ -80,7 +85,9 @@ def stage(runtime, destination, cache):
     if runtime == "linux-x64":
         for name in ("yt-dlp", "deno"):
             (destination / name).chmod(0o755)
-    (destination / "SOURCES.json").write_text(json.dumps(assets, indent=2) + "\n", encoding="utf-8")
+    provenance = {key: {field: value for field, value in asset.items() if field != "local"}
+                  for key, asset in assets.items()}
+    (destination / "SOURCES.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
 
 
 def main():
