@@ -11,16 +11,12 @@ public static class YouTubeEmbedHostFactory
 {
     public static IYouTubeIFrameClient CreateClient()
     {
-        if (OperatingSystem.IsWindows() && WindowsWebView2YouTubeIFrameClient.TryCreate(out var win))
+        if (WindowsWebView2YouTubeIFrameClient.TryCreate(out var win))
             return win!;
-        if (OperatingSystem.IsLinux() && LinuxWebKitYouTubeIFrameClient.TryCreate() is { } linux)
-            return linux;
 
         return new DegradedYouTubeIFrameClient(
             available: false,
-            reason: OperatingSystem.IsLinux()
-                ? "WebKitGTK or X11 is unavailable"
-                : "WebView2 runtime is unavailable");
+            reason: "WebView2 runtime is unavailable");
     }
 }
 
@@ -81,7 +77,6 @@ public sealed class WindowsWebView2YouTubeIFrameClient : IHostedYouTubeIFrameCli
     public static bool TryCreate(out WindowsWebView2YouTubeIFrameClient? client)
     {
         client = null;
-        if (!OperatingSystem.IsWindows()) return false;
 
         try
         {

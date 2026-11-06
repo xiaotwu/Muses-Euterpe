@@ -16,11 +16,7 @@ public static class LocalDataMaintenance
     private static string? AbsoluteOverride(string name) =>
         Environment.GetEnvironmentVariable(name) is { } path && Path.IsPathFullyQualified(path) ? path : null;
 
-    public static int ClearCache()
-    {
-        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
-        return CacheDirectories().Distinct(comparer).Sum(DeleteTree);
-    }
+    public static int ClearCache() => CacheDirectories().Distinct(StringComparer.OrdinalIgnoreCase).Sum(DeleteTree);
 
     private static IEnumerable<string> CacheDirectories()
     {
@@ -35,21 +31,9 @@ public static class LocalDataMaintenance
         if (AbsoluteOverride("MUSES_DATA_HOME") is not null)
             yield break;
 
-        foreach (var databasePath in SqliteStore.DefaultPaths())
-        {
-            var root = Path.GetDirectoryName(databasePath)!;
-            yield return Path.Combine(root, "artwork");
-            yield return Path.Combine(root, "cache");
-        }
-
+        yield return Path.Combine(AppDataRoot(), "artwork");
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         yield return Path.Combine(localData, "Muses", "Cache");
-        if (OperatingSystem.IsLinux())
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var legacyCache = AbsoluteOverride("XDG_CACHE_HOME") ?? Path.Combine(home, ".cache");
-            yield return Path.Combine(legacyCache, "Muses");
-        }
     }
 
     /// <summary>
@@ -59,19 +43,7 @@ public static class LocalDataMaintenance
     public static void ResetDataFiles(string? sqlitePath = null)
     {
         ClearCache();
-        if (sqlitePath is not null)
-        {
-            DeleteDatabase(sqlitePath);
-            return;
-        }
-
-        // Remove legacy copies first. If one is locked, retain the active library
-        // so the next launch cannot resurrect that older copy.
-        var paths = SqliteStore.DefaultPaths();
-        foreach (var legacy in paths.Skip(1))
-            if (!DeleteDatabase(legacy))
-                return;
-        DeleteDatabase(paths[0]);
+        DeleteDatabase(sqlitePath ?? SqliteStore.DefaultPath());
     }
 
     private static int DeleteTree(string path)
@@ -93,7 +65,7 @@ public static class LocalDataMaintenance
         catch (UnauthorizedAccessException) { return 0; }
     }
 
-    private static bool DeleteDatabase(string path)
+    private static void DeleteDatabase(string path)
     {
         try
         {
@@ -101,10 +73,8 @@ public static class LocalDataMaintenance
             File.Delete(path + "-wal");
             File.Delete(path + "-shm");
             File.Delete(path + "-journal");
-            return true;
         }
-        catch (DirectoryNotFoundException) { return true; }
-        catch (IOException) { return false; }
-        catch (UnauthorizedAccessException) { return false; }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 }

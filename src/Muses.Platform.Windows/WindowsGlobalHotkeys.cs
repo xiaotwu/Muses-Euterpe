@@ -26,19 +26,15 @@ public sealed class WindowsGlobalHotkeys : IGlobalHotkeys
     private WndProcDlg? _wndProc;
     private readonly AutoResetEvent _ready = new(false);
 
-    public bool IsSupported => OperatingSystem.IsWindows();
+    public bool IsSupported => true;
     public bool IsEnabled => _enabled;
 
     public event Action? PlayPausePressed;
     public event Action? NextPressed;
     public event Action? PreviousPressed;
 
-    public static IGlobalHotkeys Create() =>
-        OperatingSystem.IsWindows() ? new WindowsGlobalHotkeys() : NullGlobalHotkeys.Instance;
-
     public void SetEnabled(bool enabled)
     {
-        if (!IsSupported) return;
         if (enabled == _enabled) return;
         if (enabled) Start();
         else Stop();
@@ -52,8 +48,7 @@ public sealed class WindowsGlobalHotkeys : IGlobalHotkeys
             IsBackground = true,
             Name = "Muses.GlobalHotkeys"
         };
-        if (OperatingSystem.IsWindows())
-            _thread.SetApartmentState(ApartmentState.STA);
+        _thread.SetApartmentState(ApartmentState.STA);
         _thread.Start();
         _ready.WaitOne(TimeSpan.FromSeconds(2));
         _enabled = _hwnd != IntPtr.Zero;

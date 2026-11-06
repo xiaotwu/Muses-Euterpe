@@ -5,7 +5,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Muses.Core\Muses.Core.csproj" />
     <ProjectReference Include="..\Muses.Persistence\Muses.Persistence.csproj" />
-    <ProjectReference Include="..\Muses.Platform.Linux\Muses.Platform.Linux.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Muses.Tests" />

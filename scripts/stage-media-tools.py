@@ -15,10 +15,7 @@ from pathlib import Path
 
 
 LOCK = Path(__file__).with_name("media-tools.lock.json")
-PLATFORMS = {
-    "win-x64": ("windows-mpv", "windows-yt-dlp", "windows-deno"),
-    "linux-x64": ("linux-yt-dlp", "linux-deno"),
-}
+TOOLS = ("windows-mpv", "windows-yt-dlp", "windows-deno")
 NOTICES = ("yt-dlp-license", "yt-dlp-binary-license", "deno-license")
 
 
@@ -75,16 +72,13 @@ def stage_asset(asset, cache, destination):
         shutil.copyfile(path, output)
 
 
-def stage(runtime, destination, cache):
+def stage(destination, cache):
     lock = json.loads(LOCK.read_text(encoding="utf-8"))
-    assets = {key: lock[key] for key in (*PLATFORMS[runtime], *NOTICES)}
+    assets = {key: lock[key] for key in (*TOOLS, *NOTICES)}
     cache.mkdir(parents=True, exist_ok=True)
     destination.mkdir(parents=True, exist_ok=True)
     for asset in assets.values():
         stage_asset(asset, cache, destination)
-    if runtime == "linux-x64":
-        for name in ("yt-dlp", "deno"):
-            (destination / name).chmod(0o755)
     provenance = {key: {field: value for field, value in asset.items() if field != "local"}
                   for key, asset in assets.items()}
     (destination / "SOURCES.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
@@ -92,7 +86,6 @@ def stage(runtime, destination, cache):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("runtime", choices=PLATFORMS)
     parser.add_argument("destination", type=Path)
     args = parser.parse_args()
     cache_path = os.environ.get("MUSES_MEDIA_BUILD_CACHE")
@@ -101,10 +94,10 @@ def main():
             cache = Path(cache_path)
             if not cache.is_absolute():
                 raise ValueError("MUSES_MEDIA_BUILD_CACHE must be an absolute path")
-            stage(args.runtime, args.destination, cache)
+            stage(args.destination, cache)
         else:
             with tempfile.TemporaryDirectory(prefix="muses-media-build-") as temporary:
-                stage(args.runtime, args.destination, Path(temporary))
+                stage(args.destination, Path(temporary))
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
         parser.exit(1, f"Could not stage media tools: {error}\n")
 

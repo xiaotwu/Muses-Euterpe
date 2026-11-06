@@ -33,7 +33,7 @@ internal sealed class PackagePlaybackSmoke(string mode, string videoId, string d
         try
         {
             if (MediaToolPaths.FindPackaged("yt-dlp") is null || MediaToolPaths.FindPackaged("deno") is null ||
-                mpv != (OperatingSystem.IsWindows() ? MediaToolPaths.FindPackaged("mpv") : "/usr/bin/mpv") ||
+                mpv != MediaToolPaths.FindPackaged("mpv") ||
                 mpv is null)
                 throw new InvalidOperationException("The package media tools could not be selected.");
 

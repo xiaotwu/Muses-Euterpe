@@ -36,7 +36,7 @@ public static class WebHomeProbeCommand
             else
             {
                 if (source.IsFileSource || source.BrowserProfile is not null ||
-                    source.BrowserName != (OperatingSystem.IsWindows() ? "edge" : "chrome") ||
+                    source.BrowserName != "edge" ||
                     request.WorkspaceId is not { } workspaceId || workspaceId == Guid.Empty)
                     return WebHomeResponse.Unavailable("cookieSourceUnavailable");
 
@@ -89,7 +89,7 @@ public static class WebHomeProbeCommand
     private static string? LocateYTDlp()
     {
         if (MediaToolPaths.FindPackaged("yt-dlp") is { } packaged) return packaged;
-        var name = OperatingSystem.IsWindows() ? "yt-dlp.exe" : "yt-dlp";
+        const string name = "yt-dlp.exe";
         var helperDir = new DirectoryInfo(AppContext.BaseDirectory);
         foreach (var dir in new[] { helperDir, helperDir.Parent })
         {

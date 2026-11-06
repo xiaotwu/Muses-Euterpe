@@ -4,7 +4,7 @@ Shipped: EQ → engine, Web Home isolation boundary, docs/CI honesty, leftover c
 
 ## Verify
 
-```bash
+```powershell
 dotnet test
 dotnet build Muses.slnx
 ```
@@ -31,7 +31,7 @@ Automated on Win11 (2026-09-09 PT): **171 passed**, build green.
 
 ## CI
 
-`.github/workflows/ci.yml` still runs `ubuntu-latest` + `windows-latest`. Push `675c425`: [CI run 34414066986](https://github.com/xiaotwu/Muses-Euterpe/actions/runs/34414066986) **success** (ubuntu-latest + windows-latest).
+The Windows CI job passed at commit `675c425`. [CI run 34414066986](https://github.com/xiaotwu/Muses-Euterpe/actions/runs/34414066986)
 
 ## Stage 3 (this machine)
 

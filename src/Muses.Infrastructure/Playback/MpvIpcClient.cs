@@ -1,13 +1,12 @@
 using System.Collections.Concurrent;
 using System.IO.Pipes;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 
 namespace Muses.Infrastructure.Playback;
 
 /// <summary>
-/// Minimal mpv JSON IPC client over a UNIX domain socket (POSIX) or named pipe (Windows).
+/// Minimal mpv JSON IPC client over a Windows named pipe.
 /// </summary>
 internal sealed class MpvIpcClient : IDisposable
 {
@@ -23,42 +22,18 @@ internal sealed class MpvIpcClient : IDisposable
     public event Action<string, JsonElement>? EventReceived;
     public event Action? Disconnected;
 
-    public async Task ConnectAsync(string endpoint, bool windowsNamedPipe, CancellationToken cancellationToken)
+    public async Task ConnectAsync(string endpoint, CancellationToken cancellationToken)
     {
-        if (windowsNamedPipe)
+        var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
+        try { await pipe.ConnectAsync(5000, cancellationToken).ConfigureAwait(false); }
+        catch
         {
-            var pipe = new NamedPipeClientStream(".", endpoint, PipeDirection.InOut, PipeOptions.Asynchronous);
-            try { await pipe.ConnectAsync(5000, cancellationToken).ConfigureAwait(false); }
-            catch
-            {
-                pipe.Dispose();
-                throw;
-            }
-            _stream = pipe;
+            pipe.Dispose();
+            throw;
         }
-        else
-        {
-            // Wait briefly for mpv to create the socket file.
-            for (var i = 0; i < 80; i++)
-            {
-                if (File.Exists(endpoint)) break;
-                await Task.Delay(25, cancellationToken).ConfigureAwait(false);
-            }
+        _stream = pipe;
 
-            if (!File.Exists(endpoint))
-                throw new IOException($"mpv IPC socket was not created: {endpoint}");
-
-            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-            try { await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint), cancellationToken).ConfigureAwait(false); }
-            catch
-            {
-                socket.Dispose();
-                throw;
-            }
-            _stream = new NetworkStream(socket, ownsSocket: true);
-        }
-
-        _writer = new StreamWriter(_stream, new UTF8Encoding(false), bufferSize: 1024, leaveOpen: true)
+        _writer = new StreamWriter(pipe, new UTF8Encoding(false), bufferSize: 1024, leaveOpen: true)
         {
             AutoFlush = true,
             NewLine = "\n"

@@ -9,7 +9,6 @@ namespace Muses.Platform.Windows;
 /// <summary>
 /// Tray contract used by the app shell. Avalonia TrayIcon is owned by Muses.App;
 /// this type tracks enablement, Now Playing title, and routes menu actions to PlaybackService.
-/// On macOS, IsAvailable stays true for the Avalonia helper path but PrefKey.FfTray still gates creation.
 /// </summary>
 public sealed class WindowsTrayController : ITrayController
 {

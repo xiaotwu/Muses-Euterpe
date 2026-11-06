@@ -27,19 +27,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
             ?? throw new FileNotFoundException("mpv could not be found.");
 
         var volume = Math.Clamp(initialVolume0to100, 0, 100);
-        var windows = OperatingSystem.IsWindows();
-        var endpoint = windows
-            ? $"muses-mpv-{Guid.NewGuid():N}"
-            : Path.Combine(Path.GetTempPath(), $"muses-mpv-{Guid.NewGuid():N}.sock");
-
-        if (!windows && File.Exists(endpoint))
-        {
-            try { File.Delete(endpoint); } catch { /* ignore */ }
-        }
-
-        var ipcArg = windows
-            ? $"--input-ipc-server=\\\\.\\pipe\\{endpoint}"
-            : $"--input-ipc-server={endpoint}";
+        var endpoint = $"muses-mpv-{Guid.NewGuid():N}";
 
         var psi = new ProcessStartInfo
         {
@@ -60,13 +48,11 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
                      "--pause",
                      "--keep-open=no",
                      "--gapless-audio=weak",
-                     ipcArg,
+                     $"--input-ipc-server=\\\\.\\pipe\\{endpoint}",
+                     "--media-controls=no",
                      $"--volume={volume}"
                  })
             psi.ArgumentList.Add(a);
-        if (windows)
-            psi.ArgumentList.Add("--media-controls=no");
-
         Process process;
         try
         {
@@ -79,10 +65,10 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
         }
 
         var ipc = new MpvIpcClient();
-        var session = new MpvPlayerSession(process, ipc, endpoint, windows);
+        var session = new MpvPlayerSession(process, ipc);
         try
         {
-            await ipc.ConnectAsync(endpoint, windows, cancellationToken).ConfigureAwait(false);
+            await ipc.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
             using var loadTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             loadTimeout.CancelAfter(TimeSpan.FromSeconds(20));
             try
@@ -105,11 +91,7 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
     public static string? LocateMpvBinary()
     {
         if (MediaToolPaths.FindPackaged("mpv") is { } packaged) return packaged;
-        if (OperatingSystem.IsLinux() && MediaToolPaths.FindPackaged("yt-dlp") is not null &&
-            File.Exists("/usr/bin/mpv"))
-            return "/usr/bin/mpv";
-
-        var exe = OperatingSystem.IsWindows() ? "mpv.exe" : "mpv";
+        const string exe = "mpv.exe";
         if (FindOnPath(exe) is { } fromPath) return fromPath;
 
         foreach (var root in CandidateResourceRoots())
@@ -178,20 +160,16 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
     {
         private readonly Process _process;
         private readonly MpvIpcClient _ipc;
-        private readonly string _endpoint;
-        private readonly bool _windows;
         private int _disposed;
         private int _eofRaised;
         private double _timePos;
         private readonly TaskCompletionSource<bool> _fileLoaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _exited;
 
-        public MpvPlayerSession(Process process, MpvIpcClient ipc, string endpoint, bool windows)
+        public MpvPlayerSession(Process process, MpvIpcClient ipc)
         {
             _process = process;
             _ipc = ipc;
-            _endpoint = endpoint;
-            _windows = windows;
             _ipc.EventReceived += OnEvent;
             _ipc.Disconnected += OnDisconnected;
             _process.Exited += OnProcessExited;
@@ -321,10 +299,6 @@ public sealed class MpvPlayerFactory : IMpvPlayerFactory
             catch { /* already gone */ }
             try { _process.Dispose(); } catch { /* ignore */ }
 
-            if (!_windows)
-            {
-                try { if (File.Exists(_endpoint)) File.Delete(_endpoint); } catch { /* ignore */ }
-            }
         }
     }
 }

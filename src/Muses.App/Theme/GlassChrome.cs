@@ -35,8 +35,7 @@ internal static class GlassChrome
 
         void Update(PlatformColorValues colors)
         {
-            var reduceTransparency = OperatingSystem.IsWindows()
-                && SystemParametersInfo(0x1040 /* SPI_GETDISABLEOVERLAPPEDCONTENT */, 0, out var disabled, 0)
+            var reduceTransparency = SystemParametersInfo(0x1040 /* SPI_GETDISABLEOVERLAPPEDCONTENT */, 0, out var disabled, 0)
                 && disabled;
             var opaque = GlassDecision.Mode(reduceTransparency,
                 colors.ContrastPreference == ColorContrastPreference.High, supportsGlass: false) == GlassMode.Opaque;

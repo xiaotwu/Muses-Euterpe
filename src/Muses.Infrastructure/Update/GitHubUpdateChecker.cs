@@ -22,8 +22,7 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
     private readonly HttpClient _httpClient;
     private readonly string _repoSlug;
     private readonly string _currentVersion;
-    private readonly OSPlatform _platform;
-    private readonly Architecture _architecture;
+    private readonly bool _supportsPackage;
 
     public string CurrentVersion => _currentVersion;
     public static string InstalledVersion { get; } = GetCurrentAssemblyVersion();
@@ -33,20 +32,19 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
         string repoSlug = DefaultRepository,
         string? currentVersion = null)
         : this(
-            OperatingSystem.IsWindows() ? OSPlatform.Windows : OperatingSystem.IsLinux() ? OSPlatform.Linux : OSPlatform.OSX,
+            OperatingSystem.IsWindows(),
             RuntimeInformation.ProcessArchitecture, httpClient, repoSlug, currentVersion)
     {
     }
 
     internal GitHubUpdateChecker(
-        OSPlatform platform,
+        bool isWindows,
         Architecture architecture,
         HttpClient? httpClient = null,
         string repoSlug = DefaultRepository,
         string? currentVersion = null)
     {
-        _platform = platform;
-        _architecture = architecture;
+        _supportsPackage = isWindows && architecture == Architecture.X64;
         _httpClient = httpClient ?? DefaultHttpClient;
         _repoSlug = string.IsNullOrWhiteSpace(repoSlug) ? DefaultRepository : repoSlug;
         if (!IsRepositorySlug(_repoSlug))
@@ -71,8 +69,7 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
     public async Task<AppUpdateInfo> CheckForUpdatesAsync(bool includePrereleases = false, CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        var packageSuffix = GetPackageSuffix();
-        if (packageSuffix is null)
+        if (!_supportsPackage)
             return NoCompatibleRelease();
 
         var url = $"https://api.github.com/repos/{_repoSlug}/releases";
@@ -108,7 +105,7 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
                 (targetVersion is not null && CompareSemVer(version, targetVersion) <= 0))
                 continue;
 
-            var asset = FindPlatformAsset(release, tag, $"Muses-{version}-{packageSuffix}");
+            var asset = FindWindowsAsset(release, tag, version);
             if (asset is null)
                 continue;
 
@@ -136,19 +133,11 @@ public sealed class GitHubUpdateChecker : IUpdateChecker
 
     private AppUpdateInfo NoCompatibleRelease() => new(_currentVersion, null, false, "", "", null, null);
 
-    private string? GetPackageSuffix()
-    {
-        if (_architecture != Architecture.X64)
-            return null;
-        if (_platform == OSPlatform.Windows)
-            return "win-x64.msix";
-        return _platform == OSPlatform.Linux ? "linux-x64.deb" : null;
-    }
-
-    private string? FindPlatformAsset(JsonElement release, string tag, string name)
+    private string? FindWindowsAsset(JsonElement release, string tag, string version)
     {
         if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
             return null;
+        var name = $"Muses-{version}-win-x64.msix";
         var expectedUrl = $"https://github.com/{_repoSlug}/releases/download/{tag}/{name}";
         foreach (var asset in assets.EnumerateArray())
         {

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""SQLite fixture and X11 window check shared by the package smoke scripts."""
+"""SQLite fixtures for the Windows package smoke test."""
 
 import json
 import re
 import sqlite3
 import subprocess
 import sys
-import time
 from contextlib import closing
 from pathlib import Path
 
@@ -56,7 +55,7 @@ def prepare(database):
         """)
 
 
-def seed(connection, legacy):
+def seed(connection):
     initial = connection.execute(
         "SELECT items_json, saved_at FROM queue_state WHERE id = ?", (QUEUE_ID,)
     ).fetchone()
@@ -87,13 +86,6 @@ def seed(connection, legacy):
             UPDATE queue_state SET items_json = ?, current_index = -1,
                 current_track_id = NULL, saved_at = 1 WHERE id = ?
         """, (json.dumps(items), QUEUE_ID))
-        if legacy:
-            # The pre-port schema at 6fabd52 has none of these additive columns.
-            # Recreate that layout even when both test packages came from one revision.
-            for table, column in LEGACY_ADDITIVE_COLUMNS:
-                columns = connection.execute(f"PRAGMA table_info({table})")
-                if any(row[1] == column for row in columns):
-                    connection.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
 
 
 def verify(connection, restored):
@@ -143,7 +135,7 @@ def prepare_historical_roaming(database):
                 repeat_mode_raw, shuffle, saved_at)
             VALUES (?, '[]', -1, '[]', '[]', 'Off', 0, 2)
         """, (QUEUE_ID,))
-        seed(connection, legacy=False)
+        seed(connection)
         connection.execute("""
             INSERT INTO playlists (id, name, created_at, pinned) VALUES (?, 'Historical playlist', 1, 1)
         """, (PLAYLIST_ID,))
@@ -207,8 +199,8 @@ def check_database(action, directory):
     with closing(sqlite3.connect(database.as_uri() + "?mode=rw", uri=True)) as connection:
         integrity = connection.execute("PRAGMA quick_check").fetchall()
         check(integrity == [("ok",)], f"SQLite quick_check failed: {integrity}")
-        if action in {"seed", "seed-legacy"}:
-            seed(connection, legacy=action == "seed-legacy")
+        if action == "seed":
+            seed(connection)
         elif action in {"verify-historical-baseline", "verify-historical-roaming-rearm", "verify-historical-roaming"}:
             verify_historical_roaming(
                 connection, restored=action != "verify-historical-baseline",
@@ -218,56 +210,10 @@ def check_database(action, directory):
             verify(connection, restored=action == "verify-restored")
 
 
-def close_x11_window(pid):
-    # python3-xlib is needed only for the Linux desktop check.
-    from Xlib import X, display, error, protocol
-
-    desktop = display.Display()
-    pid_atom = desktop.intern_atom("_NET_WM_PID")
-    protocols = desktop.intern_atom("WM_PROTOCOLS")
-    delete = desktop.intern_atom("WM_DELETE_WINDOW")
-
-    def find_window(parent):
-        for window in parent.query_tree().children:
-            try:
-                owner = window.get_full_property(pid_atom, X.AnyPropertyType)
-                if (owner is not None and owner.value[0] == pid
-                        and window.get_wm_name() == "Muses"
-                        and window.get_attributes().map_state == X.IsViewable):
-                    return window
-                match = find_window(window)
-                if match is not None:
-                    return match
-            except error.BadWindow:
-                continue
-        return None
-
-    try:
-        deadline = time.monotonic() + 45
-        while time.monotonic() < deadline:
-            if not Path(f"/proc/{pid}").exists():
-                raise RuntimeError("Muses exited before showing its desktop window")
-            window = find_window(desktop.screen().root)
-            if window is not None:
-                event = protocol.event.ClientMessage(
-                    window=window, client_type=protocols, data=(32, [delete, 0, 0, 0, 0])
-                )
-                window.send_event(event)
-                desktop.sync()
-                print(f"Opened the Muses desktop window ({window.id})")
-                return
-            time.sleep(0.25)
-        raise RuntimeError("No visible Muses X11 window appeared within 45 seconds")
-    finally:
-        desktop.close()
-
-
 if __name__ == "__main__":
     action, value = sys.argv[1:]
-    if action == "close-x11-window":
-        close_x11_window(int(value))
-    elif action in {
-        "prepare", "seed", "seed-legacy", "verify-fixture", "verify-restored",
+    if action in {
+        "prepare", "seed", "verify-fixture", "verify-restored",
         "prepare-historical-roaming", "verify-historical-baseline",
         "verify-historical-roaming-rearm", "verify-historical-roaming",
     }:

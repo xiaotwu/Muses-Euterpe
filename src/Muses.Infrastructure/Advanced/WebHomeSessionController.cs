@@ -11,7 +11,7 @@ public sealed class WebHomeSessionController
     private readonly IWebHomeHelperClient _helperClient;
     private readonly Func<string?> _currentChannelIdProvider;
     private readonly IPreferences _preferences;
-    private readonly WebHomeCookieSourceDescriptor _cookieSource = new(OperatingSystem.IsWindows() ? "edge" : "chrome");
+    private readonly WebHomeCookieSourceDescriptor _cookieSource = new("edge");
     private readonly object _gate = new();
     private readonly SemaphoreSlim _requests = new(1);
     private CancellationTokenSource? _request;

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Check Euterpe package metadata and write checksums and planned download URLs."""
+"""Check the Windows MSIX metadata and write its checksum and planned download URL."""
 
 import argparse
 import hashlib
 import json
 import re
-import subprocess
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -39,29 +38,16 @@ def inspect_msix(path, version, publisher, allow_unsigned):
         return {"publisher": publisher, "signature_present": signature_present}
 
 
-def inspect_deb(path, version):
-    output = subprocess.run(
-        ["dpkg-deb", "--field", str(path), "Package", "Architecture", "Version", "Depends"],
-        check=True, capture_output=True, text=True,
-    ).stdout
-    fields = dict(line.split(": ", 1) for line in output.splitlines() if ": " in line)
-    if (fields.get("Package"), fields.get("Architecture"), fields.get("Version")) != ("muses", "amd64", version):
-        raise ValueError(f"{path.name} has an unexpected Debian package name, architecture or version.")
-    if not re.search(r"(?:^|,)\s*mpv(?:\s*\([^)]*\))?\s*(?:,|$)", fields.get("Depends", "")):
-        raise ValueError(f"{path.name} is missing the mpv dependency.")
-    return {}
-
-
-def record_asset(path, version, runtime, extension, inspect):
-    expected = f"Muses-{version}-{runtime}.{extension}"
+def record_asset(path, version, publisher, allow_unsigned):
+    expected = f"Muses-{version}-win-x64.msix"
     if path.name != expected:
         raise ValueError(f"Expected {expected}, received {path.name}.")
-    metadata = inspect(path)
+    metadata = inspect_msix(path, version, publisher, allow_unsigned)
     with path.open("rb") as content:
         checksum = hashlib.file_digest(content, "sha256").hexdigest()
     return {
         "name": expected,
-        "runtime": runtime,
+        "runtime": "win-x64",
         "size": path.stat().st_size,
         "digest": f"sha256:{checksum}",
         "browser_download_url": f"{REPOSITORY}/releases/download/v{version}/{expected}",
@@ -71,9 +57,8 @@ def record_asset(path, version, runtime, extension, inspect):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("version", help="Stable X.Y.Z version shared by both package names")
-    parser.add_argument("--windows", type=Path, help="Path to the x64 MSIX")
-    parser.add_argument("--linux", type=Path, help="Path to the amd64 DEB")
+    parser.add_argument("version", help="Stable X.Y.Z package version")
+    parser.add_argument("--windows", type=Path, required=True, help="Path to the x64 MSIX")
     parser.add_argument("--publisher", default="CN=xiaotwu", help="Exact expected MSIX Publisher")
     parser.add_argument("--allow-unsigned-msix", action="store_true", help="Allow an unsigned CI inspection package")
     parser.add_argument("--output", type=Path, required=True)
@@ -82,30 +67,19 @@ def main():
     version = args.version
     if not VERSION.fullmatch(version) or not all(0 <= int(part) <= 65535 for part in version.split(".")) or version == "0.0.0":
         parser.error("use a nonzero stable X.Y.Z version, with components from 0 through 65535")
-    if args.windows is None and args.linux is None:
-        parser.error("provide at least one package")
 
     try:
-        assets = []
-        if args.windows is not None:
-            assets.append(record_asset(
-                args.windows, version, "win-x64", "msix",
-                lambda path: inspect_msix(path, version, args.publisher, args.allow_unsigned_msix),
-            ))
-        if args.linux is not None:
-            assets.append(record_asset(args.linux, version, "linux-x64", "deb",
-                                       lambda path: inspect_deb(path, version)))
+        asset = record_asset(args.windows, version, args.publisher, args.allow_unsigned_msix)
         args.output.mkdir(parents=True, exist_ok=True)
         (args.output / "SHA256SUMS").write_text(
-            "".join(f"{asset['digest'][7:]}  {asset['name']}\n" for asset in assets), encoding="utf-8", newline="\n",
+            f"{asset['digest'][7:]}  {asset['name']}\n", encoding="utf-8", newline="\n",
         )
-        plan = {"tag": f"v{version}", "status": "planned", "assets": assets}
+        plan = {"tag": f"v{version}", "status": "planned", "assets": [asset]}
         (args.output / "release-asset-plan.json").write_text(
             json.dumps(plan, indent=2) + "\n", encoding="utf-8", newline="\n",
         )
-        for asset in assets:
-            print(f"Verified {asset['name']} ({asset['digest']}).")
-    except (OSError, ValueError, KeyError, ET.ParseError, zipfile.BadZipFile, subprocess.CalledProcessError) as error:
+        print(f"Verified {asset['name']} ({asset['digest']}).")
+    except (OSError, ValueError, KeyError, ET.ParseError, zipfile.BadZipFile) as error:
         parser.exit(1, f"Release asset check failed: {error}\n")
 
 

@@ -7,7 +7,6 @@ public sealed class WebHomeCookieJar : IDisposable
 {
     private const string NetscapeHeader = "# Netscape HTTP Cookie File\n";
     private const int MaximumCookieFileBytes = 10 * 1024 * 1024;
-    private const UnixFileMode PrivateDirectory = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
     private int _disposed;
 
     public string WorkspacePath { get; }
@@ -16,18 +15,15 @@ public sealed class WebHomeCookieJar : IDisposable
     public WebHomeCookieJar(string? rootDirectory = null, Guid? id = null)
     {
         var root = rootDirectory ?? WebHomeWorkspace.RootPath;
-        CreatePrivateDirectory(root);
+        CreateWorkspaceDirectory(root);
         CleanupOrphans(root);
         WorkspacePath = Path.Combine(root, (id ?? Guid.NewGuid()).ToString("N"));
-        CreatePrivateDirectory(WorkspacePath);
+        CreateWorkspaceDirectory(WorkspacePath);
     }
 
     public void SeedNetscapeHeader()
     {
-        var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
-        if (!OperatingSystem.IsWindows())
-            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        using var writer = new StreamWriter(new FileStream(CookieFilePath, options));
+        using var writer = new StreamWriter(new FileStream(CookieFilePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read));
         writer.Write(NetscapeHeader);
     }
 
@@ -118,15 +114,11 @@ public sealed class WebHomeCookieJar : IDisposable
             DeleteWorkspace(WorkspacePath);
     }
 
-    private static void CreatePrivateDirectory(string path)
+    private static void CreateWorkspaceDirectory(string path)
     {
-        var directory = OperatingSystem.IsWindows()
-            ? Directory.CreateDirectory(path)
-            : Directory.CreateDirectory(path, PrivateDirectory);
+        var directory = Directory.CreateDirectory(path);
         if (directory.Attributes.HasFlag(FileAttributes.ReparsePoint))
             throw new IOException("Web Home workspace cannot be a link.");
-        if (!OperatingSystem.IsWindows() && File.GetUnixFileMode(path) != PrivateDirectory)
-            File.SetUnixFileMode(path, PrivateDirectory);
     }
 
     private static void CleanupOrphans(string root)

@@ -163,12 +163,11 @@ public class SettingsPolicyTests
     }
 
     [Fact]
-    public void WindowsSMTC_IsSupported_false_on_non_windows_dev_hosts()
+    public void WindowsSMTC_is_unavailable_before_the_window_is_registered()
     {
-        var smtc = new WindowsSMTCService();
-        if (!OperatingSystem.IsWindows())
-            Assert.False(smtc.IsSupported);
-        smtc.Dispose();
+        using var smtc = new WindowsSMTCService();
+        smtc.Start(IntPtr.Zero);
+        Assert.False(smtc.IsSupported);
     }
 
     private sealed class TestWindowsSmtcBackend : IWindowsSmtcBackend

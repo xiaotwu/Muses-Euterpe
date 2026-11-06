@@ -1,4 +1,3 @@
-#if WINDOWS
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Media;
@@ -152,4 +151,3 @@ internal sealed class WindowsSmtcBackend : IWindowsSmtcBackend
         }
     }
 }
-#endif

@@ -1,8 +1,6 @@
 using Avalonia;
 using Avalonia.Media;
 using Muses.App.Services;
-using Muses.Platform.Linux;
-using System;
 
 namespace Muses.App;
 
@@ -16,11 +14,11 @@ internal static class Program
         return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
-    public static AppBuilder BuildAvaloniaApp()
-    {
-        BundledHarfBuzz.Initialize();
-        return AppBuilder.Configure<App>()
-            .UsePlatformDetect()
+    public static AppBuilder BuildAvaloniaApp() =>
+        AppBuilder.Configure<App>()
+            .UseHarfBuzz()
+            .UseWin32()
+            .UseSkia()
             .WithInterFont()
             .With(new FontManagerOptions
             {
@@ -33,5 +31,4 @@ internal static class Program
                 ],
             })
             .LogToTrace();
-    }
 }

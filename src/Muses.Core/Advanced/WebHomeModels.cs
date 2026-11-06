@@ -25,9 +25,7 @@ public static class WebHomeWorkspace
 {
     public const string RootFolderName = "muses-web-home-helper";
 
-    public static string RootPath => OperatingSystem.IsWindows()
-        ? Path.Combine(Path.GetTempPath(), RootFolderName)
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".muses", "tmp", RootFolderName);
+    public static string RootPath => Path.Combine(Path.GetTempPath(), RootFolderName);
 
     public static string GetPath(Guid id) => Path.Combine(RootPath, id.ToString("N"));
 }

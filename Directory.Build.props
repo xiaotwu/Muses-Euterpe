@@ -8,9 +8,7 @@
     <NuGetAuditMode>direct</NuGetAuditMode>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
-  <PropertyGroup Condition="('$(MSBuildProjectName)' == 'Muses.App' Or '$(MSBuildProjectName)' == 'Muses.Platform.Windows' Or '$(MSBuildProjectName)' == 'Muses.Tests') And
-                            ($(RuntimeIdentifier.StartsWith('win-')) Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))))">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Muses.App' Or '$(MSBuildProjectName)' == 'Muses.Platform.Windows' Or '$(MSBuildProjectName)' == 'Muses.Tests'">
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 </Project>

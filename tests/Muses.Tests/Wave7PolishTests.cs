@@ -30,33 +30,27 @@ public class Wave7PolishTests
     }
 
     [Theory]
-    [InlineData("linux", Architecture.X64, "Muses-0.2.0-linux-x64.deb")]
-    [InlineData("windows", Architecture.X64, "Muses-0.2.0-win-x64.msix")]
-    [InlineData("linux", Architecture.Arm64, null)]
-    [InlineData("windows", Architecture.Arm64, null)]
-    [InlineData("windows", Architecture.X86, null)]
-    [InlineData("linux", Architecture.X86, null)]
-    [InlineData("osx", Architecture.X64, null)]
-    [InlineData("osx", Architecture.Arm64, null)]
-    public async Task CheckForUpdates_SelectsCompatiblePlatformAsset(string platform, Architecture architecture, string? expected)
+    [InlineData(true, Architecture.X64, true)]
+    [InlineData(true, Architecture.Arm64, false)]
+    [InlineData(true, Architecture.X86, false)]
+    [InlineData(false, Architecture.X64, false)]
+    public async Task CheckForUpdates_OffersTheWindowsX64PackageOnly(bool isWindows, Architecture architecture, bool expectedUpdate)
     {
         const string tag = "v0.2.0";
-        var update = await CheckReleases(OSPlatform.Create(platform.ToUpperInvariant()), architecture,
+        var update = await CheckReleases(isWindows, architecture,
         [
             Release(tag,
             [
                 Asset(tag, "Muses-0.2.0-win-x64.msix"),
                 Asset(tag, "Muses-0.2.0-win-arm64.msix"),
-                Asset(tag, "Muses-0.2.0-linux-x64.deb"),
-                Asset(tag, "Muses-0.2.0-linux-arm64.deb"),
                 Asset(tag, "Muses-0.2.0-macos-arm64.dmg"),
                 Asset(tag, "Muses-0.2.0-win-x64.exe")
             ])
         ]);
 
-        Assert.Equal(expected is not null, update.HasUpdate);
-        Assert.Equal(expected is null ? null : AssetUrl(tag, expected), update.DownloadUrl);
-        if (expected is not null)
+        Assert.Equal(expectedUpdate, update.HasUpdate);
+        Assert.Equal(expectedUpdate ? AssetUrl(tag, "Muses-0.2.0-win-x64.msix") : null, update.DownloadUrl);
+        if (expectedUpdate)
         {
             Assert.Equal("0.1.0", update.CurrentVersion);
             Assert.Equal("0.2.0", update.LatestVersion);
@@ -69,21 +63,21 @@ public class Wave7PolishTests
     [Fact]
     public async Task CheckForUpdates_SkipsForeignReleasesAndSelectsNewestUsablePackage()
     {
-        var update = await CheckReleases(OSPlatform.Linux, Architecture.X64,
+        var update = await CheckReleases(true, Architecture.X64,
         [
-            Release("v0.9.0", [Asset("v0.9.0", "Muses-0.9.0-win-x64.msix")]),
-            Release("v0.8.0", [Asset("v0.8.0", "Muses-0.8.0-linux-x64.deb")], draft: true),
-            Release("v0.7.0", [Asset("v0.7.0", "Muses-0.7.0-linux-x64.deb")], publishedAt: null),
+            Release("v0.9.0", [Asset("v0.9.0", "Muses-0.9.0-win-arm64.msix")]),
+            Release("v0.8.0", [Asset("v0.8.0", "Muses-0.8.0-win-x64.msix")], draft: true),
+            Release("v0.7.0", [Asset("v0.7.0", "Muses-0.7.0-win-x64.msix")], publishedAt: null),
             Release("v0.6.0", []),
-            Release("v0.5.0", [Asset("v0.5.0", "Muses-0.5.0.deb")]),
-            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-linux-x64.deb")]),
-            Release("v0.4.0", [Asset("v0.4.0", "Muses-0.4.0-linux-x64.deb", state: "starter")]),
-            Release("v0.3.0", [null, 42, new { name = false }, Asset("v0.3.0", "Muses-0.3.0-linux-x64.deb")])
+            Release("v0.5.0", [Asset("v0.5.0", "Muses-0.5.0.msix")]),
+            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-win-x64.msix")]),
+            Release("v0.4.0", [Asset("v0.4.0", "Muses-0.4.0-win-x64.msix", state: "starter")]),
+            Release("v0.3.0", [null, 42, new { name = false }, Asset("v0.3.0", "Muses-0.3.0-win-x64.msix")])
         ]);
 
         Assert.True(update.HasUpdate);
         Assert.Equal("0.3.0", update.LatestVersion);
-        Assert.Equal(AssetUrl("v0.3.0", "Muses-0.3.0-linux-x64.deb"), update.DownloadUrl);
+        Assert.Equal(AssetUrl("v0.3.0", "Muses-0.3.0-win-x64.msix"), update.DownloadUrl);
     }
 
     [Theory]
@@ -96,7 +90,7 @@ public class Wave7PolishTests
     [InlineData("Muses-0.2.0-win-x64.msix")]
     public async Task CheckForUpdates_RejectsNoncanonicalDownloadUrl(string url)
     {
-        var update = await CheckReleases(OSPlatform.Windows, Architecture.X64,
+        var update = await CheckReleases(true, Architecture.X64,
             [Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-win-x64.msix", url)])]);
         Assert.False(update.HasUpdate);
         Assert.Null(update.LatestVersion);
@@ -108,7 +102,7 @@ public class Wave7PolishTests
     [InlineData("0.1.1")]
     public async Task CheckForUpdates_ReportsNoUpdateWhenCurrentIsEqualOrNewer(string installed)
     {
-        var update = await CheckReleases(OSPlatform.Windows, Architecture.X64,
+        var update = await CheckReleases(true, Architecture.X64,
             [Release("v0.1.0", [Asset("v0.1.0", "Muses-0.1.0-win-x64.msix")])], currentVersion: installed);
         Assert.False(update.HasUpdate);
         Assert.Equal("0.1.0", update.LatestVersion);
@@ -120,16 +114,16 @@ public class Wave7PolishTests
     {
         object[] releases =
         [
-            Release("v0.3.0-preview", [Asset("v0.3.0-preview", "Muses-0.3.0-preview-linux-x64.deb")]),
-            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-linux-x64.deb")], prerelease: true),
-            Release("v0.1.0", [Asset("v0.1.0", "Muses-0.1.0-linux-x64.deb")])
+            Release("v0.3.0-preview", [Asset("v0.3.0-preview", "Muses-0.3.0-preview-win-x64.msix")]),
+            Release("v0.2.0", [Asset("v0.2.0", "Muses-0.2.0-win-x64.msix")], prerelease: true),
+            Release("v0.1.0", [Asset("v0.1.0", "Muses-0.1.0-win-x64.msix")])
         ];
 
-        var update = await CheckReleases(OSPlatform.Linux, Architecture.X64, releases);
+        var update = await CheckReleases(true, Architecture.X64, releases);
         Assert.False(update.HasUpdate);
         Assert.Equal("0.1.0", update.LatestVersion);
 
-        var preUpdate = await CheckReleases(OSPlatform.Linux, Architecture.X64, releases, includePrereleases: true);
+        var preUpdate = await CheckReleases(true, Architecture.X64, releases, includePrereleases: true);
         Assert.True(preUpdate.HasUpdate);
         Assert.Equal("0.3.0-preview", preUpdate.LatestVersion);
     }
@@ -137,7 +131,7 @@ public class Wave7PolishTests
     [Fact]
     public async Task CheckForUpdates_SkipsMalformedVersionOrEmptyPackage()
     {
-        var update = await CheckReleases(OSPlatform.Windows, Architecture.X64,
+        var update = await CheckReleases(true, Architecture.X64,
         [
             Release("0.4.0", [Asset("0.4.0", "Muses-0.4.0-win-x64.msix")]),
             Release("v65536.0.0", [Asset("v65536.0.0", "Muses-65536.0.0-win-x64.msix")]),
@@ -154,21 +148,21 @@ public class Wave7PolishTests
     public async Task CheckForUpdates_ReportsHttpAndJsonFailures()
     {
         using var unavailable = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.ServiceUnavailable, "[]"));
-        var offline = new GitHubUpdateChecker(OSPlatform.Windows, Architecture.X64, unavailable);
+        var offline = new GitHubUpdateChecker(true, Architecture.X64, unavailable);
         await Assert.ThrowsAsync<HttpRequestException>(() => offline.CheckForUpdatesAsync());
 
         using var invalid = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, """{"invalid":true}"""));
-        var invalidResponse = new GitHubUpdateChecker(OSPlatform.Windows, Architecture.X64, invalid);
+        var invalidResponse = new GitHubUpdateChecker(true, Architecture.X64, invalid);
         await Assert.ThrowsAsync<JsonException>(() => invalidResponse.CheckForUpdatesAsync());
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             invalidResponse.CheckForUpdatesAsync(ct: new CancellationToken(canceled: true)));
     }
 
-    private static async Task<AppUpdateInfo> CheckReleases(OSPlatform platform, Architecture architecture,
+    private static async Task<AppUpdateInfo> CheckReleases(bool isWindows, Architecture architecture,
         object[] releases, string currentVersion = "0.1.0", bool includePrereleases = false)
     {
         using var client = new HttpClient(new MockHttpMessageHandler(HttpStatusCode.OK, JsonSerializer.Serialize(releases)));
-        var checker = new GitHubUpdateChecker(platform, architecture, client, currentVersion: currentVersion);
+        var checker = new GitHubUpdateChecker(isWindows, architecture, client, currentVersion: currentVersion);
         return await checker.CheckForUpdatesAsync(includePrereleases);
     }
 

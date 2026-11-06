@@ -26,41 +26,14 @@ public sealed partial class SqliteStore : IDisposable, IQueueStore, ITrackReposi
         MusesSchema.Ensure(_connection);
     }
 
-    public static string DefaultPath() => DefaultPaths()[0];
-
-    /// <summary>
-    /// The preferred database path followed by legacy paths that can still be opened.
-    /// </summary>
-    public static IReadOnlyList<string> DefaultPaths()
+    public static string DefaultPath()
     {
         var dataOverride = Environment.GetEnvironmentVariable("MUSES_DATA_HOME");
         if (Path.IsPathFullyQualified(dataOverride ?? ""))
-            return [Path.Combine(dataOverride!, DatabaseFileName)];
-
-        if (OperatingSystem.IsLinux())
-        {
-            return LinuxDatabasePaths(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                Environment.GetEnvironmentVariable("XDG_DATA_HOME"),
-                Environment.GetEnvironmentVariable("XDG_CONFIG_HOME"));
-        }
+            return Path.Combine(dataOverride!, DatabaseFileName);
 
         var root = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var folder = OperatingSystem.IsMacOS() ? "MusesEuterpe" : "Muses";
-        return [Path.Combine(root, folder, DatabaseFileName)];
-    }
-
-    internal static string[] LinuxDatabasePaths(string home, string? dataHome, string? configHome)
-    {
-        var defaultConfig = Path.Combine(home, ".config");
-        var dataRoot = Path.IsPathFullyQualified(dataHome ?? "") ? dataHome! : Path.Combine(home, ".local", "share");
-        var configRoot = Path.IsPathFullyQualified(configHome ?? "") ? configHome! : defaultConfig;
-
-        // Older Euterpe Linux builds used .NET's ApplicationData (XDG_CONFIG_HOME).
-        return new[] { dataRoot, configRoot, defaultConfig }
-            .Select(root => Path.Combine(root, "Muses", DatabaseFileName))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        return Path.Combine(root, "Muses", DatabaseFileName);
     }
 
     public static SqliteStore Open(string? path = null, bool inMemory = false)
@@ -68,7 +41,7 @@ public sealed partial class SqliteStore : IDisposable, IQueueStore, ITrackReposi
         if (inMemory)
             return new SqliteStore(OpenMemory(), false, null);
 
-        var destination = path ?? SelectDatabasePath(DefaultPaths());
+        var destination = path ?? DefaultPath();
         SqliteConnection? conn = null;
         try
         {

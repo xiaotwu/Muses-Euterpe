@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using Muses.Platform.Linux.Tray;
 using Muses.Platform.Windows;
 
 namespace Muses.App.Services;
@@ -14,9 +13,7 @@ public sealed class TrayIconHost : IDisposable
 {
     private readonly WindowsTrayController _tray;
     private readonly TrayIcons _icons;
-    private readonly DispatcherTimer? _availabilityTimer;
     private TrayIcon? _icon;
-    private bool _checkingAvailability;
     private bool _disposed;
 
     public bool CanRestoreWindow { get; private set; }
@@ -28,11 +25,6 @@ public sealed class TrayIconHost : IDisposable
         _icons = TrayIcon.GetIcons(application) ?? new TrayIcons();
         TrayIcon.SetIcons(application, _icons);
         _tray.Changed += OnTrayChanged;
-        if (OperatingSystem.IsLinux())
-        {
-            _availabilityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _availabilityTimer.Tick += CheckAvailability;
-        }
     }
 
     public void Apply()
@@ -56,15 +48,7 @@ public sealed class TrayIconHost : IDisposable
                 TrySetIcon(_icon);
                 _icon.Clicked += (_, _) => Dispatcher.UIThread.Post(_tray.RequestShow);
                 _icons.Add(_icon);
-                if (_availabilityTimer is not null)
-                {
-                    _availabilityTimer.Start();
-                    CheckAvailability(this, EventArgs.Empty);
-                }
-                else
-                {
-                    SetAvailability(OperatingSystem.IsWindows());
-                }
+                SetAvailability(true);
             }
             else
             {
@@ -85,22 +69,6 @@ public sealed class TrayIconHost : IDisposable
             Apply();
         else
             Dispatcher.UIThread.Post(Apply);
-    }
-
-    private async void CheckAvailability(object? sender, EventArgs e)
-    {
-        var icon = _icon;
-        if (_checkingAvailability || icon is null)
-            return;
-
-        _checkingAvailability = true;
-        var available = await LinuxTrayAvailability.IsRegisteredAsync().ConfigureAwait(false);
-        Dispatcher.UIThread.Post(() =>
-        {
-            _checkingAvailability = false;
-            if (ReferenceEquals(icon, _icon))
-                SetAvailability(available);
-        });
     }
 
     private void SetAvailability(bool available)
@@ -156,7 +124,6 @@ public sealed class TrayIconHost : IDisposable
 
     private void DisposeIcon()
     {
-        _availabilityTimer?.Stop();
         SetAvailability(false);
         if (_icon is null) return;
         _icon.IsVisible = false;

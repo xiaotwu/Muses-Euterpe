@@ -252,21 +252,9 @@ public partial class ShellViewModel : ObservableObject
 
     public bool IsCapsuleVisible => !SettingsOpen && !IsNowPlayingOpen && !IsVideoOverlayOpen;
     public bool IsVideoEmbedAvailable => _videoIFrameClient?.IsAvailable ?? false;
-    public string VideoEmbedUnavailableMessage => _videoIFrameClient switch
-    {
-        LinuxWebKitYouTubeIFrameClient { RuntimeUnavailable: false } => L10n.Tr(
-            "The embedded YouTube player could not load this video. You can open it in YouTube.",
-            "嵌入式 YouTube 播放器无法加载此视频。你可以在 YouTube 中打开。"),
-        _ when OperatingSystem.IsLinux() => L10n.Tr(
-            "In-app video requires WebKitGTK and an X11 or XWayland session. You can open this video in YouTube.",
-            "应用内视频需要 WebKitGTK 和 X11 或 XWayland 会话。你可以在 YouTube 中打开此视频。"),
-        _ when OperatingSystem.IsWindows() => L10n.Tr(
-            "In-app video requires the Microsoft Edge WebView2 Runtime. You can open this video in YouTube.",
-            "应用内视频需要 Microsoft Edge WebView2 运行时。你可以在 YouTube 中打开此视频。"),
-        _ => L10n.Tr(
-            "In-app video is unavailable on this platform. You can open this video in YouTube.",
-            "此平台无法在应用内播放视频。你可以在 YouTube 中打开此视频。"),
-    };
+    public string VideoEmbedUnavailableMessage => L10n.Tr(
+        "In-app video requires the Microsoft Edge WebView2 Runtime. You can open this video in YouTube.",
+        "应用内视频需要 Microsoft Edge WebView2 运行时。你可以在 YouTube 中打开此视频。");
 
     public bool IsSearch => SelectedSection == SidebarSection.Search;
     public bool IsHome => SelectedSection == SidebarSection.Home;
@@ -403,12 +391,6 @@ public partial class ShellViewModel : ObservableObject
             ? Muses.Core.NowPlaying.NowPlayingMode.Vinyl
             : Muses.Core.NowPlaying.NowPlayingMode.Cover;
         _videoIFrameClient = YouTubeEmbedHostFactory.CreateClient();
-        if (_videoIFrameClient is LinuxWebKitYouTubeIFrameClient linuxVideo)
-            linuxVideo.AvailabilityChanged += (_, _) =>
-            {
-                OnPropertyChanged(nameof(IsVideoEmbedAvailable));
-                OnPropertyChanged(nameof(VideoEmbedUnavailableMessage));
-            };
         _videoOverlaySession = new YouTubeVideoOverlaySession(playback, _videoIFrameClient, Preferences);
         _library = library;
         _ytdlp = ytdlp;

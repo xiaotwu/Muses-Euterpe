@@ -173,7 +173,7 @@ try {
         if (Test-Path -LiteralPath $mediaPath) { Remove-Item -LiteralPath $mediaPath -Force }
     }
     $mediaDir = Join-Path $publishDir "MediaTools"
-    & $PythonExecutable (Join-Path $PSScriptRoot "stage-media-tools.py") $Runtime $mediaDir | Out-Host
+    & $PythonExecutable (Join-Path $PSScriptRoot "stage-media-tools.py") $mediaDir | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Media tools staging failed (exit $LASTEXITCODE)." }
     foreach ($file in @("mpv.exe", "yt-dlp.exe", "deno.exe")) {
         if (-not (Test-Path -LiteralPath (Join-Path $mediaDir $file) -PathType Leaf)) {

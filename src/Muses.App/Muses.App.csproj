@@ -13,10 +13,11 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.5" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.5" />
-    <PackageReference Include="Avalonia.Controls.WebView" Version="12.1.1" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.5" />
+    <PackageReference Include="Avalonia.HarfBuzz" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Skia" Version="12.1.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.5" />
+    <PackageReference Include="Avalonia.Win32" Version="12.1.5" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
   </ItemGroup>
@@ -25,7 +26,6 @@
     <ProjectReference Include="..\Muses.Persistence\Muses.Persistence.csproj" />
     <ProjectReference Include="..\Muses.Infrastructure\Muses.Infrastructure.csproj" />
     <ProjectReference Include="..\Muses.Platform.Windows\Muses.Platform.Windows.csproj" />
-    <ProjectReference Include="..\Muses.Platform.Linux\Muses.Platform.Linux.csproj" />
     <ProjectReference Include="..\Muses.WebHome.Helper\Muses.WebHome.Helper.csproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>
@@ -34,7 +34,6 @@
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
-    <None Include="..\..\resources\yt-dlp" Link="yt-dlp" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\yt-dlp')" />
     <None Include="..\..\resources\yt-dlp.exe" Link="yt-dlp.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\yt-dlp.exe')" />
     <None Include="..\..\resources\mpv.exe" Link="mpv.exe" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\mpv.exe')" />
     <None Include="..\..\resources\d3dcompiler_43.dll" Link="d3dcompiler_43.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\resources\d3dcompiler_43.dll')" />

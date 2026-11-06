@@ -12,7 +12,7 @@ public sealed class WindowsSMTCService : IPlatformSMTC, IDisposable
     private bool _disposed;
     private IWindowsSmtcBackend _backend;
 
-    public bool IsSupported => !_disposed && OperatingSystem.IsWindows() && _backend.IsAvailable;
+    public bool IsSupported => !_disposed && _backend.IsAvailable;
 
     public event Action? PlayRequested;
     public event Action? PauseRequested;
@@ -45,7 +45,6 @@ public sealed class WindowsSMTCService : IPlatformSMTC, IDisposable
 
     public void Start(nint windowHandle)
     {
-#if WINDOWS
         if (_disposed || _backend.IsAvailable || windowHandle == IntPtr.Zero)
             return;
         if (WindowsSmtcBackend.TryCreate(windowHandle) is not { } backend)
@@ -55,7 +54,6 @@ public sealed class WindowsSMTCService : IPlatformSMTC, IDisposable
         _backend = backend;
         SubscribeBackend();
         RefreshPlayback();
-#endif
     }
 
     private void SubscribeBackend()

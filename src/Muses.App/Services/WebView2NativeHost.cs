@@ -50,9 +50,6 @@ public sealed class WebView2NativeHost : NativeControlHost
 
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {
-        if (!OperatingSystem.IsWindows())
-            return base.CreateNativeControlCore(parent);
-
         // Overlay close destroys the HWND; a later open reuses this host instance.
         _destroying = false;
         _controller = null;

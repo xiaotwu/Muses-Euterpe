@@ -8,10 +8,7 @@ namespace Muses.Platform.Windows;
 /// </summary>
 public sealed class WindowsAudioOutputProbe : IAudioOutputProbe
 {
-    public static IAudioOutputProbe Create() =>
-        OperatingSystem.IsWindows() ? new WindowsAudioOutputProbe() : NullAudioOutputProbe.Instance;
-
-    private WindowsAudioOutputProbe()
+    public WindowsAudioOutputProbe()
     {
         try
         {

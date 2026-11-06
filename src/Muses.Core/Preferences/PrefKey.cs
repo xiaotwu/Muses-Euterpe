@@ -13,7 +13,6 @@ public static class PrefKey
     public const string SidebarCollapsed = "muses.sidebarCollapsed";
     public const string AudioQuality = "muses.audio.quality";
     public const string CloseToTray = "muses.desktop.closeToTray";
-    public const string LinuxReduceMotion = "muses.desktop.linuxReduceMotion";
     public const string WebHomeEnabled = "muses.webHome.enabled";
     public const string WebHomeConsentVersion = "muses.webHome.consentVersion";
     public const string HomeRecommendationMode = "muses.home.recommendationMode";

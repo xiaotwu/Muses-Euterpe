@@ -11,7 +11,7 @@ public sealed class MediaToolPathsTests
         var root = Directory.CreateTempSubdirectory("muses-tool-paths-");
         var tools = root.CreateSubdirectory("MediaTools");
         var helper = root.CreateSubdirectory("Helpers");
-        var executable = Path.Combine(tools.FullName, OperatingSystem.IsWindows() ? "yt-dlp.exe" : "yt-dlp");
+        var executable = Path.Combine(tools.FullName, "yt-dlp.exe");
         try
         {
             File.WriteAllBytes(executable, []);

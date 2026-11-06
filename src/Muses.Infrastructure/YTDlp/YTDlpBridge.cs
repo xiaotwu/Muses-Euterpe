@@ -144,10 +144,9 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
         if (ignoreConfig)
             args.Add("--ignore-config");
 
-        var name = ExecutableName("deno");
         var deno = !string.IsNullOrWhiteSpace(_javaScriptRuntimePath)
             ? Path.GetFullPath(_javaScriptRuntimePath)
-            : MediaToolPaths.FindPackaged("deno") ?? FindExecutable(name, Path.GetDirectoryName(binary));
+            : MediaToolPaths.FindPackaged("deno") ?? FindExecutable("deno.exe", Path.GetDirectoryName(binary));
         if (deno is not null)
         {
             if (!File.Exists(deno))
@@ -166,11 +165,9 @@ public sealed class YTDlpBridge : IYTDlpBridge, IYouTubePlaylistFetcher
                 throw new YTDlpException("Configured yt-dlp binary not found");
             return _resolvedBinary = Path.GetFullPath(_binaryPath);
         }
-        return _resolvedBinary = MediaToolPaths.FindPackaged("yt-dlp") ?? FindExecutable(ExecutableName("yt-dlp"))
+        return _resolvedBinary = MediaToolPaths.FindPackaged("yt-dlp") ?? FindExecutable("yt-dlp.exe")
             ?? throw new YTDlpException("yt-dlp binary not found");
     }
-
-    private static string ExecutableName(string name) => OperatingSystem.IsWindows() ? name + ".exe" : name;
 
     private static string? FindExecutable(string name, string? preferredDirectory = null)
     {

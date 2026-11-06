@@ -254,7 +254,7 @@ public sealed class ProcessWebHomeHelperClient : IWebHomeHelperClient, IDisposab
 
     internal static string? LocateHelper()
     {
-        var name = OperatingSystem.IsWindows() ? "MusesWebHomeHelper.exe" : "MusesWebHomeHelper";
+        const string name = "MusesWebHomeHelper.exe";
         var candidates = new List<string>();
         var baseDir = AppContext.BaseDirectory;
         candidates.Add(Path.Combine(baseDir, name));

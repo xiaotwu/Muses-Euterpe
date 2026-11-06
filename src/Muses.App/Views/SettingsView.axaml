@@ -134,9 +134,7 @@
             <ComboBoxItem Content="{Binding SettingsThemeSystemLabel}" />
           </ComboBox>
         </StackPanel>
-        <CheckBox IsVisible="{Binding IsLinuxDesktop}" Content="{Binding SettingsReduceMotionLabel}"
-                  IsChecked="{Binding LinuxReduceMotion, Mode=TwoWay}" Foreground="{DynamicResource MusesTextPrimaryBrush}" />
-        <TextBlock IsVisible="{Binding !IsLinuxDesktop}" Text="{Binding SettingsReduceMotionNote}"
+        <TextBlock Text="{Binding SettingsReduceMotionNote}"
                    FontSize="12" Foreground="{DynamicResource MusesTextSecondaryBrush}" TextWrapping="Wrap" />
       </StackPanel>
 

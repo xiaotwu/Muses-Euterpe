@@ -51,13 +51,7 @@ public partial class RootView : UserControl
     private void OnWindowActivated(object? sender, EventArgs e)
     {
         GlassChrome.Refresh();
-        if (OperatingSystem.IsWindows())
-            RefreshMotionPreference(MotionChrome.DetectPreferReducedMotion());
-    }
-
-    private void RefreshMotionPreference(bool reduced)
-    {
-        if (Application.Current is not { } app || !MotionChrome.Refresh(app, reduced))
+        if (Application.Current is not { } app || !MotionChrome.Refresh(app))
             return;
 
         CancelPresentationFade();
@@ -94,9 +88,6 @@ public partial class RootView : UserControl
     {
         switch (e.PropertyName)
         {
-            case nameof(ShellViewModel.LinuxReduceMotion) when OperatingSystem.IsLinux() && _shell is not null:
-                RefreshMotionPreference(_shell.LinuxReduceMotion);
-                break;
             case nameof(ShellViewModel.IsNowPlayingOpen):
                 UpdateNowPlayingPresentation(animate: true);
                 break;

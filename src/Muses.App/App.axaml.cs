@@ -13,7 +13,6 @@ using Muses.Core.L10n;
 using Muses.Core.Playback;
 using Muses.Core.Podcasts;
 using Muses.Core.Preferences;
-using Muses.Core.Platform;
 using Muses.Infrastructure;
 using Muses.Core.Queue;
 using Muses.Infrastructure.Account;
@@ -22,7 +21,6 @@ using Muses.Infrastructure.Playback;
 using Muses.Infrastructure.Platform;
 using Muses.Infrastructure.YTDlp;
 using Muses.Persistence;
-using Muses.Platform.Linux.Media;
 using Muses.Platform.Windows;
 
 namespace Muses.App;
@@ -31,7 +29,6 @@ public partial class App : Application
 {
     private SqliteStore? _store;
     private ProcessStreamEngine? _engine;
-    private IGlobalHotkeys? _globalHotkeys;
     private ShellViewModel? _shell;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -44,9 +41,7 @@ public partial class App : Application
         {
             _store = SqliteStore.Open();
             var preferences = new SqlitePreferences(_store);
-            MotionChrome.Apply(this, OperatingSystem.IsLinux()
-                ? preferences.GetBool(PrefKey.LinuxReduceMotion, false)
-                : MotionChrome.DetectPreferReducedMotion());
+            MotionChrome.Apply(this);
             ApplyTheme(preferences);
             ApplyLanguage(preferences);
 
@@ -125,11 +120,9 @@ public partial class App : Application
 
             void Quit() => desktop.Shutdown();
 
-            IPlatformSMTC mediaControls = OperatingSystem.IsLinux()
-                ? new LinuxMprisService(playback, action => Dispatcher.UIThread.InvokeAsync(action).GetTask(), ShowMainWindow, Quit)
-                : new WindowsSMTCService(playback, dispatch: action => Dispatcher.UIThread.Post(action));
-            _globalHotkeys = WindowsGlobalHotkeys.Create();
-            var audioProbe = WindowsAudioOutputProbe.Create();
+            var mediaControls = new WindowsSMTCService(playback, dispatch: action => Dispatcher.UIThread.Post(action));
+            var globalHotkeys = new WindowsGlobalHotkeys();
+            var audioProbe = new WindowsAudioOutputProbe();
             var tray = new WindowsTrayController(playback, preferences, ShowMainWindow, Quit);
 
             var shell = new ShellViewModel
@@ -141,7 +134,7 @@ public partial class App : Application
             shell.Attach(
                 playback, library, ytdlp, playlistService, youtubeImportService, catalog,
                 situational, search, lyrics, history, eq, focus, notes, inbox, automation,
-                preferences, account, mediaControls, tray, webHome, _engine, _globalHotkeys, audioProbe);
+                preferences, account, mediaControls, tray, webHome, _engine, globalHotkeys, audioProbe);
             _shell = shell;
             shell.RequestAppExit += Quit;
 
@@ -152,8 +145,7 @@ public partial class App : Application
             async void RestorePlaybackOnOpen(object? sender, EventArgs e)
             {
                 main.Opened -= RestorePlaybackOnOpen;
-                if (mediaControls is WindowsSMTCService smtc)
-                    smtc.Start(main.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
+                mediaControls.Start(main.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
                 if (packagePlaybackSmoke is not null)
                     desktop.Shutdown(await packagePlaybackSmoke.RunAsync(playback, library));
                 else
@@ -208,8 +200,8 @@ public partial class App : Application
                 queue.Persist();
                 trayHost.AvailabilityChanged -= RestoreIfTrayDisappears;
                 trayHost.Dispose();
-                (mediaControls as IDisposable)?.Dispose();
-                _globalHotkeys?.Dispose();
+                mediaControls.Dispose();
+                globalHotkeys.Dispose();
                 _engine.Dispose();
                 ytdlpRunner.Dispose();
                 var reset = _shell?.ResetOnExit == true;
@@ -217,9 +209,6 @@ public partial class App : Application
                 if (reset)
                     LocalDataMaintenance.ResetDataFiles();
             };
-
-            if (mediaControls is LinuxMprisService mpris)
-                _ = mpris.StartAsync();
         }
 
         base.OnFrameworkInitializationCompleted();

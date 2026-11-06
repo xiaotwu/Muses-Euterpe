@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,7 +9,7 @@ namespace Muses.App.Theme;
 /// Keeps App.axaml <c>MusesMotion*</c> TimeSpan resources in sync with
 /// <see cref="MusesMotion"/> and zeros them when reduced motion is enabled.
 /// Avalonia <see cref="Avalonia.Platform.IPlatformSettings"/> does not expose
-/// PrefersReducedMotion, so we read platform accessibility settings directly.
+/// PrefersReducedMotion, so we read the Windows accessibility setting directly.
 /// </summary>
 public static class MotionChrome
 {
@@ -48,14 +47,17 @@ public static class MotionChrome
     /// <summary>
     /// Initialize the motion resources before the main window is created.
     /// </summary>
-    public static void Apply(Application app, bool reduced)
+    public static void Apply(Application app) => Apply(app, DetectPreferReducedMotion());
+
+    private static void Apply(Application app, bool reduced)
     {
         PreferReducedMotion = reduced;
         SyncResources(app.Resources);
     }
 
-    internal static bool Refresh(Application app, bool reduced)
+    internal static bool Refresh(Application app)
     {
+        var reduced = DetectPreferReducedMotion();
         if (PreferReducedMotion == reduced) return false;
         Apply(app, reduced);
         return true;
@@ -72,48 +74,7 @@ public static class MotionChrome
         res[CollectionCardActivationKey] = CollectionCardDuration;
     }
 
-    public static bool DetectPreferReducedMotion()
-    {
-        if (OperatingSystem.IsMacOS())
-            return DetectMacOSReduceMotion();
-        if (OperatingSystem.IsWindows())
-            return DetectWindowsReduceMotion();
-        return false;
-    }
-
-    private static bool DetectMacOSReduceMotion()
-    {
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "/usr/bin/defaults",
-                ArgumentList = { "read", "com.apple.universalaccess", "reduceMotion" },
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            using var process = Process.Start(psi);
-            if (process is null)
-                return false;
-
-            var output = process.StandardOutput.ReadToEnd().Trim();
-            if (!process.WaitForExit(1500))
-            {
-                try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
-                return false;
-            }
-
-            return output is "1" or "true" or "TRUE";
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static bool DetectWindowsReduceMotion()
+    private static bool DetectPreferReducedMotion()
     {
         try
         {

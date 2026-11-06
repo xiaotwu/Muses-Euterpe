@@ -1,12 +1,11 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using Muses.Core.Platform;
-using Muses.Platform.Linux.Credentials;
 
 namespace Muses.Infrastructure.Platform;
 
 /// <summary>
-/// Windows Credential Manager adapter and platform credential store factory.
+/// Windows Credential Manager adapter.
 /// </summary>
 public sealed class PlatformCredentialStore : ICredentialStore
 {
@@ -16,15 +15,7 @@ public sealed class PlatformCredentialStore : ICredentialStore
 
     internal PlatformCredentialStore(string? legacyRoot = null) => _legacy = new LegacyCredentialFiles(legacyRoot);
 
-    public static ICredentialStore CreateDefault()
-    {
-        if (OperatingSystem.IsWindows())
-            return new PlatformCredentialStore();
-        if (OperatingSystem.IsLinux())
-            return new SecretServiceCredentialStore(LegacyCredentialFiles.DefaultRoot());
-
-        return new MemoryCredentialStore();
-    }
+    public static ICredentialStore CreateDefault() => new PlatformCredentialStore();
 
     public byte[]? Get(string account)
     {
@@ -156,15 +147,10 @@ internal sealed class LegacyCredentialFiles
 
     internal LegacyCredentialFiles(string? root = null) => _root = root ?? DefaultRoot();
 
-    internal static string DefaultRoot()
+    private static string DefaultRoot()
     {
-        if (OperatingSystem.IsWindows())
-        {
-            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            return Path.Combine(local, "Muses", "credentials");
-        }
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(home, ".config", "muses", "credentials");
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(local, "Muses", "credentials");
     }
 
     private string PathFor(string account)

@@ -1,8 +1,8 @@
 # Muses desktop privacy
 
-Muses keeps your library, listening history, queue, bookmarks, notes, equalizer presets and preferences in a local SQLite database. The Windows data folder is `%APPDATA%\Muses`. Linux uses `$XDG_DATA_HOME/Muses` or `~/.local/share/Muses`. The data folder contains `muses-youtube-native.sqlite` and a `cache` subdirectory. On Linux, Muses copies an existing library from the previous XDG configuration directory when the new database is absent.
+Muses keeps your library, listening history, queue, bookmarks, notes, equalizer presets and preferences in a local SQLite database. The Windows data folder is `%APPDATA%\Muses`. It contains `muses-youtube-native.sqlite` and a `cache` subdirectory.
 
-Optional Google sign-in uses Windows Credential Manager or the Linux desktop's Secret Service. Older local credential files can be read for one-way migration. A development run with an explicit data directory uses credentials only for the current session.
+Optional Google sign-in uses Windows Credential Manager. Older local credential files can be read for one-way migration. A development run with an explicit data directory uses credentials only for the current session.
 
 The optional YouTube Music Home requires consent to use the named browser's session. A separate helper checks that the browser and Muses are signed in to the same YouTube channel before fetching recommendations. The helper keeps session cookies in its isolated workspace. Muses keeps the displayed account recommendations in memory and clears them on sign-out or consent removal.
 

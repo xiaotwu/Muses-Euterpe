@@ -8,8 +8,7 @@ public static class MediaToolPaths
         if (root.Name.Equals("Helpers", StringComparison.OrdinalIgnoreCase) && root.Parent is { } parent)
             root = parent;
 
-        var name = OperatingSystem.IsWindows() ? tool + ".exe" : tool;
-        var path = Path.Combine(root.FullName, "MediaTools", name);
+        var path = Path.Combine(root.FullName, "MediaTools", tool + ".exe");
         return File.Exists(path) ? path : null;
     }
 }

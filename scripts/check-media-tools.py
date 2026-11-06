@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def executable(name, override=None, beside=None):
-    filename = f"{name}.exe" if os.name == "nt" else name
+    filename = f"{name}.exe"
     path = os.environ.get(override) if override else None
     if path:
         if not Path(path).is_absolute() or not Path(path).is_file():
@@ -49,7 +49,7 @@ def main():
     try:
         media_dir = args.media_dir.resolve() if args.media_dir is not None else None
         mpv_path = args.mpv
-        if mpv_path is None and media_dir is not None and os.name == "nt":
+        if mpv_path is None and media_dir is not None:
             mpv_path = media_dir / "mpv.exe"
         if mpv_path is not None and (not mpv_path.is_absolute() or not mpv_path.is_file()):
             raise RuntimeError("--mpv must be the absolute path of an executable.")
@@ -58,8 +58,7 @@ def main():
             yt_dlp = executable("yt-dlp", "MUSES_YTDLP_PATH")
             deno = executable("deno", "MUSES_DENO_PATH", beside=yt_dlp)
         else:
-            suffix = ".exe" if os.name == "nt" else ""
-            yt_dlp, deno = (str(media_dir / (name + suffix)) for name in ("yt-dlp", "deno"))
+            yt_dlp, deno = (str(media_dir / f"{name}.exe") for name in ("yt-dlp", "deno"))
         mpv_version = checked_version([mpv, "--no-config", "--version"]).split(maxsplit=2)[:2]
 
         with tempfile.TemporaryDirectory(prefix="muses-media-check-") as cache:
